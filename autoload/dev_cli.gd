@@ -5,6 +5,7 @@ extends Node
 ##
 ## Argumentos (tras "--"):
 ##   --host                 crea una sala online al arrancar (este PC es el host)
+##   --local                partida SIN red: un humano (teclado 1: WASD + Espacio) + --bots=N, empieza sola
 ##   --join=IP              se une a la sala de esa IP al arrancar
 ##   --name=Nombre          nombre del jugador de este PC
 ##   --bots=N               (host) añade N bots al lobby
@@ -58,7 +59,7 @@ func _ready() -> void:
 	GameManager.state_changed.connect(_on_state_changed)
 	Lobby.roster_changed.connect(func() -> void:
 		log_event("roster n=%d humans=%d" % [Lobby.players.size(), _human_count()]))
-	if _args.has("host") or _args.has("join"):
+	if _args.has("host") or _args.has("join") or _args.has("local"):
 		_bootstrap.call_deferred()
 
 func log_event(text: String) -> void:
@@ -78,6 +79,18 @@ func _bootstrap() -> void:
 			Lobby.add_bot()
 		_auto_players = int(_args.get("players", "0"))
 		GameManager.set_minigame_count(int(_args.get("games", str(GameManager.minigame_count))))
+	elif _args.has("local"):
+		# Partida SIN red: un humano en el teclado 1 (WASD + Espacio) y N bots.
+		var human := Lobby.add_player(PlayerData.DEVICE_KB1)
+		if human != null:
+			human.display_name = Lobby.profile_name
+		GameManager.go_to_lobby()
+		var bots := int(_args.get("bots", "3"))
+		for i in bots:
+			Lobby.add_bot()
+		_auto_players = 1 + bots
+		GameManager.set_minigame_count(int(_args.get("games", str(GameManager.minigame_count))))
+		log_event("local human + %d bots" % bots)
 	else:
 		var err := Lobby.join_room(str(_args["join"]))
 		log_event("join_room err=%s" % error_string(err))
