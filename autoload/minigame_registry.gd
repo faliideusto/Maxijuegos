@@ -36,9 +36,11 @@ func scan() -> void:
 		_all.append(meta)
 
 func get_all() -> Array[MinigameMeta]:
+	_ensure_scanned()
 	return _all
 
 func get_by_id(id: StringName) -> MinigameMeta:
+	_ensure_scanned()
 	for m in _all:
 		if m.id == id:
 			return m
@@ -46,6 +48,7 @@ func get_by_id(id: StringName) -> MinigameMeta:
 
 ## Minijuegos que admiten ese número de jugadores.
 func get_compatible(player_count: int) -> Array[MinigameMeta]:
+	_ensure_scanned()
 	var result: Array[MinigameMeta] = []
 	for m in _all:
 		if m.supports(player_count):
@@ -75,6 +78,12 @@ func pick_random(count: int, player_count: int, rng: RandomNumberGenerator = nul
 				break
 			result.append(m)
 	return result
+
+# Si el escaneo de arranque no encontró nada, se reintenta bajo demanda (en ciertos modos
+# de ejecución los recursos aún no están listos durante el _ready del autoload).
+func _ensure_scanned() -> void:
+	if _all.is_empty():
+		scan()
 
 # Fisher-Yates con el RNG dado (Array.shuffle() usa el RNG global).
 func _shuffle(arr: Array, rng: RandomNumberGenerator) -> void:

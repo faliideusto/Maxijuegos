@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MinigameMeta" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://core/minigame_meta.gd" id="1"]
+[ext_resource type="PackedScene" path="res://minigames/shrinking_platform/scene.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Plataforma menguante"
+description = "¡Que no te tiren!"
+instructions = "Muévete para no caerte: la plataforma se encoge cada vez más. Pulsa tu botón de acción para embestir y empujar a los demás. El último en pie gana."
+min_players = 2
+max_players = 8
+approx_duration = 40.0
+scene = ExtResource("2")
+accent_color = Color(0.18, 0.78, 0.85, 1)

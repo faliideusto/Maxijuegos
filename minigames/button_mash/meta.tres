@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MinigameMeta" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://core/minigame_meta.gd" id="1"]
+[ext_resource type="PackedScene" path="res://minigames/button_mash/scene.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "¡Machaca!"
+description = "El que más pulse, gana."
+instructions = "Pulsa tu botón de acción (Espacio / Enter / A) tan rápido como puedas durante 10 segundos. ¡Gana quien consiga más pulsaciones!"
+min_players = 2
+max_players = 8
+approx_duration = 15.0
+scene = ExtResource("2")
+accent_color = Color(1, 0.78, 0.12, 1)
