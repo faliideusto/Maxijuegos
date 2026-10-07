@@ -117,11 +117,20 @@ func report_results(ranking: Array[int]) -> void:
 	previous_scores.clear()
 	for p in Lobby.players:
 		previous_scores[p.id] = p.score
-	for rank in ranking.size():
-		var p := Lobby.get_player(ranking[rank])
+	# Un jugador desconectado (sustituido por un bot) NO puntúa: recibe 0 y no ocupa posición,
+	# así que no desplaza a los demás. Conserva los puntos que ya tenía.
+	var active_ranking: Array[int] = []
+	for id in ranking:
+		var p := Lobby.get_player(id)
 		if p == null:
 			continue
-		var pts := MatchRules.points_for_rank(rank, Lobby.players.size())
+		if p.disconnected:
+			last_points[p.id] = 0
+		else:
+			active_ranking.append(id)
+	for rank in active_ranking.size():
+		var p := Lobby.get_player(active_ranking[rank])
+		var pts := MatchRules.points_for_rank(rank, active_ranking.size())
 		p.score += pts
 		last_points[p.id] = pts
 	_go(State.SCOREBOARD)

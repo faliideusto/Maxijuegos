@@ -128,7 +128,7 @@ Principio: **ninguna caída puede bloquear la partida** y los minijuegos no nece
 | Momento | Quién | Qué ocurre |
 |---|---|---|
 | Lobby/Setup | cliente | El host lo detecta (≤6 s) y elimina su jugador; difunde el roster |
-| Partida en curso | cliente | Su jugador pasa a **bot** (`disconnected`, se muestra "(bot)"): en HOST_AUTH lo mueve la IA del minijuego; en LOCAL_PARALLEL el host calcula su resultado. La sesión deja de esperar su `ready`/resultado |
+| Partida en curso | cliente | Su jugador pasa a **bot** (`disconnected`, se muestra "(bot)"): en HOST_AUTH lo mueve la IA del minijuego; en LOCAL_PARALLEL el host calcula su resultado. La sesión deja de esperar su `ready`/resultado. **Desde ese momento no puntúa**: recibe 0 puntos por minijuego (conserva los que ya tenía), no ocupa posición en el reparto ni desplaza a los demás, y no puede ser el ganador final |
 | Cualquiera | host | Los clientes detectan la caída, salen al menú con aviso. No hay migración de host |
 | Cualquiera | uniones tardías | Rechazadas ("la partida ya ha empezado") |
 | Tras la partida | revancha/lobby | Los desconectados se descartan (`Lobby.prune_disconnected`) |

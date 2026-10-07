@@ -6,9 +6,16 @@ var _confetti: Confetti
 func _ready() -> void:
 	UIKit.setup_screen(self)
 	var standings := MatchRules.standings(Lobby.players)
-	var top_score: int = standings[0].score if not standings.is_empty() else 0
-	var winners: Array[PlayerData] = []
+	# Los jugadores desconectados salen en la clasificación pero no pueden ganar.
+	var contenders: Array[PlayerData] = []
 	for p in standings:
+		if not p.disconnected:
+			contenders.append(p)
+	if contenders.is_empty():
+		contenders = standings
+	var top_score: int = contenders[0].score if not contenders.is_empty() else 0
+	var winners: Array[PlayerData] = []
+	for p in contenders:
 		if p.score == top_score:
 			winners.append(p)
 

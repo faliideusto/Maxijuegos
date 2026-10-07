@@ -201,6 +201,25 @@ for n in "${SURVIVORS[@]}"; do
   LPBAD=$(grep "mg_session mode=LOCAL_PARALLEL" "$LOGS/$n.log" | grep -vc "snapshots_applied=0 ")
   [[ "$LPBAD" -eq 0 ]] && ok "$n: en LOCAL_PARALLEL no recibió ningún estado ajeno" || fail "$n: recibió estado ajeno en un minijuego LOCAL_PARALLEL"
 done
+# Un jugador caído NO puntúa: su puntuación no puede cambiar en ningún marcador posterior a la caída.
+case "$SCEN" in kill_in_game|kill_in_parallel)
+  DEAD_ID=$(grep -m1 "replaced_by_bot" "$LOGS/host.log" | sed 's/.*id=\([0-9]*\).*/\1/')
+  if [[ -n "$DEAD_ID" ]]; then
+    if awk -v id="$DEAD_ID" '
+        /replaced_by_bot/ { dead = 1; next }
+        /scoreboard scores=/ {
+          match($0, /scores=[^ ]*/); s = substr($0, RSTART + 7, RLENGTH - 7)
+          n = split(s, a, ","); v = 0
+          for (i = 1; i <= n; i++) { split(a[i], kv, ":"); if (kv[1] == id) v = kv[2] }
+          if (!dead) before = v; else if (v != before) bad = 1
+        }
+        END { exit bad }' "$LOGS/host.log"; then
+      ok "el jugador caído (id $DEAD_ID) no sumó puntos tras desconectarse"
+    else
+      fail "el jugador caído (id $DEAD_ID) siguió puntuando tras desconectarse"
+    fi
+  fi ;;
+esac
 # Errores de script en cualquier instancia.
 # En los escenarios con caídas el motor puede quejarse al enviar a un peer que se está
 # yendo ("Unable to send packet"): es ruido esperado de ENet, no un fallo del juego.
