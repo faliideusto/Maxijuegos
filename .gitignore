@@ -27,3 +27,6 @@ Thumbs.db
 
 # Steam (credenciales y appid de pruebas locales)
 steam_appid.txt
+
+# Logs de las pruebas online
+tests/logs/
