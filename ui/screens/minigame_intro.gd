@@ -23,6 +23,7 @@ func _ready() -> void:
 	title.add_theme_color_override("font_color", meta.accent_color)
 	box.add_child(title)
 	box.add_child(UIKit.label(meta.description, &"HeaderLabel"))
+	box.add_child(UIKit.label(meta.mode_hint(), &"HintLabel"))
 
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(760, 0)

@@ -39,6 +39,8 @@ var last_ranking: Array[int] = []
 var last_points: Dictionary = {}
 ## Puntuaciones antes de repartir los puntos del último minijuego (para animar el marcador).
 var previous_scores: Dictionary = {}
+## Solo desarrollo: id de un minijuego a forzar en todas las rondas ("" = normal).
+var forced_minigame_id: String = ""
 ## Último aviso para el usuario; el menú lo muestra y lo limpia (take_notice).
 var last_notice: String = ""
 
@@ -74,6 +76,13 @@ func start_match(rng: RandomNumberGenerator = null) -> void:
 	if not NetworkManager.is_host():
 		return
 	playlist = MinigameRegistry.pick_random(minigame_count, Lobby.players.size(), rng)
+	# Solo desarrollo (DevCli --only=<id>): fuerza un minijuego concreto en toda la partida.
+	if not forced_minigame_id.is_empty():
+		var forced := MinigameRegistry.get_by_id(StringName(forced_minigame_id))
+		if forced != null:
+			playlist.clear()
+			for i in minigame_count:
+				playlist.append(forced)
 	if playlist.is_empty():
 		_show_notice("No hay minijuegos disponibles para %d jugadores." % Lobby.players.size())
 		return
@@ -176,7 +185,8 @@ func _go(new_state: State) -> void:
 
 func _enter(new_state: State) -> void:
 	state = new_state
-	DevCli.log_event("state=%s index=%d" % [State.keys()[new_state], current_index])
+	var mg := current_minigame()
+	DevCli.log_event("state=%s index=%d mg=%s" % [State.keys()[new_state], current_index, String(mg.id) if mg != null else "-"])
 	state_changed.emit(new_state)
 	Transition.change_scene(SCREENS[new_state])
 

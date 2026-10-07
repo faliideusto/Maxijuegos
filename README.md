@@ -1,18 +1,34 @@
 # MaxiJuegos
 
-Party game multijugador (2-8 jugadores) de minijuegos, hecho en Godot 4 (GDScript). Título de trabajo.
+Party game multijugador (2-8 jugadores, un jugador por PC online) de minijuegos, hecho en Godot 4
+(GDScript). Título de trabajo.
 
 - Godot 4.7 (Compatibility renderer). Abrir la carpeta con el editor y pulsar ▶.
-- Controles: Teclado 1 = WASD + Espacio · Teclado 2 = Flechas + Enter · Mando = stick/cruceta + A.
-- Se pueden añadir **bots** en el lobby para probar solo.
+- **Online**: "JUGAR ONLINE" → uno crea la sala (host) y los demás se unen por IP (puerto 24680).
+  Controles: WASD o flechas + Espacio/Enter, o mando (stick + A).
+- **Modo local (pruebas)**: teclado 1 = WASD + Espacio · teclado 2 = flechas + Enter · mando; con bots.
+- Dos modelos de minijuego (`execution_mode` en su `meta.tres`): `HOST_AUTHORITATIVE` (arena compartida) y
+  `LOCAL_PARALLEL` (cada uno su prueba, el host recoge resultados). Ver [docs/network.md](docs/network.md).
+
+## Probar varias instancias a mano (Windows)
+
+```powershell
+.\tools\dev_multi.ps1 -Count 3                       # 3 ventanas (host + 2 clientes)
+.\tools\dev_multi.ps1 -Count 2 -Bots 6 -AutoStart    # 8 jugadores con 2 ventanas
+```
+
+Necesita la variable de entorno `GODOT` (o `-Godot <ruta>`).
 
 ## Pruebas (sin ventana)
 
 ```bash
 godot --headless --path . --import                                   # primera vez
-godot --headless --path . --script res://tests/smoke_test.gd -- 4 3  # 4 jugadores, 3 minijuegos
-godot --headless --path . --script res://tests/net_test.gd -- host   # y en otra terminal: -- client
+godot --headless --path . --script res://tests/smoke_test.gd -- 4 4  # partida local con bots
+godot --headless --path . --script res://tests/input_test.gd
+godot --headless --path . --script res://tests/parallel_local_test.gd -- --log
+GODOT=/ruta/godot tests/online_test.sh 4 4 0 normal                  # 4 instancias reales por red
+GODOT=/ruta/godot tests/run_matrix.sh                                # matriz completa (varios minutos)
 godot --headless --path . --script res://tools/build_theme.gd        # regenera ui/theme.tres
 ```
 
-Más información: [docs/architecture.md](docs/architecture.md) · [docs/style_guide.md](docs/style_guide.md).
+Documentación: [arquitectura](docs/architecture.md) · [red y modelos](docs/network.md) · [estilo](docs/style_guide.md).

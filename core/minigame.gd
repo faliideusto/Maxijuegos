@@ -1,50 +1,78 @@
 class_name Minigame
 extends Node
-## Clase base de todos los minijuegos.
+## Clase base de todos los minijuegos. Soporta DOS modelos de ejecución, que el minijuego
+## declara en su meta.tres (MinigameMeta.execution_mode). El autor NO escribe código de red.
 ##
-## MODELO (host autoritativo): el minijuego se instancia en TODOS los PC, pero solo el host
-## simula (is_authority). Los clientes únicamente dibujan el estado que reciben.
-## El autor de un minijuego NO escribe código de red: implementa estos métodos.
-##
-##   _on_prepare()            construye lo visual (antes de la cuenta atrás, en todos los PC)
-##   _on_start()              empieza el juego (todos los PC; inicializar variables)
+## ───────────────────────── HOST_AUTHORITATIVE ─────────────────────────
+## Todos comparten escenario. El minijuego se instancia en todos los PC, pero solo el host
+## simula (is_authority); los clientes dibujan el estado que reciben.
 ##   _simulate(delta)         lógica del juego. SOLO host. Lee la entrada con move_input() /
 ##                            action_presses() y termina con finish(ranking)
-##   _animate(delta)          animaciones/suavizado. Todos los PC, cada frame
-##   _serialize_state()       SOLO host: devuelve el estado a mostrar (Dictionary/Array/
-##                            Packed*Array con tipos simples; unos ~30 envíos por segundo)
-##   _apply_state(state)      clientes: recibe ese estado y lo copia a las variables a dibujar
-##   _on_event(name, data)    (opcional) eventos puntuales: el host los lanza con send_event()
-##                            y se ejecutan en todos los PC (sonidos, partículas, "+1"...)
+##   _serialize_state()       SOLO host: estado a mostrar (Dictionary/Array/Packed*Array)
+##   _apply_state(state)      clientes: copia ese estado a las variables a dibujar
+##   _on_event(name, data)    (opcional) eventos puntuales lanzados con send_event()
+##
+## ───────────────────────── LOCAL_PARALLEL ─────────────────────────────
+## Cada jugador juega la prueba en su PC, sin ver a los demás ni sincronizar frames.
+##   _play(delta)             lógica del jugador LOCAL (local_player), en cada PC. Usa `rng`
+##                            (misma semilla en todos) para que la prueba procedural sea igual
+##   report_result(score, tiebreak)  al terminar el jugador local. Por defecto gana la mayor
+##                            puntuación (para "menor tiempo" usar score = -tiempo)
+##   _bot_result(player, rng) resultado simulado de un bot/desconectado (el host lo calcula)
+##   _validate_result(...)    (opcional) plausibilidad del resultado que envía un cliente
+##   _rank_results(results)   (opcional) clasificación personalizada
+##
+## ───────────────────────── Común ──────────────────────────────────────
+##   _on_prepare()            construye lo visual (antes de la cuenta atrás, en todos los PC)
+##   _on_start()              empieza el juego (todos los PC)
+##   _animate(delta)          animaciones/suavizado, todos los PC, cada frame
 ##   _bot_move / _bot_action  (opcional) IA propia de los bots
 ##
-## Contrato de resultados: finish(ranking) con los ids de jugador del 1º al último, UNA vez
-## (solo host). El flujo de la partida, los puntos y la red no son asunto del minijuego.
-## Ver docs/network.md ("Cómo escribir un minijuego").
+## El flujo (cuenta atrás, resultados, puntos, siguiente minijuego) y la red no son asunto
+## del minijuego. Ver docs/network.md ("Cómo escribir un minijuego").
 
 ## (solo host) Ranking final: ids de jugador (PlayerData.id) del 1º al último.
 signal finished(results: Array[int])
-## (todos los PC) El juego terminó; sirve para mostrar el aviso de fin.
+## (todos los PC) El minijuego terminó para todos; sirve para mostrar el aviso de fin.
 signal ended
+## (LOCAL_PARALLEL) El jugador local terminó y envió su resultado.
+signal result_reported(score: float, tiebreak: float)
 
 var players: Array[PlayerData] = []
 ## Metadatos de este minijuego (los inyecta el runner).
 var meta: MinigameMeta
 var is_running: bool = false
-## true en el host (y en partidas locales): este PC simula. false en un cliente online.
+## Modelo de ejecución (lo fija el runner a partir de meta.execution_mode).
+var mode: MinigameMeta.ExecutionMode = MinigameMeta.ExecutionMode.HOST_AUTHORITATIVE
+## true en el host (y en partidas locales): este PC decide los resultados. Un cliente online: false.
+## (HOST_AUTHORITATIVE: además es quien simula.)
 var is_authority: bool = true
-## Frecuencia (Hz) de envío de snapshots a los clientes.
+## Frecuencia (Hz) de envío de snapshots a los clientes (HOST_AUTHORITATIVE).
 var snapshot_rate: float = 30.0
+## Semilla común de esta ejecución (la reparte el host) y generador determinista derivado.
+## Usar `rng` para todo lo procedural: así todos los jugadores obtienen la misma prueba.
+var seed_value: int = 0
+var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+## (LOCAL_PARALLEL) El jugador de este PC.
+var local_player: PlayerData = null
 
 ## Superficie de dibujo a pantalla completa (asignar draw_callback en _on_prepare).
 var surface: DrawSurface
 
 var _finished: bool = false
+var _reported: bool = false
 var _session: Node = null   # MinigameSession (null en partidas locales)
 
 # ----------------------------------------------------------------------------
 # API pública (la usan el runner y la sesión)
 # ----------------------------------------------------------------------------
+
+## Fija modo, semilla y jugador local. El runner lo llama antes de prepare().
+func configure(p_mode: MinigameMeta.ExecutionMode, p_seed: int, p_local_player: PlayerData) -> void:
+	mode = p_mode
+	seed_value = p_seed
+	rng.seed = p_seed
+	local_player = p_local_player
 
 func prepare(p_players: Array[PlayerData]) -> void:
 	players = p_players
@@ -56,6 +84,7 @@ func prepare(p_players: Array[PlayerData]) -> void:
 func start(p_players: Array[PlayerData]) -> void:
 	players = p_players
 	_finished = false
+	_reported = false
 	is_running = true
 	_on_start()
 
@@ -71,17 +100,43 @@ func apply_state(state: Variant) -> void:
 func deliver_event(event_name: String, data: Variant) -> void:
 	_on_event(event_name, data)
 
-## (cliente) El host avisó de que el juego terminó.
+## (cliente) El host avisó de que el minijuego terminó para todos.
 func remote_end() -> void:
 	if is_running or not _finished:
 		is_running = false
 		_finished = true
 		ended.emit()
 
+## Resultado simulado de un bot (determinista a partir de la semilla común).
+func bot_result(player: PlayerData) -> Dictionary:
+	var r := RandomNumberGenerator.new()
+	r.seed = hash([seed_value, player.id])
+	var res := _bot_result(player, r)
+	return {"score": float(res.get("score", 0.0)), "tiebreak": float(res.get("tiebreak", 0.0))}
+
+## ¿Es plausible el resultado enviado por un cliente? (anti-trampas básico, lo evalúa el host)
+func validate_result(score: float, tiebreak: float) -> bool:
+	return is_finite(score) and is_finite(tiebreak) and _validate_result(score, tiebreak)
+
+## Clasificación (ids del 1º al último) a partir de los resultados {id: {"score","tiebreak"}}.
+func rank_results(results: Dictionary) -> Array[int]:
+	return _rank_results(results)
+
+## Segundos tras los cuales el host da por no terminado a quien no envió resultado.
+func parallel_timeout() -> float:
+	if meta != null and meta.max_duration > 0.0:
+		return meta.max_duration
+	var approx := meta.approx_duration if meta != null else 30.0
+	return approx * 2.0 + 15.0
+
 func _process(delta: float) -> void:
 	delta = minf(delta, 0.05)
-	if is_authority and is_running:
-		_simulate(delta)
+	if is_running:
+		if mode == MinigameMeta.ExecutionMode.HOST_AUTHORITATIVE:
+			if is_authority:
+				_simulate(delta)
+		elif not _reported:
+			_play(delta)
 	_animate(delta)
 	if surface:
 		surface.queue_redraw()
@@ -96,7 +151,12 @@ func _on_prepare() -> void:
 func _on_start() -> void:
 	pass
 
+## HOST_AUTHORITATIVE, solo host.
 func _simulate(_delta: float) -> void:
+	pass
+
+## LOCAL_PARALLEL, en cada PC, mientras el jugador local no haya terminado.
+func _play(_delta: float) -> void:
 	pass
 
 func _animate(_delta: float) -> void:
@@ -119,19 +179,37 @@ func _bot_move(player: PlayerData) -> Vector2:
 func _bot_action(player: PlayerData) -> int:
 	return InputManager.action_presses(player.id)
 
+## LOCAL_PARALLEL: resultado simulado de un bot. `r` es un generador propio de ese bot.
+## Devolver {"score": float, "tiebreak": float}. Por defecto, al azar.
+func _bot_result(_player: PlayerData, r: RandomNumberGenerator) -> Dictionary:
+	return {"score": r.randf(), "tiebreak": 0.0}
+
+## LOCAL_PARALLEL: filtro de plausibilidad de un resultado recibido de un cliente.
+func _validate_result(_score: float, _tiebreak: float) -> bool:
+	return true
+
+## LOCAL_PARALLEL: orden por defecto = mayor puntuación primero; desempate por menor `tiebreak`.
+func _rank_results(results: Dictionary) -> Array[int]:
+	var scores := {}
+	var ties := {}
+	for id in results:
+		scores[id] = results[id].get("score", ParallelResults.DNF_SCORE)
+		ties[id] = results[id].get("tiebreak", 0.0)
+	return rank_by_score(scores, ties)
+
 # ----------------------------------------------------------------------------
 # Utilidades para los minijuegos
 # ----------------------------------------------------------------------------
 
 ## Vector de movimiento del jugador (humano local, remoto o bot), longitud <= 1.
 func move_input(player: PlayerData) -> Vector2:
-	if player.is_bot:
+	if InputManager.is_simulated(player.id):
 		return _bot_move(player).limit_length(1.0)
 	return InputManager.get_vector(player.id)
 
 ## Nº de pulsaciones de acción del jugador en este frame.
 func action_presses(player: PlayerData) -> int:
-	if player.is_bot:
+	if InputManager.is_simulated(player.id):
 		return _bot_action(player)
 	return InputManager.action_presses(player.id)
 
@@ -139,15 +217,25 @@ func action_presses(player: PlayerData) -> int:
 func action_just_pressed(player: PlayerData) -> bool:
 	return action_presses(player) > 0
 
-## (host) Lanza un evento puntual: se ejecuta _on_event aquí y en todos los clientes.
+## (HOST_AUTHORITATIVE, host) Lanza un evento puntual: se ejecuta _on_event aquí y en todos los
+## clientes.
 func send_event(event_name: String, data: Variant = null) -> void:
 	_on_event(event_name, data)
 	if _session != null and is_authority:
 		_session.send_event(event_name, data)
 
-## true si el jugador es el de ESTE PC en una partida online (para marcarlo en pantalla).
+## (LOCAL_PARALLEL) El jugador local terminó. Solo cuenta la primera llamada. El runner/la
+## sesión se encargan de hacérselo llegar al host.
+func report_result(score: float, tiebreak: float = 0.0) -> void:
+	if _reported or mode != MinigameMeta.ExecutionMode.LOCAL_PARALLEL:
+		return
+	_reported = true
+	DevCli.log_event("report_result score=%s" % score)
+	result_reported.emit(score, tiebreak)
+
+## true si el jugador es el de ESTE PC (para marcarlo en pantalla).
 func is_local_player(player: PlayerData) -> bool:
-	return player.device == PlayerData.DEVICE_LOCAL
+	return player == local_player or player.device == PlayerData.DEVICE_LOCAL
 
 ## Marca "tú" sobre el jugador local (triángulo sobre su avatar).
 func draw_local_marker(center: Vector2, radius: float) -> void:
@@ -157,8 +245,8 @@ func draw_local_marker(center: Vector2, radius: float) -> void:
 	surface.draw_colored_polygon(PackedVector2Array([tip, tip + Vector2(-9, -14), tip + Vector2(9, -14)]),
 			Palette.WHITE)
 
-## Termina el minijuego (solo host). `ranking` = ids del mejor al peor. Los jugadores que
-## falten se añaden al final, así que nunca se pierde a nadie. Solo cuenta la primera llamada.
+## Termina el minijuego para todos (solo host / partida local). `ranking` = ids del mejor al
+## peor. Los jugadores que falten se añaden al final. Solo cuenta la primera llamada.
 func finish(ranking: Array[int]) -> void:
 	if _finished or not is_authority:
 		return

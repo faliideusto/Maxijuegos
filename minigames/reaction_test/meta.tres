@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="MinigameMeta" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://core/minigame_meta.gd" id="1"]
+[ext_resource type="PackedScene" path="res://minigames/reaction_test/scene.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Reflejos"
+description = "Cada uno en su pantalla. ¿Quién es más rápido?"
+instructions = "Espera a que la pantalla se ponga verde y pulsa tu botón de acción lo más rápido que puedas. Si pulsas antes de tiempo, sumas 0,5 s. Son 5 rondas y gana quien acumule menos tiempo. No verás a los demás: todos juegan la misma prueba a la vez."
+min_players = 2
+max_players = 8
+approx_duration = 20.0
+scene = ExtResource("2")
+accent_color = Color(0.18, 0.82, 0.64, 1)
+execution_mode = 1
+max_duration = 60.0

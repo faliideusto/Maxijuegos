@@ -41,7 +41,15 @@ launch() {  # launch <nombre> <args...>
 
 alive() { kill -0 "${PIDS[$1]}" 2>/dev/null; }
 
-kill_instance() { kill -9 "${PIDS[$1]}" 2>/dev/null; }
+# Mata el proceso Y sus hijos (el ejecutable "console" de Godot lanza otro proceso: matar solo
+# el envoltorio dejaría el juego real huérfano ocupando el puerto).
+kill_tree() {
+  local w
+  w=$(cat "/proc/$1/winpid" 2>/dev/null) || w=$1
+  taskkill //F //T //PID "$w" >/dev/null 2>&1
+  kill -9 "$1" 2>/dev/null
+}
+kill_instance() { kill_tree "${PIDS[$1]}"; }
 
 # Espera (con tiempo máximo) a que aparezca un texto en el log de una instancia.
 wait_for_log() {  # wait_for_log <nombre> <regex> <segundos>
@@ -65,11 +73,11 @@ wait_exit() {  # wait_exit <nombres...>
   return 1
 }
 
-cleanup() { for n in "${!PIDS[@]}"; do kill -9 "${PIDS[$n]}" 2>/dev/null; done; }
+cleanup() { for n in "${!PIDS[@]}"; do kill_tree "${PIDS[$n]}"; done; }
 trap cleanup EXIT
 
 launch_host() {
-  launch host --host --name=Host --players="$TOTAL" --games="$GAMES" --bots="$BOTS" --quit-at-end
+  launch host --host --name=Host --players="$TOTAL" --games="$GAMES" --bots="$BOTS" --quit-at-end ${ONLY:+--only=$ONLY}
 }
 launch_client() {  # launch_client <i>
   launch "c$1" --join=127.0.0.1 --name="Cli$1" --quit-at-end
@@ -77,6 +85,11 @@ launch_client() {  # launch_client <i>
 launch_clients() {
   for ((i = 2; i <= HUMANS; i++)); do launch_client "$i"; sleep 0.4; done
 }
+
+# Comprobación previa: si el puerto está ocupado, un proceso huérfano contaminaría la prueba.
+if netstat -ano -p UDP 2>/dev/null | grep -q ":24680 "; then
+  echo "ERROR: el puerto UDP 24680 está ocupado (¿instancias de Godot huérfanas de otra ejecución?)"; exit 3
+fi
 
 echo "== Online: $HUMANS humanos + $BOTS bots, $GAMES minijuegos, escenario '$SCEN' (x$TS) =="
 launch_host
@@ -99,10 +112,11 @@ case "$SCEN" in
     launch_clients
     wait_exit "${SURVIVORS[@]}" || fail "timeout esperando el final de la partida"
     ;;
-  kill_in_game)
+  kill_in_game|kill_in_parallel)
     (( HUMANS >= 2 )) || { echo "kill_in_game necesita >= 2 humanos"; exit 2; }
     launch_clients
-    wait_for_log host 'state=PLAYING' 90 || fail "la partida no llegó a PLAYING"
+    PLAYING_RE='state=PLAYING'; [[ "$SCEN" == kill_in_parallel ]] && PLAYING_RE='state=PLAYING index=[0-9]+ mg=reaction_test'
+    wait_for_log host "$PLAYING_RE" 120 || fail "la partida no llegó al minijuego esperado"
     sleep 4
     kill_instance c2
     SURVIVORS=(host "${CLIENTS[@]:1}")
@@ -145,12 +159,31 @@ else
   ok "el host llegó a la pantalla final: $FINAL_HOST"
   P=$(grep -c "state=PLAYING" "$LOGS/host.log")
   [[ "$P" -eq "$GAMES" ]] && ok "el host jugó $GAMES minijuegos" || fail "el host jugó $P minijuegos (esperados $GAMES)"
-  # El host debió simular y recibir entrada de los clientes en cada minijuego.
-  if (( HUMANS >= 2 )); then
-    BAD=$(grep "mg_session" "$LOGS/host.log" | grep -c "snapshots_sent=0 ")
-    [[ "$BAD" -eq 0 ]] && ok "el host envió snapshots en todos los minijuegos" || fail "algún minijuego no envió snapshots"
-    NOIN=$(grep "mg_session" "$LOGS/host.log" | grep -c "inputs_applied=0$")
-    [[ "$NOIN" -eq 0 ]] && ok "el host recibió entrada de clientes en todos los minijuegos" || fail "algún minijuego no recibió entrada de clientes"
+  # HOST_AUTHORITATIVE: el host debió simular y recibir entrada de los clientes en cada minijuego.
+  HA_HOST=$(grep "mg_session mode=HOST_AUTHORITATIVE" "$LOGS/host.log")
+  HA_N=$(echo -n "$HA_HOST" | grep -c "mg_session")
+  if (( HUMANS >= 2 && HA_N > 0 )); then
+    BAD=$(echo "$HA_HOST" | grep -c "snapshots_sent=0 ")
+    [[ "$BAD" -eq 0 ]] && ok "[HOST_AUTH] el host envió snapshots en los $HA_N minijuegos de ese modelo" || fail "algún minijuego HOST_AUTH no envió snapshots"
+    NOIN=$(echo "$HA_HOST" | grep -c "inputs_applied=0 ")
+    if [[ "$SCEN" == kill_in_game && "$HUMANS" -le 2 ]]; then
+      # Con 2 humanos, tras caer el único cliente ya no queda a quién escuchar: basta con el primero.
+      (( NOIN < HA_N )) && ok "[HOST_AUTH] el host recibió entrada del cliente mientras estuvo conectado" || fail "el host no recibió entrada del cliente"
+    else
+      [[ "$NOIN" -eq 0 ]] && ok "[HOST_AUTH] el host recibió entrada de clientes en todos los minijuegos" || fail "algún minijuego HOST_AUTH no recibió entrada de clientes"
+    fi
+  fi
+  # LOCAL_PARALLEL: el host debe haber recogido el resultado de TODOS los jugadores, sin "no terminados".
+  LP_HOST=$(grep "mg_session mode=LOCAL_PARALLEL" "$LOGS/host.log")
+  LP_N=$(echo -n "$LP_HOST" | grep -c "mg_session")
+  if (( LP_N > 0 )); then
+    LP_OK=$(echo "$LP_HOST" | grep -c "results=$TOTAL dnf=0$")
+    [[ "$LP_OK" -eq "$LP_N" ]] && ok "[LOCAL_PARALLEL] el host recogió $TOTAL resultados (sin DNF) en los $LP_N minijuegos de ese modelo" || fail "[LOCAL_PARALLEL] resultados incompletos o DNF: $(echo "$LP_HOST" | tr '\n' '|')"
+  fi
+  # Cobertura: con 4 minijuegos salen los dos modelos.
+  if (( GAMES >= 4 )); then
+    grep -q "mg=reaction_test" "$LOGS/host.log" && ok "se jugó el minijuego LOCAL_PARALLEL (reaction_test)" || fail "no salió reaction_test"
+    grep -q "mg=shrinking_platform" "$LOGS/host.log" && ok "se jugó un minijuego HOST_AUTHORITATIVE" || fail "no salió shrinking_platform"
   fi
 fi
 for n in "${SURVIVORS[@]}"; do
@@ -161,9 +194,12 @@ for n in "${SURVIVORS[@]}"; do
     continue
   fi
   [[ "$F" == "$FINAL_HOST" ]] && ok "$n: clasificación final idéntica a la del host" || fail "$n: clasificación distinta ($F vs $FINAL_HOST)"
-  BADC=$(grep "mg_session" "$LOGS/$n.log" | grep -c "snapshots_applied=0 ")
   CNT=$(grep -c "mg_session" "$LOGS/$n.log")
-  [[ "$BADC" -eq 0 && "$CNT" -ge "$GAMES" ]] && ok "$n: recibió snapshots en los $GAMES minijuegos" || fail "$n: snapshots insuficientes ($CNT sesiones, $BADC sin snapshots)"
+  BADC=$(grep "mg_session mode=HOST_AUTHORITATIVE" "$LOGS/$n.log" | grep -c "snapshots_applied=0 ")
+  [[ "$BADC" -eq 0 && "$CNT" -ge "$GAMES" ]] && ok "$n: $CNT sesiones de minijuego; snapshots recibidos en todas las HOST_AUTH" || fail "$n: sesiones insuficientes o sin snapshots ($CNT sesiones, $BADC HOST_AUTH sin snapshots)"
+  # En LOCAL_PARALLEL el cliente NO debe recibir estado de los demás (no se ven durante la prueba).
+  LPBAD=$(grep "mg_session mode=LOCAL_PARALLEL" "$LOGS/$n.log" | grep -vc "snapshots_applied=0 ")
+  [[ "$LPBAD" -eq 0 ]] && ok "$n: en LOCAL_PARALLEL no recibió ningún estado ajeno" || fail "$n: recibió estado ajeno en un minijuego LOCAL_PARALLEL"
 done
 # Errores de script en cualquier instancia.
 # En los escenarios con caídas el motor puede quejarse al enviar a un peer que se está

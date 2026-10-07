@@ -10,10 +10,12 @@ extends Node
 ##   --bots=N               (host) añade N bots al lobby
 ##   --players=N            (host) empieza la partida sola cuando haya N jugadores (humanos + bots)
 ##   --games=N              (host) nº de minijuegos de la partida automática
+##   --only=<id>            (host) fuerza ese minijuego en todas las rondas (p. ej. reaction_test)
 ##   --autopilot            los jugadores locales de este PC se controlan solos (pruebas desatendidas)
 ##   --timescale=X          acelera el juego (solo para pruebas)
 ##   --log                  escribe eventos "[EVT] ..." por stdout (los leen los tests)
 ##   --quit-at-end          cierra el juego al llegar a la pantalla final
+##   --shot=ruta.png:seg    guarda una captura de la ventana pasados `seg` segundos
 ##
 ## Varias instancias a mano: tools/dev_multi.ps1 (ventanas) o tests/online_test.sh (headless).
 
@@ -39,10 +41,20 @@ func _ready() -> void:
 		Engine.max_fps = 60   # varias instancias headless no deben acaparar la CPU
 	if _args.has("timescale"):
 		Engine.time_scale = float(_args["timescale"])
+	if _args.has("only"):
+		GameManager.forced_minigame_id = str(_args["only"])
 	if _args.has("autopilot"):
 		InputManager.autopilot = true
 	if _args.has("name"):
 		Lobby.profile_name = str(_args["name"])
+	if _args.has("shot"):
+		# --shot=ruta.png:segundos → guarda una captura de la ventana pasado ese tiempo.
+		var parts := str(_args["shot"]).rsplit(":", true, 1)
+		var path := parts[0]
+		var secs := float(parts[1]) if parts.size() > 1 else 10.0
+		get_tree().create_timer(secs, true, false, true).timeout.connect(func() -> void:
+			get_viewport().get_texture().get_image().save_png(path)
+			log_event("screenshot saved %s" % path))
 	GameManager.state_changed.connect(_on_state_changed)
 	Lobby.roster_changed.connect(func() -> void:
 		log_event("roster n=%d humans=%d" % [Lobby.players.size(), _human_count()]))

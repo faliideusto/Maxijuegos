@@ -102,6 +102,11 @@ func flush_remote_presses() -> void:
 # Lectura de entrada
 # ----------------------------------------------------------------------------
 
+## true si la entrada de ese jugador la simula el juego (bot o autopiloto de pruebas).
+## Los minijuegos usan su IA propia (_bot_move/_bot_action) para estos jugadores.
+func is_simulated(player_id: int) -> bool:
+	return _bots.has(player_id)
+
 func get_vector(player_id: int) -> Vector2:
 	if _bots.has(player_id):
 		return (_bots[player_id] as BotState).dir
