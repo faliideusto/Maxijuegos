@@ -238,23 +238,32 @@ Además: `smoke_test` (5 jugadores, 4 minijuegos), `input_test` y `parallel_loca
 
 ## 15. Salto Neón (`cube_dash`, LOCAL_PARALLEL)
 
-Segundo minijuego LOCAL_PARALLEL: un cubo corre solo por un nivel larguísimo y el jugador solo salta.
-Un único intento; gana quien llega **más lejos** (resultado = distancia; el resto, por distancia).
+Segundo minijuego LOCAL_PARALLEL: un cubo corre solo por un nivel larguísimo y el jugador solo salta
+(**siempre a la misma altura**). Un único intento; gana quien llega **más lejos**.
 
-- **Nivel procedural determinista**: `_level_rng` sembrado con la semilla común (`seed_value`) y generado
-  de forma perezosa; todos los PC obtienen el mismo nivel aunque lo generen a distinto ritmo (test).
-- **Dificultad creciente y siempre superable**: la velocidad sube de 9 a 14,5 bloques/s en los primeros
-  500 bloques y el margen de descanso entre saltos baja de ~0,6 s a 0,12 s; antes aparecen pinchos dobles/
-  triples, huecos y bloques. Cada obstáculo se coloca con la física (un salto dura 0,52 s y recorre
-  `velocidad × 0,52` bloques; el obstáculo se centra en el vértice del salto), de modo que existe siempre
-  una solución con ventana de decenas/centenas de ms.
-- **Verificación**: `tests/cube_level_test.gd` — determinismo, y un bot que sigue la solución de referencia
-  (`_jumps`, que declara el generador) sobrevive los 100 s en 25 semillas (≈1316 bloques); controles
-  negativos (sin saltar / saltos 6 bloques tarde o pronto) mueren en el primer obstáculo.
+- **Un solo nivel, diseñado a mano**, idéntico en todas las partidas y PC (no depende de la semilla). Se
+  escribe como una lista de piezas en `_level_script()` (pinchos `S1–S3`, bloques `B1–B2`, huecos `G2–G4`,
+  tramos de plataformas `R:` con escaleras, saltos entre plataformas y pinchos sobre ellas) y el código las
+  coloca con la física real. ~2300 bloques: inalcanzable en los 100 s del tiempo límite.
+- **La dificultad es el timing.** Pinchos de techo ("puertas") que obligan a saltar **antes o después** del
+  momento natural: un techo sobre la subida castiga saltar pronto; uno sobre la bajada, saltar tarde. El
+  salto de referencia se desplaza (`b+`/`b-`) al borde de la ventana en la que el obstáculo se puede saltar,
+  descontando el margen humano de la zona, y ese margen **se estrecha con la distancia** (±0,12 s → ±0,045 s):
+  cada vez hay que medir mejor. La velocidad sube de 10 a 19 bloques/s y el descanso entre saltos baja de
+  0,45 s a 0,09 s. Las puertas son cadenas de celdas estrechas (`a`, `d`) cuya altura se calcula con la
+  trayectoria de referencia ± margen, así que **siempre hay solución**.
+- **Verificación (`tests/cube_level_test.gd`)**: el nivel es siempre el mismo; contiene todos los tipos de
+  pieza; un bot que sigue la solución de referencia recorre **todo el nivel** con el margen humano de cada
+  zona (sin error, tarde y pronto); controles negativos (sin saltar / saltos 6 bloques tarde o pronto / ±0,25 s
+  de error) mueren; el control clave: **si el bot salta "centrado" ignorando el sesgo, choca con un techo**, y
+  todas las puertas cuyo sesgo supera el margen humano bloquean realmente el salto natural. Si una pieza falla,
+  el test indica cuál (texto del guion, posición y objetos cercanos).
 - **Resultado y red**: `report_result(distancia)` al chocar o al llegar a 100 s; `_validate_result` rechaza
-  distancias imposibles (> velocidad máxima × tiempo límite); bots/desconectados: distancia simulada
-  (40–420 bloques) calculada por el host con la semilla.
-- **Estética**: inspirada en los "runners" de ritmo con neón (degradado que cambia de color con la
-  distancia, suelo con línea brillante, bloques oscuros con borde luminoso, cubo con cara, partículas),
-  dibujada por código con formas propias; no se usa ningún asset de terceros.
-- Limitación: no se ha probado a mano con jugadores humanos; la dificultad subjetiva está por afinar.
+  distancias imposibles (> velocidad máxima × tiempo límite); bots/desconectados: distancia simulada (60–520
+  bloques) calculada por el host con la semilla.
+- **Estética**: inspirada en los "runners" de ritmo con neón (degradado que cambia de color con la distancia,
+  suelo con línea brillante, bloques oscuros con borde luminoso, cubo con cara, partículas), dibujada por código
+  con formas propias; no se usa ningún asset de terceros.
+- Limitaciones: la dificultad subjetiva depende de personas reales (no probada con humanos a este nivel de
+  exigencia); la solución de referencia es "perfecta", los humanos tendrán menos margen del garantizado si su
+  latencia de entrada es alta.

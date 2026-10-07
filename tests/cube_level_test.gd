@@ -11,7 +11,8 @@ extends SceneTree
 const SCRIPT_PATH := "res://minigames/cube_dash/cube_dash.gd"
 ## Longitud mínima del nivel: inalcanzable en el tiempo límite (100 s).
 const MIN_LEVEL := 2300.0
-const TOLERANCES: Array[float] = [0.0, 0.07, -0.07]
+## Signo del margen humano de cada zona (tol_at): 0 = salto exacto, +1 = tarde, -1 = pronto.
+const TOL_SIGNS: Array[int] = [0, 1, -1]
 
 var _began: bool = false
 
@@ -44,16 +45,16 @@ func _process(_delta: float) -> bool:
 		_check(tags.has(needed), "el nivel contiene '%s'" % needed, failures)
 
 	# Superabilidad: todo el nivel, con y sin error de tiempo.
-	for tol in TOLERANCES:
+	for sign in TOL_SIGNS:
 		var mg = _new_level()
-		mg.debug_tol = tol
+		mg.debug_tol_sign = sign
 		var t0 := Time.get_ticks_msec()
 		var res: Dictionary = mg.debug_bot_run()
 		var secs := (Time.get_ticks_msec() - t0) / 1000.0
 		if not res["alive"]:
 			print("      " + str(res["info"]))
-		_check(res["alive"], "el bot recorre TODO el nivel con error %+.2f s (%.0f/%.0f bloques%s, %.1f s de CPU)" % [
-				tol, res["distance"], res["end"], "" if res["alive"] else "; muere en %s" % res["piece"], secs], failures)
+		_check(res["alive"], "el bot recorre TODO el nivel con el margen humano de cada zona (%+d: %.0f/%.0f bloques%s, %.1f s de CPU)" % [
+				sign, res["distance"], res["end"], "" if res["alive"] else "; muere en %s" % res["piece"], secs], failures)
 		mg.free()
 
 	# Controles negativos.
@@ -66,6 +67,18 @@ func _process(_delta: float) -> bool:
 		wrong.debug_jump_offset = off
 		var r2: Dictionary = wrong.debug_bot_run()
 		_check(not r2["alive"], "control: saltos desplazados %+.0f bloques → muere (%.0f bloques)" % [off, r2["distance"]], failures)
+	# CONTROL CLAVE: los techos obligan a saltar antes o después. Si el bot ignora el sesgo y salta
+	# "centrado" (el momento natural), tiene que chocar con un techo en alguna pieza con sesgo.
+	var centered = _new_level()
+	centered.debug_ignore_bias = true
+	var r4: Dictionary = centered.debug_bot_run()
+	_check(not r4["alive"], "control: saltar 'centrado' ignorando el sesgo CHOCA con un techo (muere en %.0f bloques, %s)" % [r4["distance"], r4["piece"]], failures)
+	print("      " + str(r4["info"]).replace("\n", "\n      "))
+	# Cuántas piezas con techo y sesgo hay, y que el sesgo no es decorativo: con el sesgo se pasan todas.
+	var level_text = a.debug_pieces_with_bias()
+	var weak: Array = a.debug_ineffective_gates()
+	_check(weak.is_empty(), "todas las puertas obligan a saltar pronto o tarde (ineficaces: %s)" % [weak], failures)
+	_check(level_text >= 20, "hay %d piezas con sesgo de timing" % level_text, failures)
 	# Un error de ±0,25 s ya debe ser demasiado en algún punto (el nivel no es trivial).
 	var sloppy = _new_level()
 	sloppy.debug_tol = 0.25

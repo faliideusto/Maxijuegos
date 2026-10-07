@@ -9,11 +9,20 @@ extends Minigame
 ## mejor. No hay nada de red aquí.
 ##
 ## El nivel se escribe como una lista de piezas ("S2", "G3", "R:up.hop1.end"...) y el código las
-## coloca con la física real (un salto dura T_AIR s y recorre velocidad × T_AIR bloques; cada
-## obstáculo se centra en el vértice del salto; el "descanso" entre saltos se fija por sección).
-## Cada pieza declara los saltos de la solución de referencia. SIEMPRE PASABLE: tests/cube_level_test.gd
-## corre un bot por todo el nivel, también con ±0,07 s de error en cada salto (más margen en las piezas
-## estrechas y a más velocidad), y señala la pieza concreta que falle.
+## coloca con la física real (un salto SIEMPRE de la misma altura: dura T_AIR s y recorre velocidad ×
+## T_AIR bloques; cada obstáculo se centra en el vértice del salto; el "descanso" entre saltos se fija
+## por sección).
+##
+## DIFICULTAD = TIMING. Los pinchos de techo ("puertas") obligan a saltar ANTES o DESPUÉS del momento
+## natural (justo antes del obstáculo): un techo sobre la subida del salto castiga saltar pronto y uno
+## sobre la bajada castiga saltar tarde. La altura de cada punta se calcula con la trayectoria del cubo
+## de referencia ± el margen humano de la zona, y ese margen se estrecha con la distancia (de ±0,12 s a
+## ±0,045 s), así que cada vez hay que "medir" mejor cuándo saltar. El sesgo se pega al borde de la
+## ventana en la que el obstáculo se puede saltar, descontando ese margen.
+##
+## SIEMPRE PASABLE: cada pieza declara los saltos de la solución de referencia y tests/cube_level_test.gd
+## corre un bot por TODO el nivel con el margen humano exacto de cada zona (± en cada salto), comprueba
+## que el salto "natural" choca allí donde el sesgo supera el margen y señala la pieza concreta que falle.
 ##
 ## Estética: inspirada en los "runners" de ritmo con neón (fondo degradado que cambia de color, suelo
 ## con línea brillante, bloques oscuros con borde luminoso, cubo con cara). Todo se dibuja por código
@@ -24,10 +33,10 @@ const BLOCK := 48.0               # píxeles por bloque
 const GROUND_Y := 570.0           # y (píxeles) de la superficie del suelo
 const CUBE_SCREEN_X := 280.0      # x (píxeles) fija del cubo en pantalla
 ## Velocidad (bloques/s) según la distancia: puntos (x, velocidad) con interpolación lineal.
-const SPEED_POINTS: Array[Vector2] = [Vector2(0, 9.5), Vector2(90, 11.0), Vector2(200, 12.5),
-		Vector2(330, 14.0), Vector2(480, 15.5), Vector2(650, 16.5), Vector2(900, 17.5)]
-const SPEED_MAX := 17.5
-const TOL_FAR := 600.0            # distancia a la que el margen humano llega a su mínimo
+const SPEED_POINTS: Array[Vector2] = [Vector2(0, 10.0), Vector2(60, 11.5), Vector2(150, 13.5),
+		Vector2(260, 15.5), Vector2(400, 17.0), Vector2(600, 18.2), Vector2(900, 19.0)]
+const SPEED_MAX := 19.0
+const TOL_FAR := 450.0            # distancia a la que el margen humano llega a su mínimo (±0,045 s)
 const GRAVITY := 65.0             # bloques/s²
 const JUMP_V := 17.0              # bloques/s → altura máx. ≈ 2,2 bloques
 const T_AIR := 2.0 * JUMP_V / GRAVITY   # s que dura un salto sobre suelo llano (≈ 0,52)
@@ -67,18 +76,24 @@ class PState:
 class Elem:
 	var objs: Array[Obj] = []
 	var jumps: Array[float] = []
+	var jumps_nat: Array[float] = []   # mismos saltos SIN sesgo (solo para el control de las pruebas)
 	var end_x: float = 0.0
 	var start_x: float = 0.0   # posición del primer despegue
 
 var _objs: Array[Obj] = []            # ordenados por x
 ## Solución de referencia: posiciones (cx) en las que un jugador perfecto salta (la usa el bot).
 var _jumps: Array[float] = []
+var _jumps_nat: Array[float] = []     # lo mismo sin el sesgo de timing (control de las pruebas)
 var _pieces: Array[Dictionary] = []   # {"text","start","end"} de cada pieza (para depurar)
 var _level_end: float = 0.0
 var _max_w: float = 4.0               # ancho del objeto más ancho (ventana de búsqueda de colisiones)
+var _last_bias_t: float = 0.0          # sesgo (s) aplicado a la última pieza colocada
+var _last_margin_t: float = 0.0        # margen humano (s) de su zona
 var _bot_jump_idx: int = 0
 ## Solo pruebas: margen de error del bot (s, se aplica a cada salto) y control "sin saltar".
 var debug_tol: float = 0.0
+var debug_tol_sign: int = 0            # -1/0/+1: aplica el margen humano de cada zona (tol_at) con ese signo
+var debug_ignore_bias: bool = false    # el bot salta "centrado" en vez de con el sesgo (debe morir en las piezas con techo)
 var debug_jump_offset: float = 0.0
 var debug_never_jump: bool = false
 
@@ -123,37 +138,39 @@ func _on_start() -> void:
 #   down   bajada adyacente (2 → 1)       end   cae al suelo (se añade solo si falta)
 # "@rest=X" cambia el descanso por defecto de las piezas siguientes (la rampa de dificultad).
 
-## Frases que se repiten en el tramo final (maratón) con descansos mínimos.
+## Frases que se repiten en el tramo final (maratón): timing al límite, puertas de techo arriba y abajo.
 const MARATHON: Array[Array] = [
-	["S2", "R:sp.hop1.hop2.end", "G3", "S3 c0.05/2/0.35", "R:up.sp.down.hop1.end", "B2", "S3", "R:hop1.sp.hop2.down.end"],
-	["G3", "S2", "R:up.hop1.sp.end", "S3", "G4", "B2", "R:hop2.hop1.hop1.end", "S3 c0.05/2/0.35"],
-	["S3", "R:sp.up.down.sp.end", "G4", "S2", "R:hop1.hop2.hop1.end", "B2", "G3", "S3"],
+	["S2 b+ a0.12", "R:sp.hop1.hop2.end", "G3 b- d0.12 r0.24", "S3 a0.12 d0.12", "R:up.sp.down.hop1.end", "B2 a0.12 d0.12", "S1 b- d0.12 r0.24", "R:hop1.sp.hop2.down.end"],
+	["G3 a0.12 d0.12", "S2 b- d0.12 r0.24", "R:up.hop1.sp.end", "S3 b+ a0.12", "G4 b- d0.12 r0.24", "B2 b+ a0.12", "R:hop2.hop1.hop1.end", "S1 b+ a0.12 d0.12"],
+	["S3 a0.12 d0.12", "R:sp.up.down.sp.end", "G4 b+ a0.12", "S2 b- d0.12 r0.24", "R:hop1.hop2.hop1.end", "B2 a0.12 d0.12", "G3 b- d0.12 r0.24", "S3 b+ a0.12"],
 ]
 
 func _level_script() -> Array[String]:
 	var L: Array[String] = []
-	# 1 · Calentamiento (pinchos y bloques sueltos): ~8 s
-	L.append_array(["@rest=0.6", "S1", "B1", "S1", "S2", "B1", "S2"])
-	# 2 · Huecos y primeras plataformas
-	L.append_array(["@rest=0.45", "G2", "S1", "R:end", "B1", "R:sp.end", "G3", "S2"])
-	# 3 · Escaleras
-	L.append_array(["@rest=0.38", "R:up.end", "S1", "R:up.down.end", "B2", "R:sp.up.end", "G2", "S3"])
-	# 4 · Saltar de plataforma en plataforma
-	L.append_array(["@rest=0.32", "R:hop1.end", "S2", "R:hop2.end", "G3", "R:hop1.hop1.end", "S3", "R:up.hop1.end"])
-	# 5 · Primeros pinchos de techo
-	L.append_array(["@rest=0.27", "S1 c0.05/2/0.5", "B2", "S2 c0.45/2/0.5", "R:up.end c0.6/3/0.5", "S1 c0.05/3/0.4", "G3", "R:sp.hop1.end", "S3 c0.05/2/0.4"])
-	# 6 · Combinaciones
-	L.append_array(["@rest=0.22", "R:up.hop1.sp.end", "S3", "G3", "R:hop2.down.end", "S2 c0.05/2/0.4", "R:sp.up.down.end", "B2", "S3", "G4", "R:hop1.hop2.end"])
-	# 7 · Ritmo rápido
-	L.append_array(["@rest=0.18", "S2", "B2", "S2", "G3", "S1", "S3", "R:up.sp.end", "G3", "S2", "B2", "R:hop1.hop1.hop2.end", "S3"])
-	# 8 · Todo junto, con techos
-	L.append_array(["@rest=0.15", "R:sp.hop1.hop2.end", "S3 c0.05/2/0.35", "G3", "R:up.down.hop1.sp.end", "B2", "S2 c0.45/3/0.35", "G4", "R:hop2.hop1.sp.end", "S3"])
-	# 9 · Maratón: descansos mínimos (0,13 → 0,10 s) y frases que se repiten hasta el final
-	var rest := 0.13
+	# Opciones: "b+" / "b-" = el salto de referencia se desplaza al borde de la ventana del obstáculo
+	# (tarde / pronto) dejando solo el margen humano de la zona (que se estrecha con la distancia).
+	# "aC" = puerta de techo sobre la SUBIDA del salto (castiga saltar pronto → hay que saltar tarde).
+	# "dC" = puerta de techo sobre la BAJADA (castiga saltar tarde → hay que saltar pronto).
+	# C = holgura (bloques) entre la punta y el cubo de referencia: cuanto menor, más al límite.
+	# "b+ aC" y "b- dC" obligan a saltar tarde/pronto; "aC dC" deja una ventana mínima centrada.
+	# 1 · Calentamiento (~4 s): obstáculos sueltos sin techo
+	L.append_array(["@rest=0.45", "S1", "S1", "B1", "S2", "S1"])
+	# 2 · Huecos, primeras plataformas y los primeros techos
+	L.append_array(["@rest=0.34", "G2", "S1", "R:end", "S1 b+ a0.3", "R:sp.end", "S2 b- d0.3 r0.3", "G3"])
+	# 3 · Escaleras y techos: saltar pronto y tarde
+	L.append_array(["@rest=0.27", "R:up.end", "S1 b+ a0.25", "R:up.down.end", "S2 b- d0.25 r0.3", "R:hop1.end", "G3 b+ a0.25", "S1 b- d0.25 r0.3"])
+	# 4 · Saltos entre plataformas y puertas dobles (ventana estrecha)
+	L.append_array(["@rest=0.22", "S1 b+ a0.2", "R:hop1.hop2.end", "S2 b- d0.2 r0.28", "G2 a0.2 d0.2", "R:up.sp.down.end", "S1 b+ a0.18", "S3 a0.2 d0.2"])
+	# 5 · Todo mezclado
+	L.append_array(["@rest=0.18", "S1 b+ a0.15", "R:up.hop1.sp.end", "S3 a0.15 d0.15", "G3 b- d0.15 r0.26", "R:hop2.down.end", "S2 b+ a0.15", "S1 b- d0.15 r0.26", "G2 a0.15 d0.15"])
+	# 6 · Ritmo muy rápido con puertas
+	L.append_array(["@rest=0.15", "R:sp.up.down.end", "S2 b- d0.12 r0.24", "G3 b+ a0.12", "S3 a0.12 d0.12", "R:hop1.hop2.end", "S1 b+ a0.12", "S1 b- d0.12 r0.24", "G4 b+ a0.12", "R:up.sp.end"])
+	# 7 · Maratón: descansos mínimos (0,12 → 0,09 s), sesgos y puertas, hasta el final
+	var rest := 0.12
 	var round_i := 0
 	var cursor_estimate := 0.0
 	while cursor_estimate < LEVEL_TARGET:
-		L.append("@rest=%s" % snappedf(maxf(0.10, rest), 0.01))
+		L.append("@rest=%s" % snappedf(maxf(0.09, rest), 0.01))
 		for piece in MARATHON[round_i % MARATHON.size()]:
 			L.append(piece)
 			cursor_estimate += 13.0   # estimación basta: el nivel real se corta al llegar al objetivo
@@ -175,7 +192,7 @@ func speed_at(x: float) -> float:
 
 ## Margen de error humano garantizado (± s) según la distancia: de 0,13 s a 0,07 s.
 func tol_at(x: float) -> float:
-	return lerpf(0.13, 0.07, clampf(x / TOL_FAR, 0.0, 1.0))
+	return lerpf(0.12, 0.045, clampf(x / TOL_FAR, 0.0, 1.0))
 
 # ----------------------------------------------------------------------------
 # Colocación de las piezas con la física
@@ -184,6 +201,7 @@ func tol_at(x: float) -> float:
 func _build_level() -> void:
 	_objs.clear()
 	_jumps.clear()
+	_jumps_nat.clear()
 	_pieces.clear()
 	_max_w = 4.0
 	_bot_jump_idx = 0
@@ -195,8 +213,10 @@ func _build_level() -> void:
 			_pieces.append({"text": text, "start": cursor, "end": cursor})
 			continue
 		var start := cursor
+		_last_bias_t = 0.0
+		_last_margin_t = tol_at(cursor) + 0.02
 		cursor = _lay(text, cursor, default_rest)
-		_pieces.append({"text": text, "start": start, "end": cursor})
+		_pieces.append({"text": text, "start": start, "end": cursor, "bias": _last_bias_t, "margin": _last_margin_t})
 		if cursor >= LEVEL_TARGET + 40.0:
 			break
 	_level_end = cursor
@@ -229,45 +249,104 @@ func _lay(text: String, cursor: float, default_rest: float) -> float:
 	var toks := text.split(" ", false)
 	var kind := toks[0]
 	var rest := default_rest
-	var ceilings: Array = []
+	var gates: Array = []          # puertas de techo: [t0, t1, n_fijo_o_0, clearance]
+	var bias_mode := ""            # "+" / "-" = sesgo máximo hacia tarde / pronto; "" = sin sesgo
+	var bias_fixed := 0.0          # sesgo explícito en s (token bX)
 	for i in range(1, toks.size()):
 		var t := toks[i]
 		if t.begins_with("r"):
 			rest = float(t.substr(1))
-		elif t.begins_with("c"):
+		elif t == "b+" or t == "b-":
+			bias_mode = t.substr(1)
+		elif t.begins_with("b"):
+			bias_fixed = float(t.substr(1))
+		elif t.begins_with("a"):       # puerta sobre la SUBIDA (castiga saltar pronto)
+			for t0 in [0.0, 0.06, 0.12]:   # celdas estrechas que siguen la curva de subida
+				gates.append([t0, 0.0, 1, float(t.substr(1))])
+		elif t.begins_with("d"):       # puerta sobre la BAJADA (castiga saltar tarde)
+			for t0 in [0.40, 0.46, 0.52]:  # celdas estrechas que siguen la curva de bajada
+				gates.append([t0, 0.0, 1, float(t.substr(1))])
+		elif t.begins_with("c"):       # techo manual: T s tras el despegue, N bloques, holgura C
 			var p := t.substr(1).split("/")
-			ceilings.append([float(p[0]), float(p[1]), float(p[2])])
+			gates.append([float(p[0]), 0.0, int(p[1]), float(p[2])])
 	var v := speed_at(cursor + 6.0)
 	var el := Elem.new()
 	if kind.begins_with("R:"):
 		_el_run(kind.substr(2).split(".", false), cursor, v, rest, tol_at(cursor), el)
 	else:
-		_el_cluster(kind, cursor, v, rest, el)
+		_el_cluster(kind, cursor, v, rest, 0.0, el)
 	for o in el.objs:
 		_insert(o)
+	# Sesgo de timing: se pega al borde de la ventana en la que el obstáculo se puede saltar, dejando el
+	# margen humano de esta zona. Cuanto más se estrecha ese margen, mayor es el sesgo.
+	if not kind.begins_with("R:") and (bias_mode != "" or bias_fixed != 0.0):
+		var margin_t := tol_at(cursor) + 0.02
+		var ref_t := bias_fixed
+		if bias_mode == "+":
+			ref_t = maxf(0.0, _window_edge(el, cursor, v, 1.0) - margin_t - 0.004)
+		elif bias_mode == "-":
+			ref_t = minf(0.0, _window_edge(el, cursor, v, -1.0) + margin_t + 0.004)
+		# Saltar pronto exige que el cubo ya haya aterrizado: el sesgo se acota por el descanso.
+		ref_t = maxf(ref_t, -(rest - margin_t - 0.03))
+		_last_bias_t = ref_t
+		_last_margin_t = margin_t
+		el.jumps[0] = el.jumps_nat[0] + v * ref_t
+		el.start_x = el.jumps[0]
+		el.end_x = maxf(el.jumps_nat[0], el.jumps[0]) + v * T_AIR + 0.5
 	_jumps.append_array(el.jumps)
-	if not ceilings.is_empty():
-		_add_ceilings(ceilings, cursor, v, el)
+	_jumps_nat.append_array(el.jumps_nat if not el.jumps_nat.is_empty() else el.jumps)
+	if not gates.is_empty():
+		_add_ceilings(gates, cursor, v, el)
 	return el.end_x
 
-## Coloca los pinchos de techo de la pieza. La altura de la punta se calcula con la trayectoria del
-## cubo de referencia (sin error y con ±margen de tiempo): C bloques por encima del punto más alto que
-## alcanza en la zona del techo. Así siempre es pasable y, con C pequeña, castiga saltar demasiado
-## pronto o demasiado tarde.
-func _add_ceilings(ceilings: Array, cursor: float, v: float, el: Elem) -> void:
+## Mayor desplazamiento (s) del despegue, hacia tarde (side=+1) o pronto (side=-1), con el que el
+## obstáculo sigue superándose (bisección).
+func _window_edge(el: Elem, cursor: float, v: float, side: float) -> float:
+	var ok_t := 0.0
+	var bad_t := 0.45
+	for i in 10:
+		var mid := (ok_t + bad_t) * 0.5
+		if _survives(cursor, el.jumps, side * mid * v, el.end_x + 1.0):
+			ok_t = mid
+		else:
+			bad_t = mid
+	return side * ok_t
+
+## ¿Sobrevive el cubo de referencia a la pieza con los saltos desplazados `shift` bloques?
+func _survives(start_x: float, jumps: Array[float], shift: float, end_x: float) -> bool:
+	var s := PState.new()
+	s.cx = start_x
+	var idx := 0
+	for i in 8000:
+		var jump := false
+		if idx < jumps.size() and s.cx >= jumps[idx] + shift and s.on_ground:
+			jump = true
+			idx += 1
+		_step_state(s, STEP, jump)
+		if not s.alive:
+			return false
+		if idx >= jumps.size() and s.cx > end_x and s.on_ground and s.py < 0.001:
+			return true
+	return false
+
+## Coloca las puertas de techo de la pieza. La altura de la punta se calcula con la trayectoria del cubo de
+## referencia (sin error y con ±margen humano): C bloques por encima del punto más alto que alcanza en la
+## zona de la puerta. Siempre es pasable para el timing de referencia; un salto más pronto o más tarde
+## de lo previsto (p. ej. el "natural", centrado en el obstáculo) choca con el techo.
+func _add_ceilings(gates: Array, cursor: float, v: float, el: Elem) -> void:
 	var margin := v * (tol_at(cursor) + 0.02)
 	var traces: Array = []
 	for shift in [0.0, margin, -margin]:
 		traces.append(_trace_top(cursor, el.jumps, shift, el.end_x))
-	for c in ceilings:
-		var x0 := el.start_x + v * float(c[0])
-		var n := int(c[1])
+	for g in gates:
+		var x0 := el.start_x + v * float(g[0])
+		var n := int(g[2]) if int(g[2]) > 0 else maxi(1, ceili(v * (float(g[1]) - float(g[0]))))
 		var max_top := 0.0
 		for tr: Array in traces:
 			for p: Vector2 in tr:
 				if p.x > x0 - 0.05 and p.x < x0 + n + 0.05:
 					max_top = maxf(max_top, p.y)
-		var tip := snappedf(max_top + float(c[2]), 0.1)
+		var tip := snappedf(max_top + float(g[3]), 0.1)
 		if tip > 5.5:
 			continue   # demasiado alto para molestar: no se pone
 		for k in n:
@@ -292,11 +371,11 @@ func _trace_top(start_x: float, jumps: Array[float], shift: float, end_x: float)
 	return out
 
 ## Obstáculo suelto (pinchos, bloques o hueco) que se salva con un salto centrado en él.
-func _el_cluster(kind: String, cursor: float, v: float, rest: float, el: Elem) -> void:
+func _el_cluster(kind: String, cursor: float, v: float, rest: float, bias: float, el: Elem) -> void:
 	var air := v * T_AIR
-	var s0 := cursor + v * rest
+	var s0 := cursor + v * rest          # despegue "natural" (centrado en el obstáculo)
 	var c := s0 + air * 0.5   # centro del obstáculo = vértice del salto
-	el.start_x = s0
+	el.start_x = s0 + v * bias
 	match kind:
 		"S1": el.objs.append(_mk(Kind.SPIKE, c - 0.5, 0, 1, 1, kind))
 		"S2":
@@ -311,8 +390,9 @@ func _el_cluster(kind: String, cursor: float, v: float, rest: float, el: Elem) -
 		"G3": el.objs.append(_mk(Kind.GAP, c - 1.5, 0, 3, 0, kind))
 		"G4": el.objs.append(_mk(Kind.GAP, c - 2.0, 0, 4, 0, kind))
 		_: push_error("Pieza desconocida: %s" % kind)
-	el.jumps.append(s0)
-	el.end_x = s0 + air + 0.5
+	el.jumps.append(s0 + v * bias)       # con sesgo: el techo obliga a saltar antes o después
+	el.jumps_nat.append(s0)
+	el.end_x = maxf(s0, s0 + v * bias) + air + 0.5
 
 ## Tramo de plataformas: saltas a la primera (altura 1) y encadenas operaciones; acaba cayendo al suelo.
 func _el_run(ops: PackedStringArray, cursor: float, v: float, rest: float, tol: float, el: Elem) -> void:
@@ -524,7 +604,8 @@ func _animate(delta: float) -> void:
 
 ## Posición de despegue de la marca i, con el error de prueba aplicado.
 func _jump_at(i: int) -> float:
-	return _jumps[i] + debug_jump_offset + debug_tol * speed_at(_jumps[i])
+	var base: float = (_jumps_nat[i] if debug_ignore_bias else _jumps[i])
+	return base + debug_jump_offset + (debug_tol + float(debug_tol_sign) * tol_at(base)) * speed_at(base)
 
 ## ¿Debe saltar ahora el bot? Salta al llegar a cada marca de _jumps (si está en el suelo).
 func _bot_wants_jump(s: PState) -> bool:
@@ -795,4 +876,46 @@ func debug_timeline() -> Array:
 			x += step
 		if String(p["text"]).begins_with("@rest="):
 			out.append([p["text"], target, t, speed_at(target)])
+	return out
+
+## Nº de piezas del nivel con sesgo de timing (token "b").
+func debug_pieces_with_bias() -> int:
+	_build_level()
+	var n := 0
+	for p in _pieces:
+		if " b" in String(p["text"]):
+			n += 1
+	return n
+
+## Piezas con sesgo y puertas de techo en las que el salto "natural" (centrado) aun así se supera, a pesar
+## de que el sesgo es mayor que el margen humano de su zona: son puertas ineficaces (no obligan a nada).
+## (Si el sesgo es menor que el margen, es correcto que el salto natural valga: está dentro de la tolerancia.)
+func debug_ineffective_gates() -> Array[String]:
+	_build_level()
+	var out: Array[String] = []
+	for p in _pieces:
+		var text := String(p["text"])
+		if text.begins_with("@") or text.begins_with("R:") or not (" b+" in text or " b-" in text):
+			continue
+		if absf(float(p["bias"])) <= float(p["margin"]) + 0.02:
+			continue   # sesgo dentro de la tolerancia humana: la puerta no puede bloquear el salto natural
+		var idx := -1
+		for i in _jumps_nat.size():
+			if _jumps_nat[i] >= float(p["start"]) and _jumps_nat[i] < float(p["end"]):
+				idx = i
+				break
+		if idx < 0:
+			continue
+		var natural: Array[float] = [_jumps_nat[idx]]
+		if _survives(float(p["start"]), natural, 0.0, float(p["end"]) + 1.0):
+			out.append("%s (sesgo %.2f s, margen %.2f s)" % [text, p["bias"], p["margin"]])
+	return out
+
+## Resumen del sesgo de las piezas con sesgo: (texto, x, sesgo en s, margen en s).
+func debug_bias_table() -> Array:
+	_build_level()
+	var out: Array = []
+	for p in _pieces:
+		if " b+" in String(p["text"]) or " b-" in String(p["text"]):
+			out.append([p["text"], p["start"], p["bias"], p["margin"]])
 	return out
