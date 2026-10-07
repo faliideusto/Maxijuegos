@@ -190,6 +190,7 @@ derivan del estado o de eventos, nunca se simulan por separado en el cliente.
 | `tests/smoke_test.gd` | Partida local completa con bots (registro, selección, puntos) |
 | `tests/input_test.gd` | InputMap local (kb1/kb2/local) y saneado de entrada remota |
 | `tests/parallel_local_test.gd` | LOCAL_PARALLEL local por turnos con teclas reales |
+| `tests/cube_level_test.gd` | Nivel de Salto Neón: determinismo, superabilidad (bot de referencia) y controles negativos |
 | `tests/online_test.sh <humanos> <minijuegos> [bots] [escenario]` | Instancias **reales** (una por jugador, headless, autopiloto) por loopback ENet: `normal`, `kill_in_lobby`, `kill_in_game`, `kill_in_parallel`, `kill_host`, `late_join` |
 | `tests/run_matrix.sh` | Toda la matriz (2/4/8 jugadores, 4+4 bots, caídas) |
 
@@ -234,3 +235,26 @@ Además: `smoke_test` (5 jugadores, 4 minijuegos), `input_test` y `parallel_loca
 - `Transition` ignoraba un cambio de escena pedido durante otra transición: ahora lo encola.
 - Test: matar solo el envoltorio "console" de Godot dejaba procesos huérfanos ocupando el puerto;
   ahora se mata el árbol de procesos y el test aborta si el puerto UDP 24680 está ocupado.
+
+## 15. Salto Neón (`cube_dash`, LOCAL_PARALLEL)
+
+Segundo minijuego LOCAL_PARALLEL: un cubo corre solo por un nivel larguísimo y el jugador solo salta.
+Un único intento; gana quien llega **más lejos** (resultado = distancia; el resto, por distancia).
+
+- **Nivel procedural determinista**: `_level_rng` sembrado con la semilla común (`seed_value`) y generado
+  de forma perezosa; todos los PC obtienen el mismo nivel aunque lo generen a distinto ritmo (test).
+- **Dificultad creciente y siempre superable**: la velocidad sube de 9 a 14,5 bloques/s en los primeros
+  500 bloques y el margen de descanso entre saltos baja de ~0,6 s a 0,12 s; antes aparecen pinchos dobles/
+  triples, huecos y bloques. Cada obstáculo se coloca con la física (un salto dura 0,52 s y recorre
+  `velocidad × 0,52` bloques; el obstáculo se centra en el vértice del salto), de modo que existe siempre
+  una solución con ventana de decenas/centenas de ms.
+- **Verificación**: `tests/cube_level_test.gd` — determinismo, y un bot que sigue la solución de referencia
+  (`_jumps`, que declara el generador) sobrevive los 100 s en 25 semillas (≈1316 bloques); controles
+  negativos (sin saltar / saltos 6 bloques tarde o pronto) mueren en el primer obstáculo.
+- **Resultado y red**: `report_result(distancia)` al chocar o al llegar a 100 s; `_validate_result` rechaza
+  distancias imposibles (> velocidad máxima × tiempo límite); bots/desconectados: distancia simulada
+  (40–420 bloques) calculada por el host con la semilla.
+- **Estética**: inspirada en los "runners" de ritmo con neón (degradado que cambia de color con la
+  distancia, suelo con línea brillante, bloques oscuros con borde luminoso, cubo con cara, partículas),
+  dibujada por código con formas propias; no se usa ningún asset de terceros.
+- Limitación: no se ha probado a mano con jugadores humanos; la dificultad subjetiva está por afinar.

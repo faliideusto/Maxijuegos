@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="MinigameMeta" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://core/minigame_meta.gd" id="1"]
+[ext_resource type="PackedScene" path="res://minigames/cube_dash/scene.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Salto Neón"
+description = "¿Hasta dónde llegas?"
+instructions = "Tu cubo corre solo: pulsa tu botón de acción (o mantenlo) para saltar pinchos, bloques y huecos. Solo tienes un intento: gana quien llegue más lejos, luego el segundo, y así. No verás a los demás: todos corren el mismo nivel a la vez."
+min_players = 2
+max_players = 8
+approx_duration = 60.0
+scene = ExtResource("2")
+accent_color = Color(0.2, 0.75, 1, 1)
+execution_mode = 1
+max_duration = 140.0

@@ -115,7 +115,7 @@ case "$SCEN" in
   kill_in_game|kill_in_parallel)
     (( HUMANS >= 2 )) || { echo "kill_in_game necesita >= 2 humanos"; exit 2; }
     launch_clients
-    PLAYING_RE='state=PLAYING'; [[ "$SCEN" == kill_in_parallel ]] && PLAYING_RE='state=PLAYING index=[0-9]+ mg=reaction_test'
+    PLAYING_RE='state=PLAYING'; [[ "$SCEN" == kill_in_parallel ]] && PLAYING_RE='state=PLAYING index=[0-9]+ mg=(reaction_test|cube_dash)'
     wait_for_log host "$PLAYING_RE" 120 || fail "la partida no llegó al minijuego esperado"
     sleep 4
     kill_instance c2
@@ -181,8 +181,9 @@ else
     [[ "$LP_OK" -eq "$LP_N" ]] && ok "[LOCAL_PARALLEL] el host recogió $TOTAL resultados (sin DNF) en los $LP_N minijuegos de ese modelo" || fail "[LOCAL_PARALLEL] resultados incompletos o DNF: $(echo "$LP_HOST" | tr '\n' '|')"
   fi
   # Cobertura: con 4 minijuegos salen los dos modelos.
-  if (( GAMES >= 4 )); then
-    grep -q "mg=reaction_test" "$LOGS/host.log" && ok "se jugó el minijuego LOCAL_PARALLEL (reaction_test)" || fail "no salió reaction_test"
+  if (( GAMES >= 5 )); then
+    grep -q "mg=reaction_test" "$LOGS/host.log" && ok "se jugó un minijuego LOCAL_PARALLEL (reaction_test)" || fail "no salió reaction_test"
+    grep -q "mg=cube_dash" "$LOGS/host.log" && ok "se jugó el minijuego LOCAL_PARALLEL cube_dash" || fail "no salió cube_dash"
     grep -q "mg=shrinking_platform" "$LOGS/host.log" && ok "se jugó un minijuego HOST_AUTHORITATIVE" || fail "no salió shrinking_platform"
   fi
 fi

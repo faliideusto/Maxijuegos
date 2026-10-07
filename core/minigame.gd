@@ -217,6 +217,16 @@ func action_presses(player: PlayerData) -> int:
 func action_just_pressed(player: PlayerData) -> bool:
 	return action_presses(player) > 0
 
+## true mientras el jugador mantiene pulsado su botón de acción.
+func action_held(player: PlayerData) -> bool:
+	if InputManager.is_simulated(player.id):
+		return _bot_action_held(player)
+	return InputManager.is_action_pressed(player.id)
+
+## Botón de acción mantenido por un bot/autopiloto. Por defecto, deriva de _bot_action.
+func _bot_action_held(player: PlayerData) -> bool:
+	return _bot_action(player) > 0
+
 ## (HOST_AUTHORITATIVE, host) Lanza un evento puntual: se ejecuta _on_event aquí y en todos los
 ## clientes.
 func send_event(event_name: String, data: Variant = null) -> void:
