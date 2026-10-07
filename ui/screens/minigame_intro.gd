@@ -35,7 +35,7 @@ func _ready() -> void:
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 10)
-	for p in GameManager.players:
+	for p in Lobby.players:
 		var a := PlayerAvatar.new(64)
 		a.set_player(p)
 		row.add_child(a)
@@ -67,7 +67,7 @@ func _process(delta: float) -> void:
 		return
 	if _elapsed < SKIP_GRACE:
 		return
-	for p in GameManager.players:
+	for p in Lobby.players:
 		if not p.is_bot and not p.is_remote and InputManager.is_action_just_pressed(p.id):
 			_finish()
 			return

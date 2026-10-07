@@ -13,8 +13,10 @@ config/features=PackedStringArray("4.7", "GL Compatibility")
 MinigameRegistry="*res://autoload/minigame_registry.gd"
 InputManager="*res://autoload/input_manager.gd"
 NetworkManager="*res://autoload/network_manager.gd"
+Lobby="*res://autoload/lobby.gd"
 GameManager="*res://autoload/game_manager.gd"
 Transition="*res://autoload/transition.gd"
+DevCli="*res://autoload/dev_cli.gd"
 
 [display]
 

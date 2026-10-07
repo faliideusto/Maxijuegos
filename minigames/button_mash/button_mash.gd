@@ -1,6 +1,9 @@
 extends Minigame
 ## ¡Machaca!: pulsa tu botón de acción tantas veces como puedas en 10 segundos.
 ## Gana quien más pulsaciones consiga (desempate: quien llegó antes a esa cifra).
+##
+## Sin lógica de red: el host simula (_simulate) y los clientes dibujan el estado que
+## reciben (_apply_state). Ver core/minigame.gd.
 
 const DURATION := 10.0
 const ARENA := Rect2(110, 150, 1060, 470)   # zona de columnas
@@ -19,31 +22,52 @@ func _on_prepare() -> void:
 		_bounce[p.id] = 0.0
 		_bar_h[p.id] = 0.0
 	surface.draw_callback = _draw_game
-	surface.queue_redraw()
 
 func _on_start() -> void:
 	_time_left = DURATION
 
-func _process(delta: float) -> void:
+# --- Simulación (solo host) ---
+func _simulate(delta: float) -> void:
+	_elapsed += delta
+	_time_left -= delta
+	for p in players:
+		var n := action_presses(p)
+		if n > 0:
+			_counts[p.id] += n
+			_reached_at[p.id] = _elapsed
+			_bounce[p.id] = 1.0
+	if _time_left <= 0.0:
+		_time_left = 0.0
+		finish(rank_by_score(_counts, _reached_at))
+
+# --- Estado hacia los clientes ---
+func _serialize_state() -> Variant:
+	var counts := PackedInt32Array()
+	for p in players:
+		counts.append(_counts[p.id])
+	return {"t": _time_left, "c": counts}
+
+func _apply_state(state: Variant) -> void:
+	if not state is Dictionary:
+		return
+	_time_left = float(state.get("t", _time_left))
+	var counts: Variant = state.get("c")
+	if counts is PackedInt32Array:
+		for i in mini(counts.size(), players.size()):
+			var id := players[i].id
+			if counts[i] > _counts[id]:
+				_bounce[id] = 1.0   # el contador subió: rebote del avatar
+			_counts[id] = counts[i]
+
+# --- Animación (todos los PC) ---
+func _animate(delta: float) -> void:
 	for p in players:
 		_bounce[p.id] = maxf(0.0, _bounce[p.id] - delta * 5.0)
-	if is_running:
-		_elapsed += delta
-		_time_left -= delta
-		for p in players:
-			if action_just_pressed(p):
-				_counts[p.id] += 1
-				_reached_at[p.id] = _elapsed
-				_bounce[p.id] = 1.0
-		if _time_left <= 0.0:
-			_time_left = 0.0
-			finish(rank_by_score(_counts, _reached_at))
 	# Las barras suben suavemente hacia su valor.
 	var target_max := _scale_max()
 	for p in players:
 		var target: float = ARENA.size.y * 0.78 * float(_counts[p.id]) / target_max
 		_bar_h[p.id] = lerpf(_bar_h[p.id], target, clampf(delta * 14.0, 0.0, 1.0))
-	surface.queue_redraw()
 
 # Escala vertical: crece si alguien supera el valor base, para que siempre quepan las barras.
 func _scale_max() -> float:
@@ -72,7 +96,10 @@ func _draw_game() -> void:
 		# Avatar con rebote (se aplasta al pulsar).
 		var b: float = _bounce[p.id]
 		var squash := Vector2(1.0 + 0.25 * b, 1.0 - 0.25 * b)
+		var radius := minf(34.0, col_w * 0.3)
 		s.draw_set_transform(Vector2(cx, base_y + 36.0), 0.0, squash)
-		AvatarPainter.paint(s, Vector2.ZERO, minf(34.0, col_w * 0.3), p.color, Vector2(0, -1))
+		AvatarPainter.paint(s, Vector2.ZERO, radius, p.color, Vector2(0, -1))
 		s.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-		s.text_centered(Vector2(cx, base_y + 92.0), p.display_name, 22, Palette.WHITE, 5)
+		if is_local_player(p):
+			draw_local_marker(Vector2(cx, base_y + 36.0), radius)
+		s.text_centered(Vector2(cx, base_y + 92.0), p.label(), 22, Palette.WHITE, 5)

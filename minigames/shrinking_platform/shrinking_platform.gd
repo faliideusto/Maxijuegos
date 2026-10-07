@@ -1,6 +1,9 @@
 extends Minigame
 ## Plataforma menguante: la plataforma se encoge poco a poco. Empuja a los demás
 ## (acción = embestida) y no te caigas. El último en pie gana.
+##
+## Sin lógica de red: el host simula (_simulate) y los clientes dibujan el estado que
+## reciben (_apply_state) suavizando las posiciones. Ver core/minigame.gd.
 
 const CENTER := Vector2(640, 390)
 const START_RADIUS := 300.0
@@ -13,10 +16,13 @@ const DASH_SPEED := 760.0
 const DASH_COOLDOWN := 1.4
 const FALL_DURATION := 0.8
 const MAX_TIME := 70.0         # seguridad: si llegamos aquí se desempata por cercanía al centro
+const SMOOTHING := 18.0        # (clientes) rapidez con la que la posición mostrada sigue a la real
+const FLOATS_PER_TOKEN := 8    # x, y, vx, vy, fx, fy, vivo, recarga
 
 class Token:
 	var player: PlayerData
-	var pos: Vector2
+	var pos: Vector2            # posición mostrada
+	var net_pos: Vector2        # (clientes) última posición real recibida
 	var vel: Vector2 = Vector2.ZERO
 	var facing: Vector2 = Vector2.DOWN
 	var alive: bool = true
@@ -28,6 +34,7 @@ var _tokens: Array[Token] = []
 var _elim_order: Array[int] = []   # ids en orden de caída (primero = peor)
 var _time: float = 0.0
 var _end_timer: float = -1.0
+var _got_state: bool = false
 
 func _on_prepare() -> void:
 	var n := players.size()
@@ -36,32 +43,21 @@ func _on_prepare() -> void:
 		t.player = players[i]
 		var angle := TAU * i / n - PI * 0.5
 		t.pos = CENTER + Vector2.from_angle(angle) * START_RADIUS * 0.6
+		t.net_pos = t.pos
 		t.facing = (CENTER - t.pos).normalized()
 		_tokens.append(t)
 	surface.draw_callback = _draw_game
-	surface.queue_redraw()
-
-func _process(delta: float) -> void:
-	delta = minf(delta, 0.05)
-	if is_running:
-		_time += delta
-		_simulate(delta)
-	# Los que caen siguen animándose aunque el juego haya terminado.
-	for t in _tokens:
-		if not t.alive:
-			t.fall_t = minf(t.fall_t + delta, FALL_DURATION)
-		t.dash_flash = maxf(0.0, t.dash_flash - delta * 3.0)
-	if _end_timer >= 0.0:
-		_end_timer -= delta
-		if _end_timer < 0.0:
-			finish(_build_ranking())
-	surface.queue_redraw()
 
 func _current_radius() -> float:
 	var k := clampf((_time - GRACE_TIME) / SHRINK_TIME, 0.0, 1.0)
 	return START_RADIUS * (1.0 - k)
 
+# ----------------------------------------------------------------------------
+# Simulación (solo host)
+# ----------------------------------------------------------------------------
+
 func _simulate(delta: float) -> void:
+	_time += delta
 	var radius := _current_radius()
 	var alive: Array[Token] = []
 	for t in _tokens:
@@ -78,7 +74,7 @@ func _simulate(delta: float) -> void:
 		if t.dash_cd <= 0.0 and action_just_pressed(t.player):
 			t.vel += t.facing * DASH_SPEED
 			t.dash_cd = DASH_COOLDOWN
-			t.dash_flash = 1.0
+			send_event("dash", _tokens.find(t))
 		t.pos += t.vel * delta
 	# Choques entre jugadores (rebote elástico con un extra de empujón).
 	for i in alive.size():
@@ -95,13 +91,17 @@ func _simulate(delta: float) -> void:
 		t.alive = false
 		_elim_order.append(t.player.id)
 		t.vel *= 0.3
-	# Fin de partida: queda ≤ 1 vivo (o tiempo de seguridad).
+	# Fin de partida: queda ≤ 1 vivo (o tiempo de seguridad), tras una breve pausa.
 	var remaining := 0
 	for t in _tokens:
 		if t.alive:
 			remaining += 1
 	if _end_timer < 0.0 and (remaining <= 1 or _time >= MAX_TIME):
 		_end_timer = 1.3
+	if _end_timer >= 0.0:
+		_end_timer -= delta
+		if _end_timer < 0.0:
+			finish(_build_ranking())
 
 func _collide(a: Token, b: Token) -> void:
 	var d := b.pos - a.pos
@@ -154,17 +154,17 @@ func _bot_move(player: PlayerData) -> Vector2:
 	# Un poco de ruido para que no sean perfectos.
 	return (dir + Vector2.from_angle(randf() * TAU) * 0.25).limit_length(1.0)
 
-func _bot_action(player: PlayerData) -> bool:
+func _bot_action(player: PlayerData) -> int:
 	var t := _token_of(player)
 	if t == null or not t.alive or t.dash_cd > 0.0:
-		return false
+		return 0
 	var target := _nearest_enemy(t)
 	if target == null:
-		return false
+		return 0
 	# Embiste si el rival está cerca y el bot no está al borde.
 	var near := t.pos.distance_to(target.pos) < 150.0
 	var inside := t.pos.distance_to(CENTER) < _current_radius() * 0.6
-	return near and inside and randf() < 0.08
+	return 1 if (near and inside and randf() < 0.08) else 0
 
 func _token_of(player: PlayerData) -> Token:
 	for t in _tokens:
@@ -183,6 +183,58 @@ func _nearest_enemy(me: Token) -> Token:
 			best_d = d
 			best = t
 	return best
+
+# ----------------------------------------------------------------------------
+# Estado hacia los clientes
+# ----------------------------------------------------------------------------
+
+func _serialize_state() -> Variant:
+	var data := PackedFloat32Array()
+	for t in _tokens:
+		data.append_array(PackedFloat32Array([t.pos.x, t.pos.y, t.vel.x, t.vel.y,
+				t.facing.x, t.facing.y, 1.0 if t.alive else 0.0, t.dash_cd]))
+	return {"t": _time, "k": data}
+
+func _apply_state(state: Variant) -> void:
+	if not state is Dictionary:
+		return
+	_time = float(state.get("t", _time))
+	var data: Variant = state.get("k")
+	if not data is PackedFloat32Array or data.size() < _tokens.size() * FLOATS_PER_TOKEN:
+		return
+	for i in _tokens.size():
+		var t := _tokens[i]
+		var o := i * FLOATS_PER_TOKEN
+		t.net_pos = Vector2(data[o], data[o + 1])
+		t.vel = Vector2(data[o + 2], data[o + 3])
+		t.facing = Vector2(data[o + 4], data[o + 5])
+		t.alive = data[o + 6] > 0.5
+		t.dash_cd = data[o + 7]
+		if not _got_state:
+			t.pos = t.net_pos
+	_got_state = true
+
+func _on_event(event_name: String, data: Variant) -> void:
+	if event_name == "dash" and typeof(data) == TYPE_INT and data >= 0 and data < _tokens.size():
+		_tokens[data].dash_flash = 1.0
+
+# ----------------------------------------------------------------------------
+# Animación (todos los PC)
+# ----------------------------------------------------------------------------
+
+func _animate(delta: float) -> void:
+	for t in _tokens:
+		if not t.alive:
+			t.fall_t = minf(t.fall_t + delta, FALL_DURATION)
+		t.dash_flash = maxf(0.0, t.dash_flash - delta * 3.0)
+	if not is_authority:
+		# Cliente: el tiempo avanza entre snapshots y la posición sigue suavemente a la real.
+		if is_running:
+			_time += delta
+		var k := 1.0 - exp(-SMOOTHING * delta)
+		for t in _tokens:
+			t.net_pos += t.vel * delta   # extrapolación corta entre snapshots
+			t.pos = t.pos.lerp(t.net_pos, k)
 
 # ----------------------------------------------------------------------------
 # Dibujo
@@ -219,13 +271,14 @@ func _draw_token(t: Token) -> void:
 		offset = Vector2(0, k * 90.0)
 		if scale_f <= 0.01:
 			return
-	var look := t.facing
 	# Estela de la embestida.
 	if t.dash_flash > 0.0:
 		s.draw_circle(t.pos - t.facing * 22.0, PLAYER_RADIUS * (0.9 + t.dash_flash * 0.2), Color(1, 1, 1, 0.25 * t.dash_flash))
 	s.draw_set_transform(t.pos + offset, 0.0, Vector2(scale_f, scale_f))
-	AvatarPainter.paint(s, Vector2.ZERO, PLAYER_RADIUS, t.player.color, look)
+	AvatarPainter.paint(s, Vector2.ZERO, PLAYER_RADIUS, t.player.color, t.facing)
 	s.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	if t.alive and is_local_player(t.player):
+		draw_local_marker(t.pos, PLAYER_RADIUS)
 
 func _draw_hud() -> void:
 	var s := surface
@@ -241,9 +294,9 @@ func _draw_hud() -> void:
 			s.draw_circle(c, 22.0, Color(0, 0, 0, 0.3))
 			s.draw_line(c + Vector2(-12, -12), c + Vector2(12, 12), Palette.CORAL, 5.0, true)
 			s.draw_line(c + Vector2(12, -12), c + Vector2(-12, 12), Palette.CORAL, 5.0, true)
-	# Indicador de recarga de embestida bajo cada jugador vivo (solo humanos).
+	# Indicador de recarga de embestida bajo el jugador local (o bajo todos los humanos en local).
 	for t in _tokens:
-		if t.alive and not t.player.is_bot:
+		if t.alive and not t.player.is_bot and not t.player.is_remote:
 			var ready := 1.0 - t.dash_cd / DASH_COOLDOWN
 			var w := 44.0
 			var p := t.pos + Vector2(-w * 0.5, PLAYER_RADIUS + 12.0)

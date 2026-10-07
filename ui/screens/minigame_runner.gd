@@ -1,10 +1,18 @@
 extends Node
-## Ejecuta el minijuego actual: lo instancia, hace la cuenta atrás, lo arranca y
-## recoge su ranking al terminar. Es el ÚNICO punto que habla con los minijuegos.
+## Ejecuta el minijuego actual en CADA PC: lo instancia, sincroniza el arranque, hace la
+## cuenta atrás y muestra el aviso de fin. Es el único punto que habla con los minijuegos.
+##
+## Host (o partida local): simula; al terminar entrega el ranking a GameManager.
+## Cliente online: solo dibuja lo que le llega y espera a que el host cambie de estado.
 
 const COUNTDOWN := ["3", "2", "1", "¡YA!"]
+## Segundos reales máximos que el host espera a que los clientes carguen el minijuego.
+const READY_TIMEOUT := 8.0
+## Segundos reales máximos que un cliente espera la señal del host.
+const BEGIN_TIMEOUT := 15.0
 
 var _minigame: Minigame
+var _session: MinigameSession
 var _overlay: CanvasLayer
 var _label: Label
 
@@ -17,9 +25,11 @@ func _ready() -> void:
 		node.queue_free()
 		GameManager.report_results(_default_ranking())
 		return
+	var is_host := NetworkManager.is_host()
 	_minigame.meta = meta
+	_minigame.is_authority = is_host
 	add_child(_minigame)
-	_minigame.prepare(GameManager.players)
+	_minigame.prepare(Lobby.players)
 
 	# Overlay de cuenta atrás / aviso de fin.
 	_overlay = CanvasLayer.new()
@@ -31,9 +41,25 @@ func _ready() -> void:
 	_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_overlay.add_child(_label)
 
+	# Sincronización de arranque (solo online): todos listos → todos empiezan.
+	if NetworkManager.is_online:
+		_session = MinigameSession.new()
+		add_child(_session)
+		_session.setup(_minigame)
+		if is_host:
+			await _session.wait_for_clients(READY_TIMEOUT)
+			_session.send_begin()
+		else:
+			_session.send_ready()
+			await _session.wait_for_begin(BEGIN_TIMEOUT)
+
+	_minigame.ended.connect(_on_ended, CONNECT_ONE_SHOT)
+	if is_host:
+		_minigame.finished.connect(_on_finished, CONNECT_ONE_SHOT)
 	await _run_countdown()
-	_minigame.finished.connect(_on_finished, CONNECT_ONE_SHOT)
-	_minigame.start(GameManager.players)
+	_minigame.start(Lobby.players)
+	if _session:
+		_session.start()
 
 func _run_countdown() -> void:
 	await get_tree().create_timer(0.3).timeout
@@ -42,8 +68,12 @@ func _run_countdown() -> void:
 		await get_tree().create_timer(0.65 if step != "¡YA!" else 0.45).timeout
 	_label.text = ""
 
-func _on_finished(results: Array[int]) -> void:
+## Todos los PC: aviso de fin.
+func _on_ended() -> void:
 	_show_big("¡FIN!")
+
+## Solo host: tras el aviso, entrega el ranking (GameManager reparte puntos y avisa a los clientes).
+func _on_finished(results: Array[int]) -> void:
 	await get_tree().create_timer(1.4).timeout
 	GameManager.report_results(results)
 
@@ -57,6 +87,6 @@ func _show_big(text: String) -> void:
 
 func _default_ranking() -> Array[int]:
 	var ids: Array[int] = []
-	for p in GameManager.players:
+	for p in Lobby.players:
 		ids.append(p.id)
 	return ids

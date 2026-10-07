@@ -2,6 +2,9 @@ extends Minigame
 ## Lluvia de monedas: recoge todas las monedas que puedas en 30 segundos.
 ## Las monedas naranjas valen 3. La acción da un sprint corto.
 ## Gana quien más puntos tenga (desempate: quien los consiguió antes).
+##
+## Sin lógica de red: el host simula (_simulate) y los clientes dibujan el estado que
+## reciben (_apply_state); las monedas recogidas llegan como eventos. Ver core/minigame.gd.
 
 const DURATION := 30.0
 const ARENA := Rect2(90, 130, 1100, 540)
@@ -14,6 +17,9 @@ const COIN_RADIUS := 16.0
 const COIN_LIFETIME := 9.0
 const SPAWN_EVERY := 0.45
 const GOLD_CHANCE := 0.14
+const SMOOTHING := 18.0        # (clientes) suavizado de la posición mostrada
+const FLOATS_PER_TOKEN := 8    # x, y, vx, vy, fx, fy, sprint_t, sprint_cd
+const FLOATS_PER_COIN := 4     # x, y, valor, edad
 
 class Coin:
 	var pos: Vector2
@@ -22,7 +28,8 @@ class Coin:
 
 class Token:
 	var player: PlayerData
-	var pos: Vector2
+	var pos: Vector2            # posición mostrada
+	var net_pos: Vector2        # (clientes) última posición real recibida
 	var vel: Vector2 = Vector2.ZERO
 	var facing: Vector2 = Vector2.DOWN
 	var sprint_t: float = 0.0
@@ -44,6 +51,7 @@ var _last_gain: Dictionary = {}   # id -> instante del último punto (desempate)
 var _time_left: float = DURATION
 var _elapsed: float = 0.0
 var _spawn_timer: float = 0.0
+var _got_state: bool = false
 
 func _on_prepare() -> void:
 	var n := players.size()
@@ -52,34 +60,31 @@ func _on_prepare() -> void:
 		t.player = players[i]
 		var angle := TAU * i / n
 		t.pos = ARENA.get_center() + Vector2.from_angle(angle) * 180.0
+		t.net_pos = t.pos
 		_tokens.append(t)
 		_scores[t.player.id] = 0
 		_last_gain[t.player.id] = 0.0
-	# Unas monedas iniciales para arrancar con acción.
-	for i in 4 + n:
-		_spawn_coin()
 	surface.draw_callback = _draw_game
-	surface.queue_redraw()
 
 func _on_start() -> void:
 	_time_left = DURATION
+	# Unas monedas iniciales para arrancar con acción (solo el host las crea).
+	if is_authority:
+		for i in 4 + players.size():
+			_spawn_coin()
 
-func _process(delta: float) -> void:
-	delta = minf(delta, 0.05)
-	for pop in _popups:
-		pop.age += delta
-	_popups = _popups.filter(func(p: ScorePopup) -> bool: return p.age < 0.8)
-	for c in _coins:
-		c.age += delta
-	if is_running:
-		_elapsed += delta
-		_time_left -= delta
-		_update_players(delta)
-		_update_coins(delta)
-		if _time_left <= 0.0:
-			_time_left = 0.0
-			finish(rank_by_score(_scores, _last_gain))
-	surface.queue_redraw()
+# ----------------------------------------------------------------------------
+# Simulación (solo host)
+# ----------------------------------------------------------------------------
+
+func _simulate(delta: float) -> void:
+	_elapsed += delta
+	_time_left -= delta
+	_update_players(delta)
+	_update_coins(delta)
+	if _time_left <= 0.0:
+		_time_left = 0.0
+		finish(rank_by_score(_scores, _last_gain))
 
 func _update_players(delta: float) -> void:
 	for t in _tokens:
@@ -99,6 +104,8 @@ func _update_players(delta: float) -> void:
 		t.pos = t.pos.clamp(inner.position, inner.end)
 
 func _update_coins(delta: float) -> void:
+	for c in _coins:
+		c.age += delta
 	# Recogida.
 	for t in _tokens:
 		for c in _coins.duplicate():
@@ -106,11 +113,7 @@ func _update_coins(delta: float) -> void:
 				_coins.erase(c)
 				_scores[t.player.id] += c.value
 				_last_gain[t.player.id] = _elapsed
-				var pop := ScorePopup.new()
-				pop.pos = c.pos
-				pop.text = "+%d" % c.value
-				pop.color = Palette.YELLOW if c.value == 1 else Color("FF9F43")
-				_popups.append(pop)
+				send_event("collect", [c.pos.x, c.pos.y, c.value])
 	# Caducidad y aparición.
 	_coins = _coins.filter(func(c: Coin) -> bool: return c.age < COIN_LIFETIME)
 	_spawn_timer -= delta
@@ -144,14 +147,89 @@ func _bot_move(player: PlayerData) -> Vector2:
 	var to_target := t.bot_target - t.pos
 	return to_target.normalized() if to_target.length() > 6.0 else Vector2.ZERO
 
-func _bot_action(_player: PlayerData) -> bool:
-	return randf() < 0.004   # sprint ocasional
+func _bot_action(_player: PlayerData) -> int:
+	return 1 if randf() < 0.004 else 0   # sprint ocasional
 
 func _token_of(player: PlayerData) -> Token:
 	for t in _tokens:
 		if t.player == player:
 			return t
 	return null
+
+# ----------------------------------------------------------------------------
+# Estado hacia los clientes
+# ----------------------------------------------------------------------------
+
+func _serialize_state() -> Variant:
+	var scores := PackedInt32Array()
+	var toks := PackedFloat32Array()
+	for t in _tokens:
+		scores.append(_scores[t.player.id])
+		toks.append_array(PackedFloat32Array([t.pos.x, t.pos.y, t.vel.x, t.vel.y,
+				t.facing.x, t.facing.y, t.sprint_t, t.sprint_cd]))
+	var coins := PackedFloat32Array()
+	for c in _coins:
+		coins.append_array(PackedFloat32Array([c.pos.x, c.pos.y, float(c.value), c.age]))
+	return {"t": _time_left, "s": scores, "k": toks, "c": coins}
+
+func _apply_state(state: Variant) -> void:
+	if not state is Dictionary:
+		return
+	_time_left = float(state.get("t", _time_left))
+	var scores: Variant = state.get("s")
+	if scores is PackedInt32Array:
+		for i in mini(scores.size(), _tokens.size()):
+			_scores[_tokens[i].player.id] = scores[i]
+	var toks: Variant = state.get("k")
+	if toks is PackedFloat32Array and toks.size() >= _tokens.size() * FLOATS_PER_TOKEN:
+		for i in _tokens.size():
+			var t := _tokens[i]
+			var o := i * FLOATS_PER_TOKEN
+			t.net_pos = Vector2(toks[o], toks[o + 1])
+			t.vel = Vector2(toks[o + 2], toks[o + 3])
+			t.facing = Vector2(toks[o + 4], toks[o + 5])
+			t.sprint_t = toks[o + 6]
+			t.sprint_cd = toks[o + 7]
+			if not _got_state:
+				t.pos = t.net_pos
+		_got_state = true
+	var coins: Variant = state.get("c")
+	if coins is PackedFloat32Array:
+		_coins.clear()
+		var coin_count: int = coins.size() / FLOATS_PER_COIN
+		for i in coin_count:
+			var o: int = i * FLOATS_PER_COIN
+			var c := Coin.new()
+			c.pos = Vector2(coins[o], coins[o + 1])
+			c.value = int(coins[o + 2])
+			c.age = coins[o + 3]
+			_coins.append(c)
+
+func _on_event(event_name: String, data: Variant) -> void:
+	if event_name == "collect" and data is Array and data.size() >= 3:
+		var pop := ScorePopup.new()
+		pop.pos = Vector2(float(data[0]), float(data[1]))
+		var value := int(data[2])
+		pop.text = "+%d" % value
+		pop.color = Palette.YELLOW if value == 1 else Color("FF9F43")
+		_popups.append(pop)
+
+# ----------------------------------------------------------------------------
+# Animación (todos los PC)
+# ----------------------------------------------------------------------------
+
+func _animate(delta: float) -> void:
+	for pop in _popups:
+		pop.age += delta
+	_popups = _popups.filter(func(p: ScorePopup) -> bool: return p.age < 0.8)
+	if not is_authority:
+		for c in _coins:
+			c.age += delta
+		var k := 1.0 - exp(-SMOOTHING * delta)
+		for t in _tokens:
+			t.net_pos += t.vel * delta   # extrapolación corta entre snapshots
+			t.net_pos = t.net_pos.clamp(ARENA.grow(-PLAYER_RADIUS).position, ARENA.grow(-PLAYER_RADIUS).end)
+			t.pos = t.pos.lerp(t.net_pos, k)
 
 # ----------------------------------------------------------------------------
 # Dibujo
@@ -183,6 +261,8 @@ func _draw_game() -> void:
 		s.draw_set_transform(t.pos, 0.0, Vector2(squash, 2.0 - squash))
 		AvatarPainter.paint(s, Vector2.ZERO, PLAYER_RADIUS, t.player.color, t.facing)
 		s.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		if is_local_player(t.player):
+			draw_local_marker(t.pos, PLAYER_RADIUS)
 	# Textos flotantes "+N".
 	for pop in _popups:
 		var k := pop.age / 0.8

@@ -5,7 +5,7 @@ var _confetti: Confetti
 
 func _ready() -> void:
 	UIKit.setup_screen(self)
-	var standings := MatchRules.standings(GameManager.players)
+	var standings := MatchRules.standings(Lobby.players)
 	var top_score: int = standings[0].score if not standings.is_empty() else 0
 	var winners: Array[PlayerData] = []
 	for p in standings:
@@ -33,7 +33,7 @@ func _ready() -> void:
 		a.crown = true
 		a.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		col.add_child(a)
-		col.add_child(UIKit.label(p.display_name, &"HeaderLabel"))
+		col.add_child(UIKit.label(p.label(), &"HeaderLabel"))
 		crown_row.add_child(col)
 		get_tree().create_timer(0.6).timeout.connect(a.bounce)
 	box.add_child(crown_row)
@@ -63,12 +63,16 @@ func _ready() -> void:
 	var menu := UIKit.button("MENÚ", &"DangerButton", Vector2(180, 0))
 	menu.pressed.connect(GameManager.go_to_menu)
 	bar.add_child(menu)
-	var lobby := UIKit.button("CAMBIAR JUGADORES", &"SecondaryButton", Vector2(0, 0))
-	lobby.pressed.connect(GameManager.go_to_lobby)
-	bar.add_child(lobby)
-	var again := UIKit.button("REVANCHA", &"PrimaryButton", Vector2(220, 0))
-	again.pressed.connect(GameManager.rematch)
-	bar.add_child(again)
+	# Solo el host decide qué pasa después; los clientes esperan (o salen con MENÚ).
+	if NetworkManager.is_host():
+		var lobby := UIKit.button("VOLVER AL LOBBY", &"SecondaryButton", Vector2(0, 0))
+		lobby.pressed.connect(GameManager.go_to_lobby)
+		bar.add_child(lobby)
+		var again := UIKit.button("REVANCHA", &"PrimaryButton", Vector2(220, 0))
+		again.pressed.connect(GameManager.rematch)
+		bar.add_child(again)
+	else:
+		bar.add_child(UIKit.label("Esperando al anfitrión…", &"HintLabel"))
 
 	_confetti = Confetti.new()
 	add_child(_confetti)
@@ -89,7 +93,7 @@ func _standing_row(index: int, p: PlayerData) -> Control:
 	var av := PlayerAvatar.new(34)
 	av.set_player(p)
 	row.add_child(av)
-	var name_label := UIKit.label(p.display_name, &"", HORIZONTAL_ALIGNMENT_LEFT)
+	var name_label := UIKit.label(p.label(), &"", HORIZONTAL_ALIGNMENT_LEFT)
 	name_label.custom_minimum_size = Vector2(190, 0)
 	row.add_child(name_label)
 	var pts := UIKit.label("%d pts" % p.score, &"", HORIZONTAL_ALIGNMENT_RIGHT)

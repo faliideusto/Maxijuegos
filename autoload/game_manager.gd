@@ -1,15 +1,19 @@
 extends Node
-## Director de la partida (autoload). Mantiene la lista de jugadores, la configuración,
-## la selección aleatoria de minijuegos, el flujo y las puntuaciones.
+## Director de la partida (autoload): configuración, selección de minijuegos, flujo y puntuaciones.
+## La lista de jugadores vive en Lobby; el transporte, en NetworkManager.
 ##
 ## Flujo:  MENU → LOBBY → SETUP → [ INTRO → PLAYING → SCOREBOARD ] × N → FINAL
-## Las pantallas solo llaman a los métodos públicos de aquí; la lógica vive en este archivo.
+##
+## Online (host autoritativo): SOLO el host avanza el flujo. Cada cambio de estado se difunde
+## a los clientes con el canal "flow" (mensaje completo e idempotente: playlist, índice,
+## ranking, puntos y marcador); los clientes se limitan a reflejarlo. Las pantallas llaman
+## a los mismos métodos en todos los PC: en un cliente, los métodos que avanzan la partida
+## no hacen nada (el host decide).
 
 enum State { MENU, LOBBY, SETUP, INTRO, PLAYING, SCOREBOARD, FINAL }
 
-signal roster_changed
 signal state_changed(new_state: State)
-## Mensaje para mostrar al usuario (errores de red, etc.).
+## Mensaje para el usuario (errores de red, etc.). También queda en last_notice.
 signal notice(text: String)
 
 const SCREENS := {
@@ -26,7 +30,6 @@ const MIN_PLAYERS := 2
 const MAX_MINIGAMES := 20
 
 var state: State = State.MENU
-var players: Array[PlayerData] = []
 ## Número de minijuegos de la partida (lo elige el host).
 var minigame_count: int = 5
 var playlist: Array[MinigameMeta] = []
@@ -36,159 +39,45 @@ var last_ranking: Array[int] = []
 var last_points: Dictionary = {}
 ## Puntuaciones antes de repartir los puntos del último minijuego (para animar el marcador).
 var previous_scores: Dictionary = {}
+## Último aviso para el usuario; el menú lo muestra y lo limpia (take_notice).
+var last_notice: String = ""
 
 func _ready() -> void:
-	NetworkManager.join_requested.connect(_on_join_requested)
-	NetworkManager.roster_received.connect(_on_roster_received)
-	NetworkManager.peer_joined.connect(_on_peer_joined)
-	NetworkManager.peer_left.connect(_on_peer_left)
-	NetworkManager.connected_to_host.connect(_on_connected_to_host)
+	NetworkManager.register_channel(NetProtocol.CH_FLOW, _on_flow_message)
 	NetworkManager.disconnected.connect(_on_host_lost)
-
-# ----------------------------------------------------------------------------
-# Jugadores
-# ----------------------------------------------------------------------------
-
-func get_player(id: int) -> PlayerData:
-	for p in players:
-		if p.id == id:
-			return p
-	return null
-
-## Dispositivos humanos que aún no usa ningún jugador.
-func free_devices() -> Array[String]:
-	var used: Array[String] = []
-	for p in players:
-		used.append(p.device)
-	var free: Array[String] = []
-	for d in InputManager.available_devices():
-		if not used.has(d):
-			free.append(d)
-	return free
-
-## Añade un jugador local. Con `device` vacío usa el primer dispositivo libre.
-## Devuelve null si no se puede (partida llena o sin dispositivos libres).
-func add_player(device: String = "") -> PlayerData:
-	if not NetworkManager.is_host() or players.size() >= PlayerData.MAX_PLAYERS:
-		return null
-	if device.is_empty():
-		var free := free_devices()
-		if free.is_empty():
-			return null
-		device = free[0]
-	var p := _create_player(device, "")
-	p.peer_id = NetworkManager.local_peer_id()
-	_register(p)
-	return p
-
-func add_bot() -> PlayerData:
-	return add_player(PlayerData.DEVICE_BOT)
-
-func remove_player(id: int) -> void:
-	var p := get_player(id)
-	if p == null or not NetworkManager.is_host():
-		return
-	InputManager.unregister_player(p)
-	players.erase(p)
-	_roster_updated()
-
-## Pasa el jugador al siguiente dispositivo humano libre (o bot si no hay).
-func cycle_device(p: PlayerData) -> void:
-	var options := free_devices()
-	options.append(PlayerData.DEVICE_BOT)
-	var idx := options.find(p.device)
-	# Si el actual es humano, ya está "usado": se busca el siguiente tras él en la lista de libres.
-	p.device = options[(idx + 1) % options.size()] if idx >= 0 else options[0]
-	InputManager.register_player(p)
-	_roster_updated()
-
-## Cambia el color al siguiente que no use otro jugador.
-func cycle_color(p: PlayerData, step: int = 1) -> void:
-	var n := Palette.PLAYER_COLORS.size()
-	var idx := p.color_index
-	for i in n:
-		idx = posmod(idx + step, n)
-		if not _color_in_use(idx, p):
-			p.color_index = idx
-			break
-	_roster_updated()
-
-func clear_players() -> void:
-	for p in players:
-		InputManager.unregister_player(p)
-	players.clear()
-	_roster_updated()
-
-func _create_player(device: String, p_name: String) -> PlayerData:
-	var p := PlayerData.new()
-	p.id = _first_free_slot()
-	p.device = device
-	p.color_index = _first_free_color(p.id)
-	if p_name.is_empty():
-		p_name = ("Bot %d" if p.is_bot else "Jugador %d") % (p.id + 1)
-	p.display_name = p_name
-	return p
-
-func _register(p: PlayerData) -> void:
-	players.append(p)
-	players.sort_custom(func(a: PlayerData, b: PlayerData) -> bool: return a.id < b.id)
-	InputManager.register_player(p)
-	_roster_updated()
-
-func _first_free_slot() -> int:
-	for i in PlayerData.MAX_PLAYERS:
-		if get_player(i) == null:
-			return i
-	return PlayerData.MAX_PLAYERS - 1
-
-func _first_free_color(preferred: int) -> int:
-	var n := Palette.PLAYER_COLORS.size()
-	for i in n:
-		var idx := (preferred + i) % n
-		if not _color_in_use(idx, null):
-			return idx
-	return preferred % n
-
-func _color_in_use(idx: int, ignore: PlayerData) -> bool:
-	for p in players:
-		if p != ignore and p.color_index == idx:
-			return true
-	return false
+	Lobby.join_rejected.connect(_on_join_rejected)
+	Lobby.joined_room.connect(_on_joined_room)
 
 # ----------------------------------------------------------------------------
 # Configuración y arranque de partida
 # ----------------------------------------------------------------------------
 
-func player_count() -> int:
-	return players.size()
-
 ## Cuántos minijuegos distintos admiten el número actual de jugadores.
 func compatible_minigame_count() -> int:
-	return MinigameRegistry.get_compatible(players.size()).size()
+	return MinigameRegistry.get_compatible(Lobby.players.size()).size()
 
 ## Texto con el motivo por el que no se puede empezar, o "" si se puede.
 func start_blocker() -> String:
 	if not NetworkManager.is_host():
 		return "Esperando al anfitrión…"
-	if players.size() < MIN_PLAYERS:
+	if Lobby.players.size() < MIN_PLAYERS:
 		return "Hacen falta al menos %d jugadores." % MIN_PLAYERS
-	for p in players:
-		if p.is_remote:
-			return "Online: los minijuegos en red llegan en la fase 2."
 	if compatible_minigame_count() == 0:
-		return "Ningún minijuego admite %d jugadores." % players.size()
+		return "Ningún minijuego admite %d jugadores." % Lobby.players.size()
 	return ""
 
 func set_minigame_count(n: int) -> void:
 	minigame_count = clampi(n, 1, MAX_MINIGAMES)
 
-## Genera la lista de minijuegos, reinicia puntuaciones y arranca la primera presentación.
+## (host) Genera la lista de minijuegos, reinicia puntuaciones y arranca la primera presentación.
 func start_match(rng: RandomNumberGenerator = null) -> void:
-	playlist = MinigameRegistry.pick_random(minigame_count, players.size(), rng)
-	if playlist.is_empty():
-		notice.emit("No hay minijuegos disponibles para %d jugadores." % players.size())
+	if not NetworkManager.is_host():
 		return
-	for p in players:
+	playlist = MinigameRegistry.pick_random(minigame_count, Lobby.players.size(), rng)
+	if playlist.is_empty():
+		_show_notice("No hay minijuegos disponibles para %d jugadores." % Lobby.players.size())
+		return
+	for p in Lobby.players:
 		p.score = 0
 	previous_scores.clear()
 	last_points.clear()
@@ -202,138 +91,170 @@ func current_minigame() -> MinigameMeta:
 	return playlist[current_index]
 
 # ----------------------------------------------------------------------------
-# Bucle de partida
+# Bucle de partida (solo el host avanza; en clientes estas llamadas se ignoran)
 # ----------------------------------------------------------------------------
 
 ## La presentación terminó: se juega el minijuego actual.
 func run_minigame() -> void:
-	_go(State.PLAYING)
+	if NetworkManager.is_host():
+		_go(State.PLAYING)
 
-## El minijuego terminó: reparte puntos según la posición y muestra el marcador.
+## El minijuego terminó: el host reparte puntos según la posición y muestra el marcador.
 func report_results(ranking: Array[int]) -> void:
+	if not NetworkManager.is_host():
+		return
 	last_ranking = ranking
 	last_points.clear()
 	previous_scores.clear()
-	for p in players:
+	for p in Lobby.players:
 		previous_scores[p.id] = p.score
 	for rank in ranking.size():
-		var p := get_player(ranking[rank])
+		var p := Lobby.get_player(ranking[rank])
 		if p == null:
 			continue
-		var pts := MatchRules.points_for_rank(rank, players.size())
+		var pts := MatchRules.points_for_rank(rank, Lobby.players.size())
 		p.score += pts
 		last_points[p.id] = pts
 	_go(State.SCOREBOARD)
 
 ## Se cerró el marcador: siguiente minijuego, o pantalla final si era el último.
 func continue_match() -> void:
+	if not NetworkManager.is_host():
+		return
 	if current_index + 1 < playlist.size():
 		current_index += 1
 		_go(State.INTRO)
 	else:
 		_go(State.FINAL)
 
-## Número de minijuegos ya jugados (para mostrar "2 / 5").
 func is_last_minigame() -> bool:
 	return current_index + 1 >= playlist.size()
 
+## (host) Otra partida con los mismos jugadores (los desconectados se descartan).
 func rematch() -> void:
+	if not NetworkManager.is_host():
+		return
+	Lobby.prune_disconnected()
+	if Lobby.players.size() < MIN_PLAYERS:
+		_show_notice("Quedan menos de %d jugadores." % MIN_PLAYERS)
+		go_to_lobby()
+		return
 	start_match()
 
 # ----------------------------------------------------------------------------
 # Navegación
 # ----------------------------------------------------------------------------
 
+## Sale al menú: cierra la red (si la hay) y vacía el roster.
 func go_to_menu() -> void:
 	NetworkManager.disconnect_from_game()
-	clear_players()
-	_go(State.MENU)
+	Lobby.clear()
+	_enter(State.MENU)
 
 func go_to_lobby() -> void:
+	if not NetworkManager.is_host():
+		return
+	Lobby.prune_disconnected()
 	_go(State.LOBBY)
 
 func go_to_setup() -> void:
-	_go(State.SETUP)
+	if NetworkManager.is_host():
+		_go(State.SETUP)
 
+## Devuelve y limpia el último aviso (para mostrarlo al cargar el menú).
+func take_notice() -> String:
+	var text := last_notice
+	last_notice = ""
+	return text
+
+## (host) Cambia de estado, lo difunde a los clientes y cambia de pantalla.
 func _go(new_state: State) -> void:
+	# SETUP es solo del host: los clientes siguen viendo el lobby.
+	if NetworkManager.is_online and new_state != State.SETUP:
+		NetworkManager.broadcast(NetProtocol.CH_FLOW, _flow_payload(new_state))
+	_enter(new_state)
+
+func _enter(new_state: State) -> void:
 	state = new_state
+	DevCli.log_event("state=%s index=%d" % [State.keys()[new_state], current_index])
 	state_changed.emit(new_state)
 	Transition.change_scene(SCREENS[new_state])
 
+func _show_notice(text: String) -> void:
+	last_notice = text
+	notice.emit(text)
+
 # ----------------------------------------------------------------------------
-# Red (solo lobby en esta fase)
+# Sincronización de flujo (cliente)
 # ----------------------------------------------------------------------------
 
-## Crea una sala online: este PC es el anfitrión.
-func host_online() -> Error:
-	clear_players()
-	var err := NetworkManager.host_game()
-	return err
+func _flow_payload(s: State) -> Dictionary:
+	var ids: Array = []
+	for m in playlist:
+		ids.append(String(m.id))
+	var scores := {}
+	for p in Lobby.players:
+		scores[p.id] = p.score
+	return {"op": "state", "s": int(s), "playlist": ids, "i": current_index,
+			"rank": last_ranking, "pts": last_points, "prev": previous_scores, "scores": scores}
 
-## Se une a una sala online. El resultado llega por NetworkManager.connected_to_host
-## / connection_failed.
-func join_online(address: String) -> Error:
-	clear_players()
-	return NetworkManager.join_game(address)
-
-func _roster_updated() -> void:
-	roster_changed.emit()
-	if NetworkManager.is_online and NetworkManager.is_host():
-		_broadcast_roster()
-
-func _broadcast_roster() -> void:
-	var data: Array = []
-	for p in players:
-		data.append(p.to_dict())
-	NetworkManager.broadcast_roster(data)
-
-func _on_peer_joined(_peer_id: int) -> void:
-	# El nuevo peer recibe la lista actual; su jugador se añade al llegar su petición.
-	if NetworkManager.is_host():
-		_broadcast_roster()
-
-func _on_peer_left(peer_id: int) -> void:
-	if not NetworkManager.is_host():
+## Mensaje del host con el estado completo de la partida. Un cliente solo refleja.
+func _on_flow_message(_from_peer: int, payload: Variant) -> void:
+	if NetworkManager.is_host() or not payload is Dictionary or payload.get("op") != "state":
 		return
-	var leaving: Array[PlayerData] = []
-	for p in players:
-		if p.peer_id == peer_id and p.is_remote:
-			leaving.append(p)
-	for p in leaving:
-		players.erase(p)
-	if not leaving.is_empty():
-		_roster_updated()
-
-func _on_connected_to_host() -> void:
-	NetworkManager.send_join_request("Jugador", 0)
-
-func _on_join_requested(peer_id: int, player_name: String, color_index: int) -> void:
-	if players.size() >= PlayerData.MAX_PLAYERS:
+	var new_state := int(payload.get("s", -1))
+	if new_state < 0 or new_state >= State.size():
 		return
-	var p := _create_player(PlayerData.DEVICE_REMOTE, player_name)
-	p.peer_id = peer_id
-	if not _color_in_use(color_index, null):
-		p.color_index = color_index
-	_register(p)
+	# Playlist: ids → metadatos locales. Si falta alguno, este cliente no puede jugar.
+	var new_playlist: Array[MinigameMeta] = []
+	for id in payload.get("playlist", []):
+		var meta := MinigameRegistry.get_by_id(StringName(str(id)))
+		if meta == null:
+			_leave_with_notice("Te faltan minijuegos que tiene el anfitrión (versión distinta).")
+			return
+		new_playlist.append(meta)
+	playlist = new_playlist
+	current_index = clampi(int(payload.get("i", -1)), -1, playlist.size() - 1)
+	last_ranking = _to_int_array(payload.get("rank", []))
+	last_points = _to_int_dict(payload.get("pts", {}))
+	previous_scores = _to_int_dict(payload.get("prev", {}))
+	var scores := _to_int_dict(payload.get("scores", {}))
+	for p in Lobby.players:
+		p.score = int(scores.get(p.id, p.score))
+	_enter(new_state as State)
 
-func _on_roster_received(data: Array) -> void:
-	# (cliente) Sustituye la lista local por la del anfitrión.
-	for p in players:
-		InputManager.unregister_player(p)
-	players.clear()
-	for d in data:
-		var p := PlayerData.from_dict(d)
-		# El cliente no controla a nadie en esta fase: todos son "online" (salvo bots).
-		if not p.is_bot:
-			p.device = PlayerData.DEVICE_REMOTE
-		players.append(p)
-	roster_changed.emit()
-	# Primera lista recibida: ir al lobby.
-	if state == State.MENU:
-		go_to_lobby()
+## El host nos rechazó: cerramos la conexión y seguimos en el menú con el motivo.
+func _on_join_rejected(reason: String) -> void:
+	_show_notice(reason)
+	NetworkManager.disconnect_from_game()
+	Lobby.clear()
+	DevCli.log_event("join_rejected: %s" % reason)
 
+func _on_joined_room() -> void:
+	# El host nos aceptó: pasamos al lobby de la sala.
+	_enter(State.LOBBY)
+
+## (cliente) Se cerró la conexión con el host.
 func _on_host_lost() -> void:
-	clear_players()
-	notice.emit("Se perdió la conexión con el anfitrión.")
-	if state != State.MENU:
-		_go(State.MENU)
+	_leave_with_notice("Se perdió la conexión con el anfitrión.")
+
+func _leave_with_notice(text: String) -> void:
+	_show_notice(text)
+	NetworkManager.disconnect_from_game()
+	Lobby.clear()
+	DevCli.log_event("host_lost: %s" % text)
+	_enter(State.MENU)
+
+func _to_int_array(value: Variant) -> Array[int]:
+	var result: Array[int] = []
+	if value is Array:
+		for v in value:
+			result.append(int(v))
+	return result
+
+func _to_int_dict(value: Variant) -> Dictionary:
+	var result := {}
+	if value is Dictionary:
+		for k in value:
+			result[int(k)] = int(value[k])
+	return result

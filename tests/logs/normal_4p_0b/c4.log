@@ -1,0 +1,33 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[EVT] roster n=0 humans=0
+[EVT] join_room err=OK
+ERROR: Condition "!peers.has(p_id)" is true. Returning: nullptr
+   at: get_peer (modules/enet/enet_multiplayer_peer.cpp:461)
+   GDScript backtrace (most recent call first):
+       [0] configure_peer (res://net/enet_backend.gd:34)
+       [1] _on_peer_connected (res://autoload/network_manager.gd:157)
+ERROR: Condition "!peers.has(p_id)" is true. Returning: nullptr
+   at: get_peer (modules/enet/enet_multiplayer_peer.cpp:461)
+   GDScript backtrace (most recent call first):
+       [0] configure_peer (res://net/enet_backend.gd:34)
+       [1] _on_peer_connected (res://autoload/network_manager.gd:157)
+[EVT] roster n=4 humans=4
+[EVT] state=LOBBY index=-1
+[EVT] state=INTRO index=0
+[EVT] state=PLAYING index=0
+[EVT] state=SCOREBOARD index=0
+[EVT] scoreboard scores=0:2,1:3,2:1,3:4 ranking=[3, 1, 0, 2]
+[EVT] mg_session snapshots_sent=0 snapshots_applied=35 inputs_applied=0
+[EVT] state=INTRO index=1
+[EVT] state=PLAYING index=1
+[EVT] state=SCOREBOARD index=1
+[EVT] scoreboard scores=0:5,1:7,2:2,3:6 ranking=[1, 0, 3, 2]
+[EVT] mg_session snapshots_sent=0 snapshots_applied=199 inputs_applied=0
+[EVT] state=INTRO index=2
+[EVT] state=PLAYING index=2
+[EVT] state=SCOREBOARD index=2
+[EVT] scoreboard scores=0:8,1:11,2:3,3:8 ranking=[1, 0, 3, 2]
+[EVT] mg_session snapshots_sent=0 snapshots_applied=599 inputs_applied=0
+[EVT] state=FINAL index=2
+[EVT] final scores=0:8,1:11,2:3,3:8

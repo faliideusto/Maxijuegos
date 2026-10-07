@@ -72,7 +72,7 @@ func _refresh() -> void:
 	var count := GameManager.minigame_count
 	_count_label.text = str(count)
 	var available := GameManager.compatible_minigame_count()
-	var players := GameManager.player_count()
+	var players := Lobby.players.size()
 	if count > available and available > 0:
 		_info.text = "Hay %d minijuegos para %d jugadores: algunos se repetirán." % [available, players]
 	else:

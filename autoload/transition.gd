@@ -6,6 +6,7 @@ const DURATION := 0.3
 var _curtain: ColorRect
 var _stripe: ColorRect
 var _busy: bool = false
+var _queued_path: String = ""
 
 func _ready() -> void:
 	layer = 100
@@ -20,9 +21,11 @@ func _ready() -> void:
 		rect.visible = false
 		add_child(rect)
 
-## Cambia de escena con transición. Ignora llamadas mientras hay una en curso.
+## Cambia de escena con transición. Si ya hay una en curso, la nueva se encola (solo se
+## conserva la última) y se ejecuta al terminar: el flujo de partida nunca se pierde un cambio.
 func change_scene(path: String) -> void:
 	if _busy:
+		_queued_path = path
 		return
 	_busy = true
 	var w := Palette.VIEWPORT_SIZE.x
@@ -46,3 +49,7 @@ func change_scene(path: String) -> void:
 	_curtain.visible = false
 	_stripe.visible = false
 	_busy = false
+	if not _queued_path.is_empty():
+		var next := _queued_path
+		_queued_path = ""
+		change_scene(next)

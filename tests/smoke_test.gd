@@ -8,6 +8,7 @@ const TIMEOUT_REAL_SECONDS := 90.0
 
 var _gm: Node
 var _registry: Node
+var _lobby: Node
 var _expected_games: int = 3
 var _expected_players: int = 4
 var _visited: Dictionary = {}     # nombre de estado -> veces
@@ -19,6 +20,7 @@ var _began: bool = false
 func _start() -> void:
 	_gm = root.get_node("GameManager")
 	_registry = root.get_node("MinigameRegistry")
+	_lobby = root.get_node("Lobby")
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0: _expected_players = int(args[0])
 	if args.size() > 1: _expected_games = int(args[1])
@@ -27,7 +29,7 @@ func _start() -> void:
 
 	Engine.time_scale = TIME_SCALE
 	for i in _expected_players:
-		_gm.add_bot()
+		_lobby.add_bot()
 	_gm.set_minigame_count(_expected_games)
 	_check(_gm.start_blocker() == "", "start_blocker vacío con %d bots (%s)" % [_expected_players, _gm.start_blocker()])
 	_gm.state_changed.connect(_on_state_changed)
@@ -84,7 +86,7 @@ func _verify_match() -> void:
 	_check(_visited.get("PLAYING", 0) == g, "%d minijuegos jugados (hubo %d)" % [g, _visited.get("PLAYING", 0)])
 	_check(_visited.get("SCOREBOARD", 0) == g, "%d marcadores (hubo %d)" % [g, _visited.get("SCOREBOARD", 0)])
 	var total := 0
-	for p: PlayerData in _gm.players:
+	for p: PlayerData in _lobby.players:
 		total += p.score
 	var per_game := 0
 	for r in n:

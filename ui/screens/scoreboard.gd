@@ -35,7 +35,7 @@ func _ready() -> void:
 	center.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(center)
 	_board = Control.new()
-	_board.custom_minimum_size = Vector2(ROW_W, ROW_H * GameManager.players.size())
+	_board.custom_minimum_size = Vector2(ROW_W, ROW_H * Lobby.players.size())
 	center.add_child(_board)
 
 	var next := UIKit.button("¡SIGUIENTE!" if not GameManager.is_last_minigame() else "VER RESULTADO FINAL", &"PrimaryButton", Vector2(320, 0))
@@ -52,7 +52,7 @@ func _ready() -> void:
 # Orden de filas según unas puntuaciones dadas (empates: por ranura).
 func _order_by(scores: Dictionary) -> Array[int]:
 	var ids: Array[int] = []
-	for p in GameManager.players:
+	for p in Lobby.players:
 		ids.append(p.id)
 	ids.sort_custom(func(a: int, b: int) -> bool:
 		var sa: int = scores.get(a, 0)
@@ -62,17 +62,17 @@ func _order_by(scores: Dictionary) -> Array[int]:
 
 func _new_scores() -> Dictionary:
 	var d := {}
-	for p in GameManager.players:
+	for p in Lobby.players:
 		d[p.id] = p.score
 	return d
 
 func _build_rows() -> void:
 	var max_total := 1
-	for p in GameManager.players:
+	for p in Lobby.players:
 		max_total = maxi(max_total, p.score)
 	var order := _order_by(GameManager.previous_scores)
 	for pos in order.size():
-		var p := GameManager.get_player(order[pos])
+		var p := Lobby.get_player(order[pos])
 		var row := PanelContainer.new()
 		row.theme_type_variation = &"ChipPanel"
 		row.size = Vector2(ROW_W, ROW_H - 8.0)
@@ -86,7 +86,7 @@ func _build_rows() -> void:
 		avatar.position = Vector2(0, -2)
 		inner.add_child(avatar)
 
-		var name_label := UIKit.label(p.display_name, &"", HORIZONTAL_ALIGNMENT_LEFT)
+		var name_label := UIKit.label(p.label(), &"", HORIZONTAL_ALIGNMENT_LEFT)
 		name_label.position = Vector2(60, 0)
 		name_label.size = Vector2(250, ROW_H - 24.0)
 		name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -174,7 +174,7 @@ func _process(delta: float) -> void:
 		return
 	if _elapsed < SKIP_GRACE:
 		return
-	for p in GameManager.players:
+	for p in Lobby.players:
 		if not p.is_bot and not p.is_remote and InputManager.is_action_just_pressed(p.id):
 			_continue()
 			return
