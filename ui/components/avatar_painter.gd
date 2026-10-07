@@ -21,13 +21,19 @@ static func paint(ci: CanvasItem, center: Vector2, radius: float, color: Color,
 
 ## Corona sobre un avatar (para el ganador).
 static func paint_crown(ci: CanvasItem, center: Vector2, radius: float) -> void:
-	var top := center.y - radius * 1.05
-	var w := radius * 0.9
-	var h := radius * 0.75
+	var base := center.y - radius * 0.82   # apoyada sobre la cabeza
+	var w := radius * 0.72
+	var h := radius * 0.62
+	var cx := center.x
 	var pts := PackedVector2Array([
-		Vector2(center.x - w, top), Vector2(center.x - w * 0.5, top - h * 0.55),
-		Vector2(center.x, top - h * 0.1), Vector2(center.x + w * 0.5, top - h * 0.55),
-		Vector2(center.x + w, top)])
+		Vector2(cx - w, base), Vector2(cx - w, base - h * 0.95),
+		Vector2(cx - w * 0.45, base - h * 0.45), Vector2(cx, base - h * 1.1),
+		Vector2(cx + w * 0.45, base - h * 0.45), Vector2(cx + w, base - h * 0.95),
+		Vector2(cx + w, base)])
 	ci.draw_colored_polygon(pts, Palette.YELLOW)
-	ci.draw_polyline(PackedVector2Array([pts[0], pts[1], pts[2], pts[3], pts[4], pts[0]]),
-			Palette.YELLOW_DARK, 3.0, true)
+	var outline := pts.duplicate()
+	outline.append(pts[0])
+	ci.draw_polyline(outline, Palette.YELLOW_DARK, 4.0, true)
+	# Perlas en las puntas.
+	for tip in [pts[1], pts[3], pts[5]]:
+		ci.draw_circle(tip, radius * 0.1, Palette.WHITE)

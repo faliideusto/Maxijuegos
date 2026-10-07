@@ -16,6 +16,7 @@ static func button(text: String, variation: StringName = &"PrimaryButton", min_s
 	b.text = text
 	b.theme_type_variation = variation
 	b.custom_minimum_size = min_size
+	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	return b
 
 ## Pantalla base: un Control a pantalla completa con el fondo violeta ya añadido.

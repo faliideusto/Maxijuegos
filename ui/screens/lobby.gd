@@ -17,11 +17,11 @@ func _ready() -> void:
 
 	var root := VBoxContainer.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.offset_left = 40
-	root.offset_right = -40
-	root.offset_top = 24
-	root.offset_bottom = -24
-	root.add_theme_constant_override("separation", 14)
+	root.offset_left = 24
+	root.offset_right = -24
+	root.offset_top = 14
+	root.offset_bottom = -14
+	root.add_theme_constant_override("separation", 8)
 	add_child(root)
 
 	_title = UIKit.label("JUGADORES", &"HeaderLabel")
@@ -34,8 +34,8 @@ func _ready() -> void:
 	root.add_child(center)
 	_grid = GridContainer.new()
 	_grid.columns = COLUMNS
-	_grid.add_theme_constant_override("h_separation", 16)
-	_grid.add_theme_constant_override("v_separation", 16)
+	_grid.add_theme_constant_override("h_separation", 14)
+	_grid.add_theme_constant_override("v_separation", 14)
 	center.add_child(_grid)
 
 	_hint = UIKit.label("", &"HintLabel")
@@ -98,68 +98,80 @@ func _refresh() -> void:
 	else:
 		_hint.text = "Teclado 1: WASD + Espacio · Teclado 2: Flechas + Enter · Mando: stick + A"
 
+## Tarjeta compacta de jugador: avatar + nombre/color arriba, dispositivo y acciones abajo.
 func _make_card(p: PlayerData, editable: bool) -> Control:
+	var local_editable := editable and not p.is_remote
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(270, 0)
+	card.custom_minimum_size = Vector2(280, 0)
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 8)
+	box.add_theme_constant_override("separation", 6)
 	card.add_child(box)
 
-	var avatar := PlayerAvatar.new(96)
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 10)
+	box.add_child(top)
+	var avatar := PlayerAvatar.new(76)
 	avatar.set_player(p)
-	avatar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	box.add_child(avatar)
+	top.add_child(avatar)
+
+	var right := VBoxContainer.new()
+	right.add_theme_constant_override("separation", 6)
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(right)
 
 	var name_edit := LineEdit.new()
 	name_edit.text = p.display_name
-	name_edit.max_length = 14
-	name_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_edit.editable = editable and not p.is_remote
+	name_edit.max_length = 12
+	name_edit.custom_minimum_size = Vector2(150, 0)
+	name_edit.add_theme_font_size_override("font_size", 22)
+	name_edit.editable = local_editable
 	# El nombre se guarda directamente (no hace falta reconstruir las tarjetas).
-	name_edit.text_changed.connect(func(t: String) -> void: p.display_name = t if not t.strip_edges().is_empty() else p.display_name)
-	box.add_child(name_edit)
+	name_edit.text_changed.connect(func(t: String) -> void:
+		if not t.strip_edges().is_empty():
+			p.display_name = t)
+	right.add_child(name_edit)
 
-	# Color: ‹ ● ›
+	# Color:  ‹ [■] ›
 	var color_row := HBoxContainer.new()
-	color_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	color_row.add_theme_constant_override("separation", 8)
-	box.add_child(color_row)
-	var prev := UIKit.button("‹", &"SecondaryButton", Vector2(56, 0))
+	color_row.add_theme_constant_override("separation", 6)
+	right.add_child(color_row)
+	var prev := UIKit.button("‹", &"SmallButton", Vector2(40, 0))
 	prev.pressed.connect(func() -> void: GameManager.cycle_color(p, -1))
-	var next := UIKit.button("›", &"SecondaryButton", Vector2(56, 0))
+	var swatch := Panel.new()
+	var sw_style := StyleBoxFlat.new()
+	sw_style.bg_color = p.color
+	sw_style.set_corner_radius_all(12)
+	sw_style.set_border_width_all(3)
+	sw_style.border_color = Palette.WHITE
+	swatch.add_theme_stylebox_override("panel", sw_style)
+	swatch.custom_minimum_size = Vector2(46, 30)
+	swatch.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var next := UIKit.button("›", &"SmallButton", Vector2(40, 0))
 	next.pressed.connect(func() -> void: GameManager.cycle_color(p, 1))
-	var swatch := ColorRect.new()
-	swatch.color = p.color
-	swatch.custom_minimum_size = Vector2(60, 36)
-	var swatch_style := PanelContainer.new()
-	swatch_style.custom_minimum_size = Vector2(60, 36)
-	swatch_style.add_child(swatch)
 	color_row.add_child(prev)
-	color_row.add_child(swatch_style)
+	color_row.add_child(swatch)
 	color_row.add_child(next)
-	prev.visible = editable and not p.is_remote
-	next.visible = prev.visible
+	prev.visible = local_editable
+	next.visible = local_editable
 
-	var device := UIKit.label(p.device_label(), &"HintLabel")
+	var bottom := HBoxContainer.new()
+	bottom.add_theme_constant_override("separation", 8)
+	box.add_child(bottom)
+	var device := UIKit.label(p.device_label(), &"HintLabel", HORIZONTAL_ALIGNMENT_LEFT)
+	device.add_theme_font_size_override("font_size", 16)
 	device.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	device.custom_minimum_size = Vector2(230, 0)
-	box.add_child(device)
-
-	if editable and not p.is_remote:
-		var actions := HBoxContainer.new()
-		actions.alignment = BoxContainer.ALIGNMENT_CENTER
-		actions.add_theme_constant_override("separation", 8)
-		box.add_child(actions)
-		var change := UIKit.button("MANDO/TECLADO", &"SecondaryButton", Vector2(0, 0))
-		change.add_theme_font_size_override("font_size", 18)
+	device.custom_minimum_size = Vector2(80, 0)
+	device.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bottom.add_child(device)
+	if local_editable:
+		var change := UIKit.button("CAMBIAR", &"SmallButton", Vector2(0, 0))
+		change.tooltip_text = "Cambiar de teclado/mando"
+		change.add_theme_font_size_override("font_size", 16)
 		change.pressed.connect(func() -> void: GameManager.cycle_device(p))
-		actions.add_child(change)
-		var remove := UIKit.button("✕", &"DangerButton", Vector2(56, 0))
+		bottom.add_child(change)
+	if editable:
+		var remove := UIKit.button("✕", &"SmallDangerButton", Vector2(40, 0))
+		remove.tooltip_text = "Quitar jugador"
 		remove.pressed.connect(func() -> void: GameManager.remove_player(p.id))
-		actions.add_child(remove)
-	elif editable:
-		var kick := UIKit.button("✕ EXPULSAR", &"DangerButton", Vector2(0, 0))
-		kick.add_theme_font_size_override("font_size", 18)
-		kick.pressed.connect(func() -> void: GameManager.remove_player(p.id))
-		box.add_child(kick)
+		bottom.add_child(remove)
 	return card

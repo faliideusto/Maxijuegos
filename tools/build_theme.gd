@@ -78,15 +78,21 @@ func _build_labels(theme: Theme) -> void:
 	theme.set_font_size("font_size", "HintLabel", 20)
 	theme.set_color("font_color", "HintLabel", Color(1, 1, 1, 0.7))
 
-func _button_variation(theme: Theme, name: String, face: Color, shadow: Color, text: Color) -> void:
+## Crea una variación de botón. `small` = versión compacta (tarjetas, barras de herramientas).
+func _button_variation(theme: Theme, name: String, face: Color, shadow: Color, text: Color, small: bool = false) -> void:
 	theme.add_type(name)
 	theme.set_type_variation(name, "Button")
-	# Normal: sombra dura de 8 px abajo. Pulsado: se hunde (sombra 2 px y texto más bajo).
-	var normal := _box(face, P.RADIUS_BUTTON, 8, shadow, Vector4(32, 10, 32, 18))
-	var hover := _box(face.lightened(0.12), P.RADIUS_BUTTON, 8, shadow, Vector4(32, 10, 32, 18))
-	var pressed := _box(face.darkened(0.08), P.RADIUS_BUTTON, 2, shadow, Vector4(32, 16, 32, 12))
-	var disabled := _box(face.lerp(P.CARD, 0.65), P.RADIUS_BUTTON, 8, P.CARD.darkened(0.2), Vector4(32, 10, 32, 18))
-	var focus := _box(Color.TRANSPARENT, P.RADIUS_BUTTON + 4, 0, Color.TRANSPARENT, Vector4(0, 0, 0, 0))
+	var depth := 5 if small else 8                 # grosor de la sombra dura inferior
+	var radius := 16 if small else P.RADIUS_BUTTON
+	var mx := 14.0 if small else 32.0              # margen horizontal
+	var top := 4.0 if small else 10.0
+	var bottom := top + depth                      # compensa la sombra para centrar el texto
+	# Normal: sombra dura abajo. Pulsado: se hunde (sombra 2 px y texto más bajo).
+	var normal := _box(face, radius, depth, shadow, Vector4(mx, top, mx, bottom))
+	var hover := _box(face.lightened(0.12), radius, depth, shadow, Vector4(mx, top, mx, bottom))
+	var pressed := _box(face.darkened(0.08), radius, 2, shadow, Vector4(mx, top + depth - 2, mx, bottom - (depth - 2)))
+	var disabled := _box(face.lerp(P.CARD, 0.65), radius, depth, P.CARD.darkened(0.2), Vector4(mx, top, mx, bottom))
+	var focus := _box(Color.TRANSPARENT, radius + 4, 0, Color.TRANSPARENT, Vector4(0, 0, 0, 0))
 	focus.draw_center = false
 	focus.set_border_width_all(4)
 	focus.border_color = P.WHITE
@@ -102,13 +108,16 @@ func _button_variation(theme: Theme, name: String, face: Color, shadow: Color, t
 	for c in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 		theme.set_color(c, name, text)
 	theme.set_color("font_disabled_color", name, Color(1, 1, 1, 0.5))
-	theme.set_font_size("font_size", name, 32)
+	theme.set_font_size("font_size", name, 20 if small else 32)
 
 func _build_buttons(theme: Theme) -> void:
 	# "Button" a secas = secundario (blanco). Luego las variaciones.
 	_button_variation(theme, "SecondaryButton", P.WHITE, P.CARD_LIGHT.darkened(0.35), P.PURPLE_DARK)
 	_button_variation(theme, "PrimaryButton", P.YELLOW, P.YELLOW_DARK, P.PURPLE_DARK)
 	_button_variation(theme, "DangerButton", P.CORAL, P.CORAL_DARK, P.WHITE)
+	# Versiones compactas.
+	_button_variation(theme, "SmallButton", P.WHITE, P.CARD_LIGHT.darkened(0.35), P.PURPLE_DARK, true)
+	_button_variation(theme, "SmallDangerButton", P.CORAL, P.CORAL_DARK, P.WHITE, true)
 	# Botón base: copia del secundario.
 	for style in ["normal", "hover", "pressed", "disabled", "focus"]:
 		theme.set_stylebox(style, "Button", theme.get_stylebox(style, "SecondaryButton"))
