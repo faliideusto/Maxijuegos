@@ -1,0 +1,29 @@
+# Godot 4
+.godot/
+.import/
+*.translation
+export.cfg
+export_credentials.cfg
+export_presets.cfg.bak
+
+# Exportaciones / builds
+build/
+exports/
+*.exe
+*.pck
+*.zip
+
+# Mono / .NET (por si se usa más adelante)
+.mono/
+data_*/
+mono_crash.*.json
+
+# Editor / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.tmp
+
+# Steam (credenciales y appid de pruebas locales)
+steam_appid.txt
