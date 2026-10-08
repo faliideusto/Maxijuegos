@@ -1,10 +1,21 @@
 extends Minigame
 ## Bomba de Palabras (modelo HOST_AUTHORITATIVE, inspirado en BombParty): una bomba pasa de jugador en
-## jugador. En cada turno aparece una combinación de 2-3 letras (p. ej. «CAS») y quien la tiene debe
-## escribir una palabra española que la contenga (CASA, CASCO, ESCASO...). Sin repetir palabras.
-## Si acierta, la bomba pasa al siguiente y sale otra combinación. La mecha es OCULTA (10-30 s al
-## azar) y NO se reinicia al acertar; si quedan menos de 5 s al pasarla, el siguiente recibe 5 s.
-## Cuando explota, termina el minijuego y pierde quien la tenía (último; los demás por palabras acertadas).
+## jugador. En cada turno aparece una combinación de 2-4 letras (p. ej. «CAS») y quien la tiene debe
+## escribir una palabra española que la contenga (CASA, CASCO, ESCASO...). Sin repetir palabras (en toda la
+## partida). Si acierta, la bomba pasa al siguiente jugador VIVO y sale otra combinación. La mecha es OCULTA
+## (10-30 s al azar) y NO se reinicia al acertar; si quedan menos de 5 s al pasarla, el siguiente recibe 5 s.
+## Cuando la bomba EXPLOTA, el jugador que la tenía queda ELIMINADO; se sortea otra bomba (mecha nueva) y se
+## sigue con los que quedan. La partida termina cuando solo queda UNO: gana, y el ranking sigue el orden de
+## eliminación (el último eliminado es 2.º, el penúltimo 3.º...).
+##
+## Sin código de red propio: el host decide y valida (_on_player_text, _simulate) y los clientes dibujan
+## el estado que reciben (_apply_state) y los eventos (ok / bad / boom). El texto de cada jugador viaja
+## por el canal genérico del minijuego (Minigame.submit_text), también el borrador en vivo.
+## Las palabras se validan con SpanishDictionary (data/es_words.txt). Los bots y el autopiloto escriben
+## palabras de ejemplo del propio diccionario.
+##
+## Entrada: hace falta teclado. En partida local (varios humanos en un PC) el texto es del jugador al
+## que le toca; los mandos no pueden escribir.
 ##
 ## DIFICULTAD (sube con las palabras acertadas entre todos): 5 niveles de combinaciones, de «AR»/«ER» (muy
 ## fácil) a «PSIC»/«XCEP» (experto), 15 por nivel (data/es_tiers.txt; se reparten cada 5 aciertos). Además
@@ -22,7 +33,8 @@ extends Minigame
 const MIN_FUSE := 10.0
 const MAX_FUSE := 30.0
 const MIN_PASS_FUSE := 5.0            # al pasar la bomba, el siguiente recibe al menos esto
-const BOOM_DURATION := 3.0            # s entre la explosión y el cierre del minijuego
+const BOOM_DURATION := 2.4            # s de explosión antes de seguir con los que quedan
+const BOOM_FINAL_DURATION := 3.6      # ... y antes de cerrar el minijuego (la última explosión)
 const MAX_DRAFT := 24
 const RECENT_SYLLABLES := 8           # no se repite una combinación hasta pasados estos turnos
 const WORDS_PER_TIER := 5             # aciertos acumulados para subir de nivel (0-4 → nivel 1, 5-9 → nivel 2...)
@@ -57,6 +69,7 @@ var _feed: Array = []                 # [[id, PALABRA], ...] la más reciente al
 var _counts: Dictionary = {}          # id → palabras acertadas
 var _boom: bool = false
 var _tier: int = 0                    # nivel actual (0 = muy fácil ... 4 = experto)
+var _eliminated: Array = []           # ids eliminados, por orden de eliminación
 
 # --- Estado solo del host ---
 var _turn: int = 0
@@ -70,6 +83,10 @@ var _bot_id: int = -2                 # jugador cuyo bot está armado
 var _bot_t: float = 0.0
 var _bot_total: float = 1.0
 var _bot_word: String = ""
+
+## ¿Es la última explosión? (solo queda un jugador vivo)
+var _over: bool:
+	get: return _boom and players.size() - _eliminated.size() <= 1
 
 # --- Solo visual (todos los PC) ---
 var _shown_id: int = -2
@@ -153,6 +170,8 @@ func _on_start() -> void:
 		_fuse = randf_range(MIN_FUSE, MAX_FUSE)
 		_passes = 0
 		_syl_history.clear()
+		_eliminated.clear()
+		_boom = false
 		DevCli.log_event("bomb fuse=%.1f first=%d" % [_fuse, _cur_id])
 		_new_syllable()
 		_arm_bot()
@@ -166,8 +185,12 @@ func _on_start() -> void:
 func _simulate(delta: float) -> void:
 	if _boom:
 		_boom_t += delta
-		if _boom_t >= BOOM_DURATION:
-			_finish_round()
+		var last := _alive_count() <= 1
+		if _boom_t >= (BOOM_FINAL_DURATION if last else BOOM_DURATION):
+			if last:
+				_finish_round()
+			else:
+				_next_bomb()
 		return
 	_fuse -= delta * fuse_rate(_passes)
 	if _fuse <= 0.0:
@@ -201,6 +224,18 @@ func _new_syllable() -> void:
 
 func _current_player() -> PlayerData:
 	return players[_turn]
+
+func _alive_count() -> int:
+	return players.size() - _eliminated.size()
+
+## Índice del siguiente jugador vivo después de `from`.
+func _next_alive(from: int) -> int:
+	var i := from
+	for k in players.size():
+		i = (i + 1) % players.size()
+		if not _eliminated.has(players[i].id):
+			return i
+	return from
 
 ## Motivo por el que la palabra (ya normalizada) no vale, o "" si vale.
 func _check_word(norm: String) -> String:
@@ -245,7 +280,7 @@ func _try_word(cur: PlayerData, text: String) -> void:
 	var min_fuse := MIN_PASS_FUSE * fuse_rate(_passes)
 	if _fuse < min_fuse:
 		_fuse = min_fuse
-	_turn = (_turn + 1) % players.size()
+	_turn = _next_alive(_turn)
 	_cur_id = players[_turn].id
 	_new_syllable()
 	_arm_bot()
@@ -255,26 +290,36 @@ func _explode() -> void:
 	_boom = true
 	_boom_t = 0.0
 	_boom_who = _cur_id
+	_eliminated.append(_boom_who)
 	_draft = ""
 	var ex: Array = []
 	for w in SpanishDictionary.samples_for(_syl):
 		if ex.size() < 3:
 			ex.append(String(w).to_upper())
-	DevCli.log_event("bomb exploded on=%d passes=%d" % [_boom_who, _passes])
-	send_event("boom", {"p": _boom_who, "ex": ex})
+	DevCli.log_event("bomb exploded on=%d passes=%d left=%d" % [_boom_who, _passes, _alive_count()])
+	send_event("boom", {"p": _boom_who, "ex": ex, "left": _alive_count()})
 
+## Tras una explosión (quedan 2 o más): bomba nueva con mecha nueva para el siguiente jugador vivo.
+func _next_bomb() -> void:
+	_boom = false
+	_turn = _next_alive(_turn)
+	_cur_id = players[_turn].id
+	_fuse = randf_range(MIN_FUSE, MAX_FUSE)
+	_draft = ""
+	DevCli.log_event("bomb new fuse=%.1f for=%d left=%d" % [_fuse, _cur_id, _alive_count()])
+	_new_syllable()
+	_arm_bot()
+	send_event("next", {"p": _cur_id, "s": _syl})
+
+## Fin de la partida: gana el único que queda; después, los eliminados del último al primero.
 func _finish_round() -> void:
-	# Pierde quien tenía la bomba (último); los demás, por palabras acertadas.
-	var others: Array[int] = []
+	var ranking: Array[int] = []
 	for p in players:
-		if p.id != _boom_who:
-			others.append(p.id)
-	others.sort_custom(func(a: int, b: int) -> bool:
-		var ca: int = _counts.get(a, 0)
-		var cb: int = _counts.get(b, 0)
-		return ca > cb if ca != cb else a < b)
-	others.append(_boom_who)
-	finish(others)
+		if not _eliminated.has(p.id):
+			ranking.append(p.id)
+	for i in range(_eliminated.size() - 1, -1, -1):
+		ranking.append(int(_eliminated[i]))
+	finish(ranking)
 
 # --- Bots (y desconectados): escriben palabras de ejemplo del diccionario ---
 
@@ -323,7 +368,7 @@ func _bot_tick(delta: float) -> void:
 # ----------------------------------------------------------------------------
 
 func _serialize_state() -> Variant:
-	return {"t": _cur_id, "s": _syl, "d": _draft, "f": _feed, "n": _counts, "b": _boom, "l": _tier}
+	return {"t": _cur_id, "s": _syl, "d": _draft, "f": _feed, "n": _counts, "b": _boom, "l": _tier, "x": _eliminated}
 
 func _apply_state(state: Variant) -> void:
 	if not state is Dictionary:
@@ -336,6 +381,7 @@ func _apply_state(state: Variant) -> void:
 	_counts = st.get("n", _counts)
 	_boom = bool(st.get("b", _boom))
 	_tier = int(st.get("l", _tier))
+	_eliminated = st.get("x", _eliminated)
 
 func _on_event(event_name: String, data: Variant) -> void:
 	if not data is Dictionary:
@@ -370,6 +416,10 @@ func _on_event(event_name: String, data: Variant) -> void:
 				_input.clear()
 		"boom":
 			_start_explosion(int(d.get("p", -1)), d.get("ex", []))
+		"next":
+			_sfx_pass.play()
+			_sfx_fuse.play()
+			_syl_pop = 1.0
 
 func _start_explosion(who: int, examples: Array) -> void:
 	_boom = true
@@ -387,6 +437,8 @@ func _start_explosion(who: int, examples: Array) -> void:
 		var col: Color = palette[randi() % 4]
 		_spawn_particle(CENTER, col, 520.0, 1.3)
 	_set_input_mine(false)
+	if not _eliminated.has(who):
+		_eliminated.append(who)
 
 func _spawn_particle(pos: Vector2, color: Color, speed: float, life: float) -> void:
 	var p := Particle.new()
@@ -535,6 +587,7 @@ func _draw_game() -> void:
 		_draw_draft()
 	_draw_feed()
 	_draw_tier()
+	_draw_alive()
 	for r in _rings:
 		s.draw_arc(CENTER, float(r.r), 0.0, TAU, 64, Color(1, 0.85, 0.4, clampf(float(r.a), 0.0, 1.0)), 10.0, true)
 	for p in _particles:
@@ -569,6 +622,8 @@ func _draw_seats() -> void:
 		var pos := _seat_pos(i)
 		var is_cur := p.id == _cur_id and not _boom
 		var is_loser := _boom and p.id == _boom_who
+		var is_dead := _eliminated.has(p.id)
+		var is_winner := _over and not is_dead
 		var r := SEAT_RADIUS * (1.22 if is_cur else 1.0)
 		var bob := Vector2(0, sin(_time * 5.0) * 4.0) if is_cur else Vector2.ZERO
 		if is_loser:
@@ -576,10 +631,13 @@ func _draw_seats() -> void:
 		if is_cur:
 			s.draw_circle(pos + bob, r + 16.0 + 4.0 * sin(_time * 8.0), Color(1, 0.78, 0.12, 0.35))
 		var col: Color = p.color
-		if is_loser:
+		if is_dead:
 			col = col.darkened(0.7)
 		AvatarPainter.paint(s, pos + bob, r, col, Vector2.ZERO)
-		if is_loser:
+		if is_winner:
+			s.draw_circle(pos + bob, r + 14.0 + 4.0 * sin(_time * 8.0), Color(1, 0.78, 0.12, 0.4))
+			AvatarPainter.paint_crown(s, pos + bob, r)
+		if is_dead:
 			# Ojos de X y cara chamuscada.
 			for side in [-1.0, 1.0]:
 				var e: Vector2 = pos + bob + Vector2(side * r * 0.33, -r * 0.08)
@@ -702,6 +760,9 @@ func _draw_tier() -> void:
 		s.draw_circle(c, r + 3.0, Palette.PURPLE_DARK)
 		s.draw_circle(c, r, Palette.YELLOW if i == _tier else (Palette.WHITE if i < _tier else Color(1, 1, 1, 0.25)))
 
+func _draw_alive() -> void:
+	surface.text_centered(Vector2(1130, 118), "VIVOS %d/%d" % [players.size() - _eliminated.size(), players.size()], 24, Color(1, 1, 1, 0.85), 5)
+
 func _draw_feed() -> void:
 	var s := surface
 	var font := s.get_theme_default_font()
@@ -724,13 +785,22 @@ func _draw_boom_text() -> void:
 	var k := clampf(_boom_age / 0.35, 0.0, 1.0)
 	var scale := 1.0 + (1.0 - k) * 1.2
 	var who := ""
+	var winner := ""
 	for p in players:
 		if p.id == _boom_who:
 			who = p.display_name
-	s.draw_set_transform(Vector2(640, 280), 0.0, Vector2.ONE * scale)
+		elif _over and not _eliminated.has(p.id):
+			winner = p.display_name
+	s.draw_set_transform(Vector2(640, 250), 0.0, Vector2.ONE * scale)
 	s.text_centered(Vector2.ZERO, "¡BOOM!", 150, Palette.YELLOW, 16)
 	s.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	if _boom_age > 0.4:
-		s.text_centered(Vector2(640, 410), "¡Explotó en las manos de %s!" % who, 40, Palette.WHITE, 8)
-	if _boom_age > 0.8 and not _boom_examples.is_empty():
-		s.text_centered(Vector2(640, 470), "Valía: %s" % ", ".join(PackedStringArray(_boom_examples)), 30, Color(1, 1, 1, 0.8), 6)
+		var left := players.size() - _eliminated.size()
+		var line := "¡%s sale de la partida!" % who
+		if not _over:
+			line += "  Quedan %d" % left
+		s.text_centered(Vector2(640, 380), line, 42, Palette.WHITE, 8)
+	if _boom_age > 0.8 and not _boom_examples.is_empty() and not _over:
+		s.text_centered(Vector2(640, 438), "Valía: %s" % ", ".join(PackedStringArray(_boom_examples)), 28, Color(1, 1, 1, 0.8), 6)
+	if _over and _boom_age > 1.2 and winner != "":
+		s.text_centered(Vector2(640, 440), "¡%s GANA!" % winner, 60, Palette.YELLOW, 12)

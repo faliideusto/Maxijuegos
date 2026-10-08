@@ -326,8 +326,10 @@ minijuego decide a quién le toca. Estadística de pruebas: `texts=N` en el log 
 
 **Bomba de Palabras** (inspirada en BombParty): los jugadores se pasan una bomba por turnos; en cada turno hay
 una combinación de 2-4 letras y hay que escribir una palabra española que la contenga, sin repetir. La mecha
-es secreta (10-30 s al azar) y no se reinicia; al pasarla el siguiente recibe al menos 5 s reales. Al explotar
-termina el minijuego: pierde quien la tenía (último) y los demás se ordenan por palabras acertadas.
+es secreta (10-30 s al azar) y no se reinicia al acertar; al pasarla el siguiente recibe al menos 5 s reales.
+**Al explotar, quien la tenía queda eliminado**; se sortea una bomba nueva (mecha nueva, mismo nivel y misma
+aceleración) y se sigue con los que quedan. Termina cuando solo queda uno: gana, y el ranking sigue el orden
+de eliminación (último eliminado = 2.º). Con 8 jugadores son hasta 7 explosiones (varios minutos).
 - **Validación**: solo el host valida, con `SpanishDictionary` (`core/spanish_dictionary.gd`): 593 mil formas en
   `data/es_words.txt`, comparadas sin tildes (la ñ se conserva). Los datos se generan con
   `tools/build_dictionary.py` a partir del diccionario es_ES de LibreOffice (triple licencia GPLv3+/LGPLv3+/

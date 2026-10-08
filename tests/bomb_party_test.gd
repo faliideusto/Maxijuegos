@@ -121,18 +121,39 @@ func _process(_delta: float) -> bool:
 	mg._used.clear()
 	mg._on_player_text(null, "arbol", true)
 	_check(mg._fuse >= 5.0 * mg.fuse_rate(13) - 0.001, "al pasar, el siguiente tiene al menos 5 s reales aunque vaya acelerada (%.1f)" % mg._fuse, failures)
-	# Explosión: pierde quien tiene la bomba (el último); acaba el minijuego.
+	# Explosión 1: queda ELIMINADO quien tenía la bomba y la partida sigue con los demás (bomba nueva).
+	mg._eliminated.clear()
+	mg._boom = false
+	mg._used.clear()
+	mg._passes = 7
 	mg._counts = {0: 1, 1: 4, 2: 2}
 	mg._cur_id = 2
 	mg._turn = 2
 	mg._explode()
-	_check(mg._boom and mg._boom_who == 2, "al explotar pierde quien tenía la bomba", failures)
-	mg._finish_round()
-	_check(_ranking == [1, 0, 2], "ranking: más palabras primero y el que explotó el último (%s)" % [_ranking], failures)
-	# Tras la explosión ya no se acepta texto.
+	_check(mg._boom and mg._boom_who == 2 and mg._eliminated == [2] and not mg._over, "al explotar queda eliminado quien tenía la bomba (quedan 2)", failures)
+	_ranking = []
+	mg._simulate(mg.BOOM_DURATION + 0.1)
+	_check(_ranking.is_empty() and not mg._boom and mg._cur_id == 0 and mg._turn == 0, "tras la explosión sigue la partida con el siguiente jugador vivo", failures)
+	_check(mg._fuse >= 10.0 and mg._fuse <= 30.0, "la bomba nueva trae una mecha nueva de 10-30 s (%.1f)" % mg._fuse, failures)
+	_check(mg._passes == 7, "el nivel y la aceleración de la mecha se conservan", failures)
+	# Los eliminados no reciben la bomba al acertar.
+	mg._syl = "cas"
+	mg._on_player_text(null, "casa", true)
+	_check(mg._cur_id == 1, "la bomba pasa al siguiente VIVO (se salta al eliminado)", failures)
+	mg._syl = "cas"
+	mg._on_player_text(null, "casco", true)
+	_check(mg._cur_id == 0, "... y vuelve al primero saltándose al eliminado", failures)
+	# Explosión 2: solo queda uno → termina el minijuego. Ranking: ganador, luego eliminados del último al primero.
+	mg._cur_id = 1
+	mg._turn = 1
+	mg._explode()
+	_check(mg._over and mg._eliminated == [2, 1], "con un solo superviviente es la última explosión", failures)
+	mg._simulate(mg.BOOM_FINAL_DURATION + 0.1)
+	_check(_ranking == [0, 1, 2], "ranking por orden de eliminación: gana el superviviente, el último eliminado es 2.º (%s)" % [_ranking], failures)
+	# Tras terminar ya no se acepta texto.
 	var used_before: int = mg._used.size()
 	mg._on_player_text(null, "casa", true)
-	_check(mg._used.size() == used_before, "tras explotar no se acepta más texto", failures)
+	_check(mg._used.size() == used_before, "tras la última explosión no se acepta más texto", failures)
 
 	print("")
 	if failures.is_empty():

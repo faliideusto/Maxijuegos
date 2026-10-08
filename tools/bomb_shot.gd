@@ -28,9 +28,17 @@ func _process(_d: float) -> bool:
 		_mg._draft = "ESCAS"
 		_mg._feed = [[0, "CASA"], [1, "CASCO"], [2, "ESCASO"], [3, "CASTILLO"]]
 		_mg._counts = {0: 2, 1: 1, 2: 1, 3: 1, 4: 0, 5: 0}
+		_mg._eliminated = [4, 1]
 		if a.size() > 1 and a[1] == "boom":
 			_mg._explode()
 			_mg._boom_age = 0.9
+		if a.size() > 1 and a[1] == "final":
+			_mg._eliminated = [4, 1, 5, 3, 2]
+			_mg._cur_id = 0
+			_mg._turn = 0
+			_mg._boom = true
+			_mg._boom_who = 2
+			_mg._boom_age = 1.6
 	elif _n == 14:
 		if _mg._boom:
 			_mg._flash = 0.0

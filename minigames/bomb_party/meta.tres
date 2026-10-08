@@ -7,10 +7,10 @@
 script = ExtResource("1")
 display_name = "Bomba de Palabras"
 description = "¡Que no te explote!"
-instructions = "Te pasan la bomba con unas letras (por ejemplo CAS): escribe una palabra en español que las contenga seguidas (CASA, CASCO, ESCASO...) y pulsa Enter. No se pueden repetir palabras. La mecha es secreta y no se reinicia: quien tenga la bomba cuando explote, pierde. Se juega con el teclado."
+instructions = "Te pasan la bomba con unas letras (por ejemplo CAS): escribe una palabra en español que las contenga seguidas (CASA, CASCO, ESCASO...) y pulsa Enter. No se pueden repetir palabras. La mecha es secreta y no se reinicia: quien tenga la bomba cuando explote queda eliminado, y se sigue con los que quedan. Gana el último que sobrevive. Se juega con el teclado."
 min_players = 2
 max_players = 8
-approx_duration = 40.0
+approx_duration = 120.0
 scene = ExtResource("2")
 accent_color = Color(1, 0.55, 0.15, 1)
 execution_mode = 0
