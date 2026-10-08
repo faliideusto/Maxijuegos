@@ -291,3 +291,25 @@ Sin código de red (igual que `cube_dash`: `report_result(distancia)`, `_bot_res
 - Estética propia (espacial): nebulosas, planeta con anillo, 3 capas de estrellas y paredes de neón con
   campo de energía; el color de las paredes cambia con la distancia.
 - Prueba online: `ONLY=wave_dash tests/online_test.sh 4 2 0 normal` y `... 4 1 0 kill_in_parallel` OK.
+
+## 17. Columpio de Lengua (`tongue_swing`, LOCAL_PARALLEL)
+
+Cuarto minijuego LOCAL_PARALLEL. Una rana se columpia con la lengua de gancho en gancho sobre un pantano
+mientras una niebla venenosa la persigue. **No se encontraron las reglas del "Tongue Swing" original de
+Playus** (la búsqueda no dio nada fiable): es una interpretación propia; se ajusta con la opinión del equipo.
+
+- **Control** (un botón): mantener = la lengua se agarra al SIGUIENTE gancho (resaltado) si está por delante,
+  por encima y a 8 bloques; colgada, la rana se balancea y la lengua se acorta (conserva el momento angular,
+  coge impulso). Soltar = vuela con la inercia. Pulsar sin gancho a tiro deja la lengua "armada" 0,35 s.
+- **Un solo recorrido**, idéntico en todos los PC (`tongue_level.gd`, 900+ bloques), generado con
+  `tools/gen_tongue_level.gd` por un planificador que usa la MISMA física (`_phys`, paso fijo 1/60). Un gancho
+  solo se coloca si hay una ventana de suelta de ±win s (de 0,20 a 0,09 s según la distancia), la niebla no
+  alcanza al bot y los errores de suelta de media ventana (también repetidos) siguen siendo recuperables.
+  Las coordenadas se guardan con 3 decimales y el generador trabaja con ellas (si no, el bot diverge).
+- **Dificultad**: más separación entre ganchos, más ganchos frágiles (se rompen a 1,15 s), ventana de suelta
+  más estrecha y niebla que acelera (1,8 → 5,4 bloques/s).
+- **Pruebas**: `tests/tongue_level_test.gd` (el bot recorre los 900 m; con ±0,02 s de error aleatorio llega
+  a > 300 m; controles negativos). `ONLY=tongue_swing tests/online_test.sh 4 2 0 normal`, `8 1 0 normal` y
+  `4 1 0 kill_in_parallel` OK. El autopiloto (pruebas) suelta con ±0,07 s de error y se "cansa" a los 28 s.
+- Limitación: la garantía de superabilidad es para el bot con la ventana nominal y errores pequeños; un
+  humano que falle varias veces seguidas puede quedarse sin ganchos alcanzables (es parte del juego).
