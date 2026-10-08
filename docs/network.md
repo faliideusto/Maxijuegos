@@ -267,3 +267,9 @@ Segundo minijuego LOCAL_PARALLEL: un cubo corre solo por un nivel larguísimo y 
 - Limitaciones: la dificultad subjetiva depende de personas reales (no probada con humanos a este nivel de
   exigencia); la solución de referencia es "perfecta", los humanos tendrán menos margen del garantizado si su
   latencia de entrada es alta.
+
+### Última verificación completa (con Salto Neón como 5.º minijuego)
+
+`tests/run_matrix.sh` con 5 minijuegos por partida (cada partida incluye los dos modelos): **10 de 10 OK**
+(2, 4 y 8 jugadores; 4 humanos + 4 bots; caída en lobby, en minijuego de arena y en LOCAL_PARALLEL con 4 y 8;
+caída del host; unión tardía). Además `cube_level_test`, `smoke_test`, `input_test` y `parallel_local_test` en verde.
