@@ -29,18 +29,18 @@ const LEVEL_TARGET := 1400.0      # bloques del pasillo (inalcanzables en el tie
 const TIME_LIMIT := 90.0          # s; tope para que la partida no sea eterna
 const DEATH_ANIM := 1.3           # s de animación antes de enviar el resultado
 
-const SPEED_POINTS: Array[Vector2] = [Vector2(0, 8.5), Vector2(100, 9.5), Vector2(250, 10.5),
-		Vector2(450, 11.5), Vector2(700, 12.0)]
-const SPEED_MAX := 12.0
+const SPEED_POINTS: Array[Vector2] = [Vector2(0, 8.5), Vector2(50, 9.5), Vector2(130, 10.7),
+		Vector2(250, 11.7), Vector2(400, 12.5)]
+const SPEED_MAX := 12.5
 
 const Y_FLOOR := 1.0              # las paredes nunca bajan de esta y
 const Y_CEIL := 13.0              # ni suben de esta y (arriba queda sitio para el HUD)
 const START_Y := 8.4              # y de la línea central en x = 0
 const HALF_START := 3.6           # medio ancho del pasillo al empezar
 const HALF_END := 1.8             # medio ancho final (pasillo de 3,6 bloques de alto)
-const NARROW_FROM := 30.0         # el pasillo empieza a estrecharse aquí
-const NARROW_TO := 650.0          # ... y llega a su mínimo aquí
-const SEG_RAMP := 700.0           # distancia en la que los tramos se acortan del todo
+const NARROW_FROM := 20.0         # el pasillo empieza a estrecharse aquí
+const NARROW_TO := 380.0          # ... y llega a su mínimo aquí
+const SEG_RAMP := 400.0           # distancia en la que los tramos se acortan del todo
 const MIN_SEG := 1.5              # tramo más corto posible (bloques)
 
 class PState:
@@ -375,7 +375,7 @@ func debug_timeline() -> Array:
 	var rows: Array = []
 	var t := 0.0
 	var x := 0.0
-	var marks := [0.0, 100.0, 250.0, 450.0, 650.0, 1000.0, 1400.0]
+	var marks := [0.0, 100.0, 200.0, 300.0, 380.0, 700.0, 1400.0]
 	var mi := 0
 	while x <= _level_end and mi < marks.size():
 		if x >= marks[mi]:

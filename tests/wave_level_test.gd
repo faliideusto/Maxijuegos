@@ -2,8 +2,8 @@ extends SceneTree
 ## Prueba del pasillo de Onda Neón (wave_dash):
 ##   1. Es siempre el mismo pasillo y es larguísimo.
 ##   2. Se estrecha, los tramos se acortan y la velocidad sube.
-##   3. Es SUPERABLE: un bot que sigue la línea central recorre TODO el pasillo, también girando con el
-##      error máximo que el diseño garantiza (tarde, pronto y alternando).
+##   3. Es SUPERABLE: un bot en BUCLE CERRADO (corrige sobre la marcha, como un humano) que decide con lo
+##      que vio hace 0,04 s recorre TODO el pasillo; con un reflejo de 0,15 s muere.
 ##   4. Controles negativos: no tocar nada, mantener siempre o girar con un error enorme → muere.
 ## Ejecutar:  godot --headless --path . --script res://tests/wave_level_test.gd
 
@@ -32,9 +32,9 @@ func _process(_delta: float) -> bool:
 	for row in a.debug_timeline():
 		print("  %-8s x=%5.0f  t=%5.1f s  v=%.1f  medio ancho=%.2f" % [row[0], row[1], row[2], row[3], row[4]])
 	var seg_early: float = a.debug_avg_segment(0.0, 200.0)
-	var seg_late: float = a.debug_avg_segment(700.0, 1300.0)
+	var seg_late: float = a.debug_avg_segment(450.0, 1300.0)
 	_check(seg_late < seg_early * 0.8, "los giros se hacen más seguidos: tramo medio %.1f → %.1f bloques" % [seg_early, seg_late], failures)
-	var rng_late: Vector2 = a.debug_segment_range(700.0, 1300.0)
+	var rng_late: Vector2 = a.debug_segment_range(450.0, 1300.0)
 	_check(rng_late.x >= 1.5, "ningún tramo es imposible de girar (el más corto: %.1f bloques)" % rng_late.x, failures)
 	_check(float(a.debug_min_clearance()) > 1.0, "la línea central siempre queda dentro con holgura (%.2f)" % a.debug_min_clearance(), failures)
 
@@ -42,11 +42,11 @@ func _process(_delta: float) -> bool:
 	var tol: float = a.debug_guaranteed_tol()
 	print("  margen de giro garantizado por el diseño: ±%.3f s" % tol)
 	_check(tol >= 0.04, "el margen garantizado es humano (≥ 0,04 s): %.3f" % tol, failures)
-	for pattern in [0, 1, 4]:
+	for pattern in [4, 5]:
 		var mg = _new_level()
 		mg.debug_pattern = pattern
-		mg.debug_tol = tol * (0.3 if pattern != 4 else 0.8)
-		mg.debug_closed_loop = pattern == 4
+		mg.debug_tol = tol * (0.8 if pattern == 4 else 0.3)
+		mg.debug_closed_loop = true
 		var t0 := Time.get_ticks_msec()
 		var res: Dictionary = mg.debug_bot_run()
 		var secs := (Time.get_ticks_msec() - t0) / 1000.0

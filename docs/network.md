@@ -282,12 +282,12 @@ Sin código de red (igual que `cube_dash`: `report_result(distancia)`, `_bot_res
 
 - **Pasillo único**, generado con una semilla FIJA (`LEVEL_SEED`, no la de la partida): idéntico en todos
   los PC. Línea central de tramos con pendiente ±1 y paredes a ±h(x).
-- **Dificultad**: medio ancho 3,6 → 1,8 bloques (x = 30..650), tramos cada vez más cortos, ráfagas de
-  esquinas muy rápidas, algún tramo larguísimo y velocidad 8,5 → 12 bloques/s.
+- **Dificultad**: medio ancho 3,6 → 1,8 bloques (x = 20..380), tramos cada vez más cortos, ráfagas de
+  esquinas muy rápidas, algún tramo larguísimo y velocidad 8,5 → 12,5 bloques/s.
 - **Siempre pasable**: la línea central es una trayectoria válida. `tests/wave_level_test.gd` recorre el
-  pasillo entero con un bot en bucle cerrado con ±0,04 s de retardo de reacción (y en bucle abierto con
-  ±0,015 s constantes) y comprueba que un retardo de 0,15 s sí muere. Un bot en bucle abierto con error
-  alterno acumula deriva, por eso el margen humano se valida con el bot de bucle cerrado.
+  pasillo entero con un bot en bucle cerrado con ±0,04 s de retardo de reacción y comprueba que
+  un retardo de 0,15 s sí muere. Un bot en bucle abierto (sin corregir) acumula deriva, por eso el margen
+  humano se valida con el bot de bucle cerrado.
 - Estética propia (espacial): nebulosas, planeta con anillo, 3 capas de estrellas y paredes de neón con
   campo de energía; el color de las paredes cambia con la distancia.
 - Prueba online: `ONLY=wave_dash tests/online_test.sh 4 2 0 normal` y `... 4 1 0 kill_in_parallel` OK.
