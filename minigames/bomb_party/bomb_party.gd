@@ -140,6 +140,7 @@ func _build_input() -> void:
 	_input.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_input.max_length = MAX_DRAFT
 	_input.context_menu_enabled = false
+	_input.keep_editing_on_text_submit = true   # tras Enter el campo sigue activo (si no, habría que hacer clic otra vez)
 	_input.add_theme_font_size_override("font_size", 40)
 	_input.text_changed.connect(_on_input_changed)
 	_input.text_submitted.connect(_on_input_submitted)
@@ -515,6 +516,9 @@ func _animate(delta: float) -> void:
 	var mine := is_running and _is_my_turn()
 	if mine != _input_mine or (mine and _input.placeholder_text.find(_syl.to_upper()) < 0):
 		_set_input_mine(mine)
+	# En tu turno el campo siempre tiene el foco: se puede seguir escribiendo tras un fallo sin tocar el ratón.
+	if _input_mine and not _input.has_focus():
+		_input.grab_focus()
 	# Tic-tac cosmético (no depende de la mecha, que es secreta).
 	if is_running and not _boom:
 		_tick_t -= delta
