@@ -273,3 +273,21 @@ Segundo minijuego LOCAL_PARALLEL: un cubo corre solo por un nivel larguísimo y 
 `tests/run_matrix.sh` con 5 minijuegos por partida (cada partida incluye los dos modelos): **10 de 10 OK**
 (2, 4 y 8 jugadores; 4 humanos + 4 bots; caída en lobby, en minijuego de arena y en LOCAL_PARALLEL con 4 y 8;
 caída del host; unión tardía). Además `cube_level_test`, `smoke_test`, `input_test` y `parallel_local_test` en verde.
+
+## 16. Onda Neón (`wave_dash`, LOCAL_PARALLEL)
+
+Tercer minijuego LOCAL_PARALLEL: la "onda" de los runners de ritmo. Mantener el botón = subir en
+diagonal, soltar = bajar; velocidad horizontal constante. Un intento; gana quien llega **más lejos**.
+Sin código de red (igual que `cube_dash`: `report_result(distancia)`, `_bot_result`, `_validate_result`).
+
+- **Pasillo único**, generado con una semilla FIJA (`LEVEL_SEED`, no la de la partida): idéntico en todos
+  los PC. Línea central de tramos con pendiente ±1 y paredes a ±h(x).
+- **Dificultad**: medio ancho 3,6 → 1,8 bloques (x = 30..650), tramos cada vez más cortos, ráfagas de
+  esquinas muy rápidas, algún tramo larguísimo y velocidad 8,5 → 12 bloques/s.
+- **Siempre pasable**: la línea central es una trayectoria válida. `tests/wave_level_test.gd` recorre el
+  pasillo entero con un bot en bucle cerrado con ±0,04 s de retardo de reacción (y en bucle abierto con
+  ±0,015 s constantes) y comprueba que un retardo de 0,15 s sí muere. Un bot en bucle abierto con error
+  alterno acumula deriva, por eso el margen humano se valida con el bot de bucle cerrado.
+- Estética propia (espacial): nebulosas, planeta con anillo, 3 capas de estrellas y paredes de neón con
+  campo de energía; el color de las paredes cambia con la distancia.
+- Prueba online: `ONLY=wave_dash tests/online_test.sh 4 2 0 normal` y `... 4 1 0 kill_in_parallel` OK.

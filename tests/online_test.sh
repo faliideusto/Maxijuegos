@@ -115,7 +115,7 @@ case "$SCEN" in
   kill_in_game|kill_in_parallel)
     (( HUMANS >= 2 )) || { echo "kill_in_game necesita >= 2 humanos"; exit 2; }
     launch_clients
-    PLAYING_RE='state=PLAYING'; [[ "$SCEN" == kill_in_parallel ]] && PLAYING_RE='state=PLAYING index=[0-9]+ mg=(reaction_test|cube_dash)'
+    PLAYING_RE='state=PLAYING'; [[ "$SCEN" == kill_in_parallel ]] && PLAYING_RE='state=PLAYING index=[0-9]+ mg=(reaction_test|cube_dash|wave_dash)'
     wait_for_log host "$PLAYING_RE" 120 || fail "la partida no llegó al minijuego esperado"
     sleep 4
     kill_instance c2

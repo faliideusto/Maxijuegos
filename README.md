@@ -27,6 +27,7 @@ godot --headless --path . --script res://tests/smoke_test.gd -- 4 4  # partida l
 godot --headless --path . --script res://tests/input_test.gd
 godot --headless --path . --script res://tests/parallel_local_test.gd -- --log
 godot --headless --path . --script res://tests/cube_level_test.gd                  # nivel de Salto Neón: superable y con puertas efectivas
+godot --headless --path . --script res://tests/wave_level_test.gd                  # pasillo de Onda Neón: superable (bot en bucle cerrado)
 GODOT=/ruta/godot tests/online_test.sh 4 4 0 normal                  # 4 instancias reales por red
 GODOT=/ruta/godot tests/run_matrix.sh                                # matriz completa (varios minutos)
 godot --headless --path . --script res://tools/build_theme.gd        # regenera ui/theme.tres

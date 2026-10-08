@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="MinigameMeta" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://core/minigame_meta.gd" id="1"]
+[ext_resource type="PackedScene" path="res://minigames/wave_dash/scene.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Onda Neón"
+description = "El pasillo se cierra..."
+instructions = "Mantén tu botón de acción para subir y suéltalo para bajar: tu onda avanza sola en diagonal. Cruza el pasillo sin tocar las paredes; cada vez es más estrecho y gira más rápido. Solo tienes un intento: gana quien llegue más lejos. No verás a los demás."
+min_players = 2
+max_players = 8
+approx_duration = 45.0
+scene = ExtResource("2")
+accent_color = Color(1, 0.35, 0.75, 1)
+execution_mode = 1
+max_duration = 130.0
