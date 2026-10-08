@@ -2,3 +2,4 @@
 *.png binary
 *.ttf binary
 *.otf binary
+data/*.txt text eol=lf

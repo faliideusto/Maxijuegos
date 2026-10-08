@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://minigames/bomb_party/bomb_party.gd" id="1"]
+
+[node name="BombParty" type="Node"]
+script = ExtResource("1")

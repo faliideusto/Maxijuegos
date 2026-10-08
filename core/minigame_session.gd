@@ -14,6 +14,8 @@ extends Node
 ##   host → clientes {"op":"ev","n":nombre,"d":datos}     evento puntual
 ##   cliente → host  {"op":"in","m":Vector2,"c":int}  (no fiable, ~30 Hz) intención del jugador:
 ##                   movimiento + contador acumulado de pulsaciones. NO resultados.
+##   cliente → host  {"op":"tx","t":String,"f":bool}  texto del jugador (f=true: confirmado, fiable;
+##                   f=false: borrador mientras escribe, no fiable). Minigame.submit_text().
 ##
 ## LOCAL_PARALLEL (sin sincronización frame a frame):
 ##   cliente → host  {"op":"result","s":float,"t":float}  resultado final del jugador local
@@ -55,6 +57,7 @@ var snapshots_applied: int = 0
 var inputs_applied: int = 0
 var results_accepted: int = 0
 var results_dnf: int = 0
+var texts_applied: int = 0
 
 func setup(mg: Minigame) -> void:
 	minigame = mg
@@ -76,8 +79,8 @@ func setup(mg: Minigame) -> void:
 func _exit_tree() -> void:
 	NetworkManager.unregister_channel(NetProtocol.CH_MINIGAME)
 	var mode_name := "LOCAL_PARALLEL" if is_parallel else "HOST_AUTHORITATIVE"
-	DevCli.log_event("mg_session mode=%s snapshots_sent=%d snapshots_applied=%d inputs_applied=%d results=%d dnf=%d" % [
-			mode_name, snapshots_sent, snapshots_applied, inputs_applied, results_accepted, results_dnf])
+	DevCli.log_event("mg_session mode=%s snapshots_sent=%d snapshots_applied=%d inputs_applied=%d texts=%d results=%d dnf=%d" % [
+			mode_name, snapshots_sent, snapshots_applied, inputs_applied, texts_applied, results_accepted, results_dnf])
 
 # ----------------------------------------------------------------------------
 # Arranque (lo orquesta el runner)
@@ -153,6 +156,10 @@ func _process(delta: float) -> void:
 			NetworkManager.send_to_host(NetProtocol.CH_MINIGAME,
 					{"op": "in", "m": InputManager.get_vector(_local_player.id), "c": _press_count}, false)
 
+## (cliente, desde Minigame.submit_text) Envía al host el texto que escribe el jugador local.
+func send_text(text: String, final: bool) -> void:
+	NetworkManager.send_to_host(NetProtocol.CH_MINIGAME, {"op": "tx", "t": text, "f": final}, final)
+
 ## (host, desde Minigame.send_event) Reenvía un evento a los clientes.
 func send_event(event_name: String, data: Variant) -> void:
 	NetworkManager.broadcast(NetProtocol.CH_MINIGAME, {"op": "ev", "n": event_name, "d": data})
@@ -190,7 +197,8 @@ func _accept_result(player_id: int, result: Dictionary) -> void:
 func _parallel_host_tick(delta: float) -> void:
 	if _results == null:
 		return
-	_parallel_elapsed += delta
+	# Mismo reloj que el minijuego (que limita el delta a 0,05 s): el tope de espera sigue al tiempo de juego.
+	_parallel_elapsed += minf(delta, 0.05)
 	if _results.is_complete() or _parallel_elapsed >= minigame.parallel_timeout():
 		results_dnf = _results.fill_missing_as_dnf()
 		if results_dnf > 0:
@@ -228,6 +236,7 @@ func _on_message(from_peer: int, payload: Variant) -> void:
 	match String(payload.get("op", "")):
 		"ready": _host_on_ready(from_peer)
 		"in": _host_on_input(from_peer, payload)
+		"tx": _host_on_text(from_peer, payload)
 		"result": _host_on_result(from_peer, payload)
 		"begin": _client_on_begin(payload)
 		"snap": _client_on_snapshot(payload)
@@ -258,6 +267,19 @@ func _host_on_input(peer_id: int, payload: Dictionary) -> void:
 		return
 	InputManager.set_remote_input(player.id, v, maxi(int(count), 0))
 	inputs_applied += 1
+
+func _host_on_text(peer_id: int, payload: Dictionary) -> void:
+	if not is_host or is_parallel or not minigame.is_running:
+		return
+	# Solo se acepta texto del dueño del jugador.
+	var player := Lobby.player_of_peer(peer_id)
+	if player == null or not player.is_remote:
+		return
+	var text: Variant = payload.get("t", "")
+	if typeof(text) != TYPE_STRING:
+		return
+	texts_applied += 1
+	minigame.deliver_player_text(player, String(text), bool(payload.get("f", true)))
 
 func _host_on_result(peer_id: int, payload: Dictionary) -> void:
 	if not is_host or not is_parallel or _results == null:

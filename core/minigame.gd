@@ -11,6 +11,8 @@ extends Node
 ##   _serialize_state()       SOLO host: estado a mostrar (Dictionary/Array/Packed*Array)
 ##   _apply_state(state)      clientes: copia ese estado a las variables a dibujar
 ##   _on_event(name, data)    (opcional) eventos puntuales lanzados con send_event()
+##   _on_player_text(player, text, final)  (opcional) texto escrito por un jugador: cada PC lo envía con
+##                            submit_text() y el host lo recibe aquí ya validado de dueño (ver docs/network.md)
 ##
 ## ───────────────────────── LOCAL_PARALLEL ─────────────────────────────
 ## Cada jugador juega la prueba en su PC, sin ver a los demás ni sincronizar frames.
@@ -47,6 +49,8 @@ var mode: MinigameMeta.ExecutionMode = MinigameMeta.ExecutionMode.HOST_AUTHORITA
 ## true en el host (y en partidas locales): este PC decide los resultados. Un cliente online: false.
 ## (HOST_AUTHORITATIVE: además es quien simula.)
 var is_authority: bool = true
+## Longitud máxima del texto que se acepta de un jugador (el host recorta lo que llegue).
+const MAX_TEXT_LENGTH := 32
 ## Frecuencia (Hz) de envío de snapshots a los clientes (HOST_AUTHORITATIVE).
 var snapshot_rate: float = 30.0
 ## Semilla común de esta ejecución (la reparte el host) y generador determinista derivado.
@@ -171,6 +175,12 @@ func _apply_state(_state: Variant) -> void:
 func _on_event(_event_name: String, _data: Variant) -> void:
 	pass
 
+## HOST_AUTHORITATIVE, solo host (o partida local): un jugador envió texto. `final` = false mientras escribe
+## (borrador en vivo), true al confirmar. `player` es el dueño del peer; en partida local (varios humanos en
+## un PC) es null y el minijuego decide a quién corresponde.
+func _on_player_text(_player: PlayerData, _text: String, _final: bool) -> void:
+	pass
+
 ## Movimiento de un bot. Por defecto, deambula al azar; sobrescribir para IA propia.
 func _bot_move(player: PlayerData) -> Vector2:
 	return InputManager.get_vector(player.id)
@@ -226,6 +236,22 @@ func action_held(player: PlayerData) -> bool:
 ## Botón de acción mantenido por un bot/autopiloto. Por defecto, deriva de _bot_action.
 func _bot_action_held(player: PlayerData) -> bool:
 	return _bot_action(player) > 0
+
+## (HOST_AUTHORITATIVE, cualquier PC) El jugador de este PC envía texto al minijuego. En el host (o en
+## partida local) se entrega directamente; en un cliente viaja al host por el canal genérico del minijuego.
+func submit_text(text: String, final: bool = true) -> void:
+	if mode != MinigameMeta.ExecutionMode.HOST_AUTHORITATIVE:
+		return
+	if is_authority:
+		deliver_player_text(local_player, text, final)
+	elif _session != null:
+		_session.send_text(text, final)
+
+## (host) Recibe texto de un jugador (ya comprobado el dueño): recorta y lo pasa a _on_player_text.
+func deliver_player_text(player: PlayerData, text: String, final: bool) -> void:
+	if not is_running or not is_authority:
+		return
+	_on_player_text(player, text.strip_edges().substr(0, MAX_TEXT_LENGTH), final)
 
 ## (HOST_AUTHORITATIVE, host) Lanza un evento puntual: se ejecuta _on_event aquí y en todos los
 ## clientes.

@@ -180,11 +180,19 @@ else
     LP_OK=$(echo "$LP_HOST" | grep -c "results=$TOTAL dnf=0$")
     [[ "$LP_OK" -eq "$LP_N" ]] && ok "[LOCAL_PARALLEL] el host recogió $TOTAL resultados (sin DNF) en los $LP_N minijuegos de ese modelo" || fail "[LOCAL_PARALLEL] resultados incompletos o DNF: $(echo "$LP_HOST" | tr '\n' '|')"
   fi
-  # Cobertura: con 4 minijuegos salen los dos modelos.
-  if (( GAMES >= 5 )); then
-    grep -q "mg=reaction_test" "$LOGS/host.log" && ok "se jugó un minijuego LOCAL_PARALLEL (reaction_test)" || fail "no salió reaction_test"
-    grep -q "mg=cube_dash" "$LOGS/host.log" && ok "se jugó el minijuego LOCAL_PARALLEL cube_dash" || fail "no salió cube_dash"
-    grep -q "mg=shrinking_platform" "$LOGS/host.log" && ok "se jugó un minijuego HOST_AUTHORITATIVE" || fail "no salió shrinking_platform"
+  # Cobertura: con tantas rondas como minijuegos hay (y sin ONLY) tiene que salir CADA minijuego; con menos,
+  # al menos uno de cada modelo de ejecución.
+  N_MG=$(ls -d minigames/*/ | wc -l)
+  if [[ -z "${ONLY:-}" ]]; then
+    if (( GAMES >= N_MG )); then
+      for d in minigames/*/; do
+        id=$(basename "$d")
+        grep -q "mg=$id" "$LOGS/host.log" && ok "se jugó $id" || fail "no salió $id"
+      done
+    elif (( GAMES >= 4 )); then
+      grep -q "mg_session mode=LOCAL_PARALLEL" "$LOGS/host.log" && ok "se jugó algún minijuego LOCAL_PARALLEL" || fail "no salió ningún LOCAL_PARALLEL"
+      grep -q "mg_session mode=HOST_AUTHORITATIVE" "$LOGS/host.log" && ok "se jugó algún minijuego HOST_AUTHORITATIVE" || fail "no salió ningún HOST_AUTHORITATIVE"
+    fi
   fi
 fi
 for n in "${SURVIVORS[@]}"; do

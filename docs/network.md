@@ -313,3 +313,46 @@ Playus** (la búsqueda no dio nada fiable): es una interpretación propia; se aj
   `4 1 0 kill_in_parallel` OK. El autopiloto (pruebas) suelta con ±0,07 s de error y se "cansa" a los 28 s.
 - Limitación: la garantía de superabilidad es para el bot con la ventana nominal y errores pequeños; un
   humano que falle varias veces seguidas puede quedarse sin ganchos alcanzables (es parte del juego).
+
+## 18. Texto en el canal del minijuego y Bomba de Palabras (`bomb_party`, HOST_AUTHORITATIVE)
+
+**Extensión genérica (núcleo, sin código de red por minijuego):** los minijuegos HOST_AUTHORITATIVE pueden
+recibir texto de los jugadores. `Minigame.submit_text(text, final)` lo entrega directamente en el host (o en
+partida local) y en un cliente viaja por el canal del minijuego como `{"op":"tx","t":texto,"f":bool}`
+(`f=true` confirmado, fiable; `f=false` borrador mientras escribe, no fiable). `MinigameSession._host_on_text`
+solo acepta texto del dueño del jugador, de tipo String y recortado a `Minigame.MAX_TEXT_LENGTH` (32); el
+minijuego lo recibe en `_on_player_text(player, text, final)`. En partida local `player` es null y el
+minijuego decide a quién le toca. Estadística de pruebas: `texts=N` en el log `mg_session`.
+
+**Bomba de Palabras** (inspirada en BombParty): los jugadores se pasan una bomba por turnos; en cada turno hay
+una combinación de 2-4 letras y hay que escribir una palabra española que la contenga, sin repetir. La mecha
+es secreta (10-30 s al azar) y no se reinicia; al pasarla el siguiente recibe al menos 5 s reales. Al explotar
+termina el minijuego: pierde quien la tenía (último) y los demás se ordenan por palabras acertadas.
+- **Validación**: solo el host valida, con `SpanishDictionary` (`core/spanish_dictionary.gd`): 593 mil formas en
+  `data/es_words.txt`, comparadas sin tildes (la ñ se conserva). Los datos se generan con
+  `tools/build_dictionary.py` a partir del diccionario es_ES de LibreOffice (triple licencia GPLv3+/LGPLv3+/
+  MPL 1.1+; se usa bajo MPL 1.1; textos de licencia en `data/DICCIONARIO_LICENCIA.md` y `data/MPL-1.1.txt`).
+  **Antes de vender en Steam conviene que alguien con criterio jurídico revise esta licencia.** Para exportar
+  el juego hay que incluir `*.txt` en los recursos exportados.
+- **Dificultad**: 5 niveles de combinaciones (`data/es_tiers.txt`, 15 por nivel, de «AR» a «PSIC»); el nivel sube
+  cada 5 palabras acertadas entre todos. Además la mecha corre un 4 % más deprisa por acierto (hasta ×2,2).
+- **En tiempo real**: lo que escribe el jugador al que le toca (borrador) se ve en vivo en todos los PC
+  (snapshots a 30 Hz); los eventos ok/bad/boom son fiables y disparan sonidos y animaciones.
+- **Bots y autopiloto**: escriben palabras de ejemplo del diccionario (a veces fallan y la bomba explota). El
+  autopiloto de un cliente envía su texto por la misma vía que una persona (así se prueba la red).
+- **Sonido**: sintetizado por código (`core/synth_sfx.gd`), sin assets de terceros: tictac, tecla, acierto,
+  error, paso de bomba, siseo de mecha y explosión.
+- **Limitaciones**: hace falta teclado (un mando no puede escribir); la validación es la del diccionario
+  ortográfico (no incluye todo el léxico coloquial ni los nombres propios).
+- Pruebas: `tests/bomb_party_test.gd` y `ONLY=bomb_party tests/online_test.sh 4 1 0 normal` / `8 1 0 normal` /
+  `4 1 0 kill_in_game` OK.
+
+### Verificación completa con 8 minijuegos (Bomba de Palabras incluida)
+Matriz de 10 escenarios con 9 rondas cada uno (sale cada minijuego al menos una vez; `tests/online_test.sh` lo
+comprueba): 2/4/8 jugadores, 4 humanos + 4 bots, caída en lobby / minijuego de arena / LOCAL_PARALLEL (4 y 8),
+caída del host y unión tardía: **10/10 OK** (7 en la primera pasada y 3 tras corregir el reloj del tope de espera
+de LOCAL_PARALLEL). Cambios derivados de esa verificación:
+- El tope de espera del host en LOCAL_PARALLEL usa el mismo reloj que los minijuegos (delta limitado a 0,05 s);
+  antes, con las pruebas aceleradas, daba por no terminados a clientes que aún jugaban.
+- El autopiloto de Salto Neón, Onda Neón y Columpio de Lengua se "cansa" a los 28 s de juego (solo pruebas) para
+  que las partidas automáticas no se eternicen.

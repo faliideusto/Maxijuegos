@@ -226,7 +226,9 @@ func _play(delta: float) -> void:
 		if not _s.alive:
 			_die()
 			return
-	if _time >= TIME_LIMIT or _s.x >= _level_end:
+	# El autopiloto (pruebas) se "cansa" pronto para que las partidas automáticas no se eternicen.
+	var limit := 28.0 if InputManager.is_simulated(local_player.id) else TIME_LIMIT
+	if _time >= limit or _s.x >= _level_end:
 		_timed_out = true
 		_dead = true   # deja de jugar; se envía el resultado tras una breve pausa
 		_death_t = 0.0

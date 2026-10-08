@@ -3,16 +3,16 @@
 # Uso: GODOT=/ruta/a/godot tests/run_matrix.sh
 cd "$(dirname "$0")/.."
 CONFIGS=(
-  "2 5 0 normal"
-  "4 5 0 normal"
-  "8 5 0 normal"
-  "4 5 4 normal"
-  "4 5 0 kill_in_lobby"
-  "4 5 0 kill_in_game"
-  "4 5 0 kill_in_parallel"
-  "8 5 0 kill_in_parallel"
-  "4 5 0 kill_host"
-  "3 5 0 late_join"
+  "2 9 0 normal"
+  "4 9 0 normal"
+  "8 9 0 normal"
+  "4 9 4 normal"
+  "4 9 0 kill_in_lobby"
+  "4 9 0 kill_in_game"
+  "4 9 0 kill_in_parallel"
+  "8 9 0 kill_in_parallel"
+  "4 9 0 kill_host"
+  "3 9 0 late_join"
 )
 PASS=0; FAIL=0
 for cfg in "${CONFIGS[@]}"; do
