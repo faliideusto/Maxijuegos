@@ -43,6 +43,7 @@ func _ready() -> void:
 		col.add_child(UIKit.label(p.label(), &"HeaderLabel"))
 		crown_row.add_child(col)
 		get_tree().create_timer(0.6).timeout.connect(a.bounce)
+		get_tree().create_timer(0.6).timeout.connect(func() -> void: Audio.sfx(&"pop", -3.0, 0.8))
 	box.add_child(crown_row)
 
 	# Clasificación: una columna hasta 4 jugadores, dos columnas si hay más.
@@ -85,6 +86,7 @@ func _ready() -> void:
 	add_child(_confetti)
 	_confetti.rain(6.0, 90.0)
 	_confetti.burst(Vector2(Palette.VIEWPORT_SIZE.x * 0.5, Palette.VIEWPORT_SIZE.y * 0.5), 80)
+	Audio.sfx(&"confetti")
 
 	var i := 0
 	for child in box.get_children():

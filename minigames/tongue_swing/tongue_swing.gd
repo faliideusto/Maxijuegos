@@ -96,6 +96,9 @@ var _rot: float = 0.0
 var _tongue_ext: float = 1.0
 var _whiff: float = 0.0
 var _prev_anchor: int = -1
+var _next_milestone: float = 100.0
+var _crack_played: bool = false
+var _growl_t: float = 0.0
 
 # --- Bot / pruebas ---
 var _bot_plan_for: int = -2
@@ -142,6 +145,8 @@ func _reset_state() -> void:
 	_best_x = 0.0
 	_bot_plan_for = -2
 	_prev_anchor = _s.anchor
+	_next_milestone = 100.0
+	_crack_played = false
 	_cam = _s.pos.x - CAM_LEAD
 	_tongue_ext = 1.0
 	_whiff = 0.0
@@ -367,7 +372,17 @@ func _play(delta: float) -> void:
 		if _s.anchor != _prev_anchor:
 			if _s.anchor >= 0:
 				_tongue_ext = 0.0
+				_crack_played = false
+				Audio.sfx(&"tongue_shoot", -9.0)
+				Audio.sfx(&"tongue_attach", -4.0)
+			elif _s.broke >= 0:
+				Audio.sfx(&"snap", -3.0)
+			else:
+				Audio.sfx(&"release", -7.0)
 			_prev_anchor = _s.anchor
+		if _s.anchor >= 0 and _af[_s.anchor] == 1 and _s.t_att > 0.6 and not _crack_played:
+			_crack_played = true
+			Audio.sfx(&"plat_crack", -6.0)
 		if not _s.alive:
 			_die("¡AL PANTANO!")
 			return
@@ -376,6 +391,10 @@ func _play(delta: float) -> void:
 			return
 	if tap and _s.anchor < 0 and _pick(_s) < 0:
 		_whiff = 0.3
+		Audio.sfx(&"tongue_shoot", -14.0, 0.8)
+	if _best_x >= _next_milestone:
+		_next_milestone += 100.0
+		Audio.sfx(&"milestone", -9.0)
 	# El autopiloto (pruebas) se "cansa" pronto para que las partidas automáticas no se eternicen.
 	var limit := 28.0 if InputManager.is_simulated(local_player.id) else TIME_LIMIT
 	if _time >= limit or _best_x >= LEVEL_END:
@@ -384,6 +403,7 @@ func _play(delta: float) -> void:
 		_death_t = 0.0
 
 func _die(cause: String) -> void:
+	Audio.sfx(&"splash" if cause.contains("PANTANO") else &"fog_growl", -2.0)
 	_dead = true
 	_death_cause = cause
 	_death_t = 0.0
@@ -394,6 +414,12 @@ func _die(cause: String) -> void:
 				"size": randf_range(0.1, 0.25), "rot": randf() * TAU, "life": 1.0})
 
 func _animate(delta: float) -> void:
+	# La niebla gruñe cuando está cerca.
+	if is_running and not _dead and _s.pos.x - chase_at(_time) < 6.0:
+		_growl_t -= delta
+		if _growl_t <= 0.0:
+			_growl_t = 3.0
+			Audio.sfx(&"fog_growl", -14.0)
 	_flash = maxf(0.0, _flash - delta * 2.5)
 	_tongue_ext = minf(1.0, _tongue_ext + delta * 14.0)
 	_whiff = maxf(0.0, _whiff - delta)

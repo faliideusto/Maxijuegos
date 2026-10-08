@@ -14,6 +14,7 @@ var _bounce: Dictionary = {}       # id -> animación de "squash" del avatar (0.
 var _bar_h: Dictionary = {}        # id -> altura mostrada (suavizada)
 var _time_left: float = DURATION
 var _elapsed: float = 0.0
+var _last_sec: int = 99
 
 func _on_prepare() -> void:
 	for p in players:
@@ -34,6 +35,8 @@ func _simulate(delta: float) -> void:
 		var n := action_presses(p)
 		if n > 0:
 			_counts[p.id] += n
+			if is_audible(p):
+				_press_sound(_counts[p.id])
 			_reached_at[p.id] = _elapsed
 			_bounce[p.id] = 1.0
 	if _time_left <= 0.0:
@@ -57,10 +60,21 @@ func _apply_state(state: Variant) -> void:
 			var id := players[i].id
 			if counts[i] > _counts[id]:
 				_bounce[id] = 1.0   # el contador subió: rebote del avatar
+				if is_audible(players[i]):
+					_press_sound(counts[i])
 			_counts[id] = counts[i]
 
 # --- Animación (todos los PC) ---
+## Pulsación propia: un pop que sube de tono según lo que llevas.
+func _press_sound(count: int) -> void:
+	Audio.sfx(&"pop", -5.0, minf(0.8 + float(count) / 50.0, 1.8))
+
 func _animate(delta: float) -> void:
+	# Pitidos en los últimos 3 segundos.
+	var sec := ceili(_time_left)
+	if is_running and sec != _last_sec and sec <= 3 and sec > 0:
+		Audio.sfx(&"beep", -6.0)
+	_last_sec = sec
 	for p in players:
 		_bounce[p.id] = maxf(0.0, _bounce[p.id] - delta * 5.0)
 	# Las barras suben suavemente hacia su valor.

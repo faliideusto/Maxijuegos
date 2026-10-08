@@ -108,6 +108,7 @@ var _shards: Array = []
 var _trail: Array = []
 var _trail_t: float = 0.0
 var _flash: float = 0.0
+var _next_milestone: float = 100.0
 
 func _on_prepare() -> void:
 	_build_level()
@@ -119,6 +120,7 @@ func _on_start() -> void:
 	_accum = 0.0
 	_dead = false
 	_timed_out = false
+	_next_milestone = 100.0
 
 # ----------------------------------------------------------------------------
 # EL NIVEL (diseñado a mano)
@@ -555,6 +557,7 @@ func _play(delta: float) -> void:
 		held = held or _jump_buffer > 0.0
 	_accum += delta
 	var steps := 0
+	var was_ground := _s.on_ground
 	while _accum >= STEP and steps < 12:
 		_accum -= STEP
 		steps += 1
@@ -562,6 +565,13 @@ func _play(delta: float) -> void:
 		if not _s.alive:
 			_die()
 			return
+	if was_ground and not _s.on_ground:
+		Audio.sfx(&"jump", -7.0)
+	elif not was_ground and _s.on_ground:
+		Audio.sfx(&"land", -12.0)
+	if _s.cx >= _next_milestone:
+		_next_milestone += 100.0
+		Audio.sfx(&"milestone", -9.0)
 	# El autopiloto (pruebas) se "cansa" pronto para que las partidas automáticas no se eternicen.
 	var limit := 28.0 if InputManager.is_simulated(local_player.id) else TIME_LIMIT
 	if _time >= limit or _s.cx >= _level_end:
@@ -570,6 +580,7 @@ func _play(delta: float) -> void:
 		_death_t = 0.0
 
 func _die() -> void:
+	Audio.sfx(&"crash", -3.0)
 	_dead = true
 	_death_t = 0.0
 	_flash = 1.0

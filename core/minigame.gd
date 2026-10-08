@@ -90,6 +90,8 @@ func start(p_players: Array[PlayerData]) -> void:
 	_finished = false
 	_reported = false
 	is_running = true
+	if meta != null:
+		Audio.play_music(meta.music)   # cada minijuego declara su pista en meta.tres
 	_on_start()
 
 func set_session(session: Node) -> void:
@@ -272,6 +274,13 @@ func report_result(score: float, tiebreak: float = 0.0) -> void:
 ## true si el jugador es el de ESTE PC (para marcarlo en pantalla).
 func is_local_player(player: PlayerData) -> bool:
 	return player == local_player or player.device == PlayerData.DEVICE_LOCAL
+
+## ¿Debe oírse el sonido de este jugador en este PC? Online: solo el jugador de este PC. Partida local:
+## cualquier humano (los bots y el autopiloto no meten ruido).
+func is_audible(player: PlayerData) -> bool:
+	if NetworkManager.is_online:
+		return is_local_player(player) and not InputManager.is_simulated(player.id)
+	return not player.is_bot and not InputManager.is_simulated(player.id)
 
 ## Marca "tú" sobre el jugador local (triángulo sobre su avatar).
 func draw_local_marker(center: Vector2, radius: float) -> void:

@@ -34,6 +34,8 @@ var id: StringName = &""
 ## (LOCAL_PARALLEL) Tope de seguridad en segundos: si algún jugador no envía su resultado a
 ## tiempo, el host lo da por no terminado y cierra el minijuego. 0 = automático.
 @export var max_duration: float = 0.0
+## Pista de música mientras se juega (ver MusicCatalog). Vacío = sin música.
+@export var music: StringName = &""
 
 func supports(player_count: int) -> bool:
 	return player_count >= min_players and player_count <= max_players

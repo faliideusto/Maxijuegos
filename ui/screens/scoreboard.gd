@@ -131,10 +131,14 @@ func _play_reveal() -> void:
 		row.modulate.a = 0.0
 		var t := create_tween()
 		t.tween_property(row, "modulate:a", 1.0, 0.25).set_delay(0.05 * i)
+		get_tree().create_timer(0.05 * i).timeout.connect(func() -> void: Audio.sfx(&"score_tick", -8.0, 0.8 + 0.06 * i))
 		i += 1
 	await get_tree().create_timer(0.6).timeout
 	# 2) Aparecen los "+N".
+	var pops := 0
 	for id in _rows:
+		get_tree().create_timer(0.07 * pops).timeout.connect(func() -> void: Audio.sfx(&"score_pop", -4.0))
+		pops += 1
 		var gain: Label = (_rows[id] as Control).find_child("Gain", true, false)
 		gain.pivot_offset = gain.size * 0.5
 		gain.scale = Vector2.ONE * 2.0
@@ -148,6 +152,10 @@ func _play_reveal() -> void:
 	for id in new_scores:
 		max_total = maxi(max_total, new_scores[id])
 	var new_order := _order_by(new_scores)
+	# Tictac de los números subiendo (sube de tono) y un golpe al reordenarse.
+	for k in 8:
+		get_tree().create_timer(0.1 * k).timeout.connect(func() -> void: Audio.sfx(&"score_tick", -6.0, 0.9 + 0.07 * k))
+	Audio.sfx(&"swoosh", -9.0)
 	for pos in new_order.size():
 		var id := new_order[pos]
 		var row: Control = _rows[id]
@@ -164,6 +172,8 @@ func _play_reveal() -> void:
 	# Pequeño confeti para quien ganó el minijuego.
 	if not GameManager.last_ranking.is_empty():
 		_confetti.burst(Vector2(Palette.VIEWPORT_SIZE.x * 0.5, Palette.VIEWPORT_SIZE.y * 0.9), 40)
+		Audio.sfx(&"confetti")
+		get_tree().create_timer(0.15).timeout.connect(func() -> void: Audio.sfx(&"fanfare_small", -4.0))
 
 func _process(delta: float) -> void:
 	if _done:

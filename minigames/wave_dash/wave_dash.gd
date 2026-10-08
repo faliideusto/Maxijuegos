@@ -76,6 +76,7 @@ var _death_t: float = 0.0
 var _shards: Array = []
 var _path: Array = []              # vértices (Vector2 mundo) de la estela
 var _flash: float = 0.0
+var _next_milestone: float = 100.0
 
 func _on_prepare() -> void:
 	_build_level()
@@ -83,6 +84,7 @@ func _on_prepare() -> void:
 
 func _on_start() -> void:
 	_reset_state()
+	_next_milestone = 100.0
 	_time = 0.0
 	_accum = 0.0
 	_dead = false
@@ -219,6 +221,7 @@ func _play(delta: float) -> void:
 		hold = hold or action_presses(local_player) > 0
 	_accum += delta
 	var steps := 0
+	var was_up := _s.up
 	while _accum >= STEP and steps < 12:
 		_accum -= STEP
 		steps += 1
@@ -226,6 +229,11 @@ func _play(delta: float) -> void:
 		if not _s.alive:
 			_die()
 			return
+	if _s.up != was_up:
+		Audio.sfx(&"flip_up" if _s.up else &"flip_down", -9.0)
+	if _s.x >= _next_milestone:
+		_next_milestone += 100.0
+		Audio.sfx(&"milestone", -9.0)
 	# El autopiloto (pruebas) se "cansa" pronto para que las partidas automáticas no se eternicen.
 	var limit := 28.0 if InputManager.is_simulated(local_player.id) else TIME_LIMIT
 	if _time >= limit or _s.x >= _level_end:
@@ -234,6 +242,7 @@ func _play(delta: float) -> void:
 		_death_t = 0.0
 
 func _die() -> void:
+	Audio.sfx(&"zap", -3.0)
 	_dead = true
 	_death_t = 0.0
 	_flash = 1.0

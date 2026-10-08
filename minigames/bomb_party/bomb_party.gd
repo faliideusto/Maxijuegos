@@ -160,6 +160,8 @@ func _make_player(stream: AudioStream, volume_db: float) -> AudioStreamPlayer:
 	var p := AudioStreamPlayer.new()
 	p.stream = stream
 	p.volume_db = volume_db
+	if AudioServer.get_bus_index(&"SFX") >= 0:
+		p.bus = &"SFX"
 	add_child(p)
 	return p
 

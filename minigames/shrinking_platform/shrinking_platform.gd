@@ -29,12 +29,16 @@ class Token:
 	var fall_t: float = 0.0
 	var dash_cd: float = 0.0
 	var dash_flash: float = 0.0
+	var fall_sounded: bool = false
+	var splashed: bool = false
 
 var _tokens: Array[Token] = []
 var _elim_order: Array[int] = []   # ids en orden de caída (primero = peor)
 var _time: float = 0.0
 var _end_timer: float = -1.0
 var _got_state: bool = false
+var _bump_cd: float = 0.0
+var _creak_t: float = 3.0
 
 func _on_prepare() -> void:
 	var n := players.size()
@@ -58,6 +62,7 @@ func _current_radius() -> float:
 
 func _simulate(delta: float) -> void:
 	_time += delta
+	_bump_cd = maxf(0.0, _bump_cd - delta)
 	var radius := _current_radius()
 	var alive: Array[Token] = []
 	for t in _tokens:
@@ -115,6 +120,9 @@ func _collide(a: Token, b: Token) -> void:
 	b.pos += n * overlap * 0.5
 	var rel := (b.vel - a.vel).dot(n)
 	if rel < 0.0:
+		if _bump_cd <= 0.0:
+			_bump_cd = 0.15
+			send_event("bump", null)
 		var impulse := -(1.0 + 0.9) * rel * 0.5 + 60.0
 		a.vel -= n * impulse
 		b.vel += n * impulse
@@ -217,15 +225,30 @@ func _apply_state(state: Variant) -> void:
 func _on_event(event_name: String, data: Variant) -> void:
 	if event_name == "dash" and typeof(data) == TYPE_INT and data >= 0 and data < _tokens.size():
 		_tokens[data].dash_flash = 1.0
+		Audio.sfx(&"dash", -4.0 if is_audible(_tokens[data].player) else -13.0)
+	elif event_name == "bump":
+		Audio.sfx(&"thud", -5.0)
 
 # ----------------------------------------------------------------------------
 # Animación (todos los PC)
 # ----------------------------------------------------------------------------
 
 func _animate(delta: float) -> void:
+	# Crujidos de la plataforma mientras mengua.
+	if is_running and _time > GRACE_TIME:
+		_creak_t -= delta
+		if _creak_t <= 0.0:
+			_creak_t = 3.5
+			Audio.sfx(&"plat_crack", -10.0)
 	for t in _tokens:
 		if not t.alive:
+			if not t.fall_sounded:
+				t.fall_sounded = true
+				Audio.sfx(&"plat_fall", -3.0 if is_audible(t.player) else -9.0)
 			t.fall_t = minf(t.fall_t + delta, FALL_DURATION)
+			if t.fall_t >= FALL_DURATION and not t.splashed:
+				t.splashed = true
+				Audio.sfx(&"splash", -6.0 if is_audible(t.player) else -14.0)
 		t.dash_flash = maxf(0.0, t.dash_flash - delta * 3.0)
 	if not is_authority:
 		# Cliente: el tiempo avanza entre snapshots y la posición sigue suavemente a la real.

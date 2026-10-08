@@ -55,10 +55,12 @@ func _play(delta: float) -> void:
 			_wait_t += delta
 			if _pressed():
 				_total += FALSE_START_PENALTY
+				Audio.sfx(&"error")
 				_repeat_round = true
 				_start_feedback("¡Demasiado pronto! +%.1f s" % FALSE_START_PENALTY, Palette.CORAL)
 			elif _wait_t >= _delays[_round]:
 				_phase = Phase.GO
+				Audio.sfx(&"beep_go")
 				DevCli.log_event("reaction GO round=%d" % _round)
 				_go_ms = Time.get_ticks_msec()
 				_bot_reaction = randf_range(0.2, 0.45)
@@ -84,6 +86,7 @@ func _play(delta: float) -> void:
 func _register(reaction: float) -> void:
 	_total += reaction
 	_times.append(reaction)
+	Audio.sfx(&"reaction_ok")
 	_start_feedback("%d ms" % roundi(reaction * 1000.0), Palette.MINT)
 
 func _start_feedback(text: String, color: Color) -> void:

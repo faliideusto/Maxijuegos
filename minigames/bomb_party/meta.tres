@@ -15,3 +15,4 @@ scene = ExtResource("2")
 accent_color = Color(1, 0.55, 0.15, 1)
 execution_mode = 0
 max_duration = 0.0
+music = &"bomb"

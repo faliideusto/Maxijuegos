@@ -28,6 +28,7 @@ func change_scene(path: String) -> void:
 		_queued_path = path
 		return
 	_busy = true
+	Audio.sfx(&"swoosh", -6.0)
 	var w := Palette.VIEWPORT_SIZE.x
 	_curtain.visible = true
 	_stripe.visible = true

@@ -96,6 +96,8 @@ func _run_offline_parallel() -> void:
 	DevCli.log_event("offline_parallel players=%d dnf=%d" % [Lobby.players.size(), dnf])
 	var ranking := helper.rank_results(results.to_dict())
 	helper.free()
+	Audio.stop_music(0.6)
+	Audio.sfx(&"fanfare_small")
 	_show_big("¡FIN!")
 	await get_tree().create_timer(1.4).timeout
 	GameManager.report_results(ranking)
@@ -121,6 +123,8 @@ func _play_turn(p: PlayerData, seed_value: int, results: ParallelResults, helper
 	while not done["v"] and elapsed < mg.parallel_timeout():
 		await get_tree().process_frame
 		elapsed += get_process_delta_time()
+	Audio.stop_music(0.4)
+	Audio.sfx(&"reaction_ok")
 	_show_big_text("¡LISTO!", 96)
 	await get_tree().create_timer(0.8).timeout
 	_label.text = ""
@@ -162,6 +166,7 @@ func _build_overlay() -> void:
 func _run_countdown() -> void:
 	await get_tree().create_timer(0.3).timeout
 	for step in COUNTDOWN:
+		Audio.sfx(&"beep_go" if step == "¡YA!" else &"beep")
 		_show_big(step)
 		await get_tree().create_timer(0.65 if step != "¡YA!" else 0.45).timeout
 	_label.text = ""
@@ -174,6 +179,8 @@ func _on_local_reported(_score: float, _tiebreak: float) -> void:
 ## Todos los PC: aviso de fin.
 func _on_ended() -> void:
 	_wait_label.text = ""
+	Audio.stop_music(0.6)
+	Audio.sfx(&"fanfare_small")
 	_show_big("¡FIN!")
 
 ## Solo host: tras el aviso, entrega el ranking (GameManager reparte puntos y avisa a los clientes).

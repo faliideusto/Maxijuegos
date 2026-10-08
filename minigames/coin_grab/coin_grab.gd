@@ -34,6 +34,7 @@ class Token:
 	var facing: Vector2 = Vector2.DOWN
 	var sprint_t: float = 0.0
 	var sprint_cd: float = 0.0
+	var prev_sprint: float = 0.0
 	var bot_target: Vector2 = Vector2.ZERO
 	var bot_retarget: float = 0.0
 
@@ -49,6 +50,7 @@ var _popups: Array[ScorePopup] = []
 var _scores: Dictionary = {}
 var _last_gain: Dictionary = {}   # id -> instante del último punto (desempate)
 var _time_left: float = DURATION
+var _last_sec: int = 99
 var _elapsed: float = 0.0
 var _spawn_timer: float = 0.0
 var _got_state: bool = false
@@ -113,7 +115,7 @@ func _update_coins(delta: float) -> void:
 				_coins.erase(c)
 				_scores[t.player.id] += c.value
 				_last_gain[t.player.id] = _elapsed
-				send_event("collect", [c.pos.x, c.pos.y, c.value])
+				send_event("collect", [c.pos.x, c.pos.y, c.value, t.player.id])
 	# Caducidad y aparición.
 	_coins = _coins.filter(func(c: Coin) -> bool: return c.age < COIN_LIFETIME)
 	_spawn_timer -= delta
@@ -210,6 +212,12 @@ func _on_event(event_name: String, data: Variant) -> void:
 		var pop := ScorePopup.new()
 		pop.pos = Vector2(float(data[0]), float(data[1]))
 		var value := int(data[2])
+		var who := int(data[3]) if data.size() > 3 else -1
+		var mine := false
+		for pl in players:
+			if pl.id == who:
+				mine = is_audible(pl)
+		Audio.sfx(&"coin" if value == 1 else &"coin_gold", -2.0 if mine else -14.0)
 		pop.text = "+%d" % value
 		pop.color = Palette.YELLOW if value == 1 else Color("FF9F43")
 		_popups.append(pop)
@@ -219,6 +227,15 @@ func _on_event(event_name: String, data: Variant) -> void:
 # ----------------------------------------------------------------------------
 
 func _animate(delta: float) -> void:
+	# Sprint (propio fuerte, ajeno bajito) y pitidos en los últimos 3 segundos.
+	for tk in _tokens:
+		if tk.sprint_t > 0.0 and tk.prev_sprint <= 0.0:
+			Audio.sfx(&"dash", -5.0 if is_audible(tk.player) else -15.0)
+		tk.prev_sprint = tk.sprint_t
+	var sec := ceili(_time_left)
+	if is_running and sec != _last_sec and sec <= 3 and sec > 0:
+		Audio.sfx(&"beep", -6.0)
+	_last_sec = sec
 	for pop in _popups:
 		pop.age += delta
 	_popups = _popups.filter(func(p: ScorePopup) -> bool: return p.age < 0.8)

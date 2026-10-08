@@ -36,3 +36,7 @@ godot --headless --path . --script res://tools/build_theme.gd        # regenera 
 ```
 
 Documentación: [arquitectura](docs/architecture.md) · [red y modelos](docs/network.md) · [estilo](docs/style_guide.md).
+
+## Sonido
+
+Todo el audio (efectos y música) se genera por código al arrancar; no hay archivos de audio. **F10** silencia o activa el sonido (el ajuste se guarda en `user://settings.cfg`).

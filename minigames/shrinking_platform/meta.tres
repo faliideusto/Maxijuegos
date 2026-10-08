@@ -14,3 +14,4 @@ approx_duration = 40.0
 scene = ExtResource("2")
 accent_color = Color(0.18, 0.78, 0.85, 1)
 execution_mode = 0
+music = &"platform"

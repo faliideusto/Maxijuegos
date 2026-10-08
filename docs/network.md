@@ -358,3 +358,26 @@ de LOCAL_PARALLEL). Cambios derivados de esa verificación:
   antes, con las pruebas aceleradas, daba por no terminados a clientes que aún jugaban.
 - El autopiloto de Salto Neón, Onda Neón y Columpio de Lengua se "cansa" a los 28 s de juego (solo pruebas) para
   que las partidas automáticas no se eternicen.
+
+## 19. Audio (autoload `Audio`)
+
+Todo el sonido se sintetiza por código (sin assets de terceros ni descargas):
+- `core/sfx_catalog.gd` (`SfxCatalog`): ~40 efectos por nombre (interfaz, partida y minijuegos), generados la primera vez
+  que se piden y cacheados. `core/synth_sfx.gd`: los de Bomba de Palabras.
+- `core/synth_music.gd` (`SynthMusic`) + `core/music_catalog.gd` (`MusicCatalog`): generador de música (bajo, arpegio,
+  melodía, batería y colchón sobre una escala y una progresión) con bucles exactos. 10 pistas; se renderizan en un hilo al
+  arrancar (unos 12 s en total, el menú en ~1 s) y suenan en cuanto están listas.
+- `autoload/audio_manager.gd`: buses `Music` y `SFX`, pool de efectos, fundido cruzado de música, ajustes en
+  `user://settings.cfg` y F10 = silenciar/activar. En modo headless (pruebas) no genera ni reproduce nada.
+
+Automático: todos los botones suenan (pasar el ratón y pulsar; los `DangerButton` suenan a "atrás"), música por estado de
+la partida (menú/lobby/ajustes → `menu`, marcador → `scoreboard`, final → fanfarria + `final`), entrar/salir jugadores del
+lobby, presentación del minijuego, transiciones, cuenta atrás (3-2-1-¡YA!), fin de minijuego, marcador (cada fila, los +N, el
+tictac de los números y confeti) y pantalla final.
+
+Por minijuego: la pista se declara en su `meta.tres` (`music`) y empieza en `Minigame.start()`; Reflejos va SIN música (pide
+concentración). Los efectos propios se piden con `Audio.sfx(&"nombre")`; `Minigame.is_audible(player)` decide si un sonido
+es "tuyo" (fuerte) o ajeno (bajito/ninguno). Machaca: pop que sube de tono + pitidos finales; Plataforma: crujidos, empujones,
+caída y chapuzón; Monedas: moneda normal/dorada y sprint; Reflejos: señal, error y acierto; Salto Neón: salto, aterrizaje,
+choque y hitos cada 100 m; Onda Neón: giro, choque y hitos; Columpio de Lengua: lengua, agarre, suelta, crujido y rotura del
+gancho rojo, chapuzón, gruñido de la niebla y hitos; Bomba de Palabras: mecha, tic-tac, acierto, error, paso y explosión.
