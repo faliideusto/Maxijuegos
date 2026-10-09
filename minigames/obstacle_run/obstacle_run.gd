@@ -409,6 +409,10 @@ func _make_rs(p: PlayerData, idx: int, count: int) -> RS:
 	return s
 
 func _setup_runners() -> void:
+	for old in _rs.values():
+		for n in [(old as RS).node, (old as RS).shadow, (old as RS).dust, (old as RS).puff]:
+			if n != null and is_instance_valid(n):
+				(n as Node).queue_free()
 	_rs.clear()
 	_order.clear()
 	for i in players.size():

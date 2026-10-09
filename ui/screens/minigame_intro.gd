@@ -153,6 +153,8 @@ func _controls(id: StringName) -> Array[String]:
 			return ["MOVERSE: flechas / WASD / palanca"]
 		&"bomb_party":
 			return ["ESCRIBIR: teclado, Enter envía"]
+		&"word_fight":
+			return ["MOVERSE: WASD o flechas", "PULSAR LETRA: ESPACIO o CLIC", "GOLPEAR: E o CLIC DERECHO"]
 		&"obstacle_run":
 			return ["MOVERSE: WASD o flechas", "SALTAR: ESPACIO o CLIC"]
 		&"target_range":

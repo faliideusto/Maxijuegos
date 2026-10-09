@@ -492,7 +492,7 @@ reinicia sola al acabar.
 - **Pantalla**: el botón de acción se usa para jugar, así que ya no salta la presentación; avanza con ¡LISTO! (clic), ESC o sola a los 25 s (7 s en
   pruebas/autopiloto). Online solo avanza el host; los demás siguen practicando hasta que empiece. Si el contenido no cabe, se reduce (`UIKit.fit_to_screen`).
 - **Headless** (pruebas automáticas): no se crea la práctica (solo el marco), para no meter ruido ni coste en los tests online.
-- Pruebas: `tests/practice_test.gd` (fuerza la práctica en headless: arrancan los 14 minijuegos, un solo recuadro, textos cortos y reinicio).
+- Pruebas: `tests/practice_test.gd` (fuerza la práctica en headless: arrancan los 15 minijuegos, un solo recuadro, textos cortos y reinicio).
 
 ## 26. Carrera de Ruinas (obstacle_run) — primer minijuego en 3D
 
@@ -516,3 +516,19 @@ reinicia sola al acabar.
   muros, espera alineada con las losas móviles, salta la barra y frena en el aire para caer sobre la losa. Las pruebas exigen que complete todos
   los recorridos y que una carrera con 5 corredores acabe con ranking correcto y estado idéntico en un "cliente".
 - Pruebas: `tests/obstacle_test.gd`; captura: `tools/run_shot.gd`.
+
+## 27. Pelea de Palabras (word_fight) y el segundo botón
+
+- **Juego** (copia de la "Pelea de palabras" de Pummel Party): HOST_AUTHORITATIVE, 3D con cámara fija. Arena metálica sci-fi con 26 casillas con letras
+  (A-F abajo … Y-Z arriba, centradas). Sobre cada cabeza flota la palabra del momento (la misma para todos; en verde lo que llevas). Se deletrea
+  PISANDO la casilla y pulsando ESPACIO o CLIC IZQUIERDO: +1 por letra acertada (el fallo bloquea 0,35 s); quien completa la palabra gana +3 y la palabra
+  cambia para todos (el progreso de todos vuelve a 0). Con E o CLIC DERECHO se golpea al que tengas delante: aturde 1,7 s, empuja, le quita una letra
+  de lo que llevaba y le da inmunidad un momento (no se encadena). Dura 90 s; gana quien más puntos tenga. Las palabras se alargan con la partida.
+- **Segundo botón** (nuevo en la capa de entrada): acción "action2" por jugador (teclado 1: E y clic derecho; teclado 2: 0 del teclado numérico o ".";
+  online: E / 0 numérico / clic derecho; mando: X/Y). `InputManager.action2_presses`, `Minigame.action2_presses/_bot_action2`, y por la red el
+  contador monótono "c2" en el mensaje de entrada (`{"op":"in","m":..,"c":..,"c2":..}`), igual que "c". En el mando, acción = A/B y action2 = X/Y.
+- **Red**: estado ~30 Hz (11 floats por jugador + palabra, tiempo, cuenta atrás); eventos `ok/bad/word/swing/hit/over/beep/go`.
+- **IA**: va a la casilla de su siguiente letra, espera un tiempo de reacción y pulsa; a veces se lanza a por el líder y le golpea.
+- **3D**: `SubViewport` con mundo propio: suelo de paneles (textura procedural), franjas de peligro, vórtices azules que giran, consola con luces,
+  gusanos decorativos, personajes con contorno y anillo de color, estrellas al estar aturdidos, letras que se hunden y brillan al pulsarse.
+- Pruebas: `tests/word_fight_test.gd`; captura: `tools/word_shot.gd`.

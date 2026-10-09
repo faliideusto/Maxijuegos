@@ -238,6 +238,16 @@ func action_held(player: PlayerData) -> bool:
 		return _bot_action_held(player)
 	return InputManager.is_action_pressed(player.id)
 
+## (HOST_AUTHORITATIVE) Nº de pulsaciones del SEGUNDO botón (golpear) del jugador en este frame.
+func action2_presses(player: PlayerData) -> int:
+	if InputManager.is_simulated(player.id):
+		return _bot_action2(player)
+	return InputManager.action2_presses(player.id)
+
+## Segundo botón de un bot/autopiloto. Por defecto, el azar de InputManager.
+func _bot_action2(player: PlayerData) -> int:
+	return InputManager.action2_presses(player.id)
+
 ## Botón de acción mantenido por un bot/autopiloto. Por defecto, deriva de _bot_action.
 func _bot_action_held(player: PlayerData) -> bool:
 	return _bot_action(player) > 0

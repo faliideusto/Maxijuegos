@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="MinigameMeta" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://core/minigame_meta.gd" id="1"]
+[ext_resource type="PackedScene" path="res://minigames/word_fight/scene.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Pelea de Palabras"
+description = "¡Deletrea pisando las letras!"
+instructions = "Sobre tu cabeza flota una palabra (la misma para todos). Deletréala pisando las casillas con las letras y pulsando ESPACIO o CLIC IZQUIERDO: cada letra acertada da 1 punto y quien la completa se lleva 3 más. Con E o CLIC DERECHO golpeas al que tengas delante: queda aturdido y pierde una letra. Gana quien más puntos tenga a los 90 s."
+min_players = 2
+max_players = 8
+approx_duration = 95.0
+scene = ExtResource("2")
+accent_color = Color(0.4, 0.85, 1, 1)
+execution_mode = 0
+max_duration = 0.0
+music = &"words"
+short_text = "Pisa la letra y pulsa ESPACIO/CLIC. Golpea con E o clic derecho."

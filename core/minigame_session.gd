@@ -12,7 +12,7 @@ extends Node
 ## HOST_AUTHORITATIVE:
 ##   host → clientes {"op":"snap","d":estado}  (no fiable, ~30 Hz) estado del minijuego
 ##   host → clientes {"op":"ev","n":nombre,"d":datos}     evento puntual
-##   cliente → host  {"op":"in","m":Vector2,"c":int}  (no fiable, ~30 Hz) intención del jugador:
+##   cliente → host  {"op":"in","m":Vector2,"c":int,"c2":int}  (no fiable, ~30 Hz) intención del jugador:
 ##                   movimiento + contador acumulado de pulsaciones. NO resultados.
 ##   cliente → host  {"op":"tx","t":String,"f":bool}  texto del jugador (f=true: confirmado, fiable;
 ##                   f=false: borrador mientras escribe, no fiable). Minigame.submit_text().
@@ -47,6 +47,7 @@ var _begin_seen: bool = false
 var _snap_accum: float = 0.0
 var _input_accum: float = 0.0
 var _press_count: int = 0
+var _press_count2: int = 0
 var _local_player: PlayerData = null
 ## (host, LOCAL_PARALLEL) resultados recogidos y tiempo transcurrido.
 var _results: ParallelResults = null
@@ -149,12 +150,14 @@ func _process(delta: float) -> void:
 	elif _local_player != null:
 		# Se envía la intención del jugador: movimiento y pulsaciones acumuladas.
 		var presses := InputManager.action_presses(_local_player.id)
+		var presses2 := InputManager.action2_presses(_local_player.id)
 		_press_count += presses
+		_press_count2 += presses2
 		_input_accum += delta
-		if presses > 0 or _input_accum >= 1.0 / INPUT_SEND_HZ:
+		if presses > 0 or presses2 > 0 or _input_accum >= 1.0 / INPUT_SEND_HZ:
 			_input_accum = 0.0
 			NetworkManager.send_to_host(NetProtocol.CH_MINIGAME,
-					{"op": "in", "m": InputManager.get_vector(_local_player.id), "c": _press_count}, false)
+					{"op": "in", "m": InputManager.get_vector(_local_player.id), "c": _press_count, "c2": _press_count2}, false)
 
 ## (cliente, desde Minigame.submit_text) Envía al host el texto que escribe el jugador local.
 func send_text(text: String, final: bool) -> void:
@@ -260,12 +263,13 @@ func _host_on_input(peer_id: int, payload: Dictionary) -> void:
 		return
 	var move: Variant = payload.get("m", Vector2.ZERO)
 	var count: Variant = payload.get("c", 0)
-	if typeof(move) != TYPE_VECTOR2 or typeof(count) != TYPE_INT:
+	var count2: Variant = payload.get("c2", 0)
+	if typeof(move) != TYPE_VECTOR2 or typeof(count) != TYPE_INT or typeof(count2) != TYPE_INT:
 		return
 	var v: Vector2 = move
 	if not (is_finite(v.x) and is_finite(v.y)):
 		return
-	InputManager.set_remote_input(player.id, v, maxi(int(count), 0))
+	InputManager.set_remote_input(player.id, v, maxi(int(count), 0), maxi(int(count2), 0))
 	inputs_applied += 1
 
 func _host_on_text(peer_id: int, payload: Dictionary) -> void:
