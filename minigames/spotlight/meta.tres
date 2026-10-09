@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="MinigameMeta" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://core/minigame_meta.gd" id="1"]
+[ext_resource type="PackedScene" path="res://minigames/spotlight/scene.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Caza del Foco"
+description = "¡Quédate en la luz!"
+instructions = "Hay un foco menos que jugadores y se mueven cada vez más rápido. Entra en un foco libre para quedártelo y no te salgas de él: cuando acabe la ronda, quien se quede sin foco queda eliminado y desaparece un foco. Tu botón de acción da un empujón con el que puedes alcanzar un foco que se escapa o sacar a un rival de el suyo. Gana el último que quede."
+min_players = 2
+max_players = 8
+approx_duration = 60.0
+scene = ExtResource("2")
+accent_color = Color(1, 0.85, 0.2, 1)
+execution_mode = 0
+max_duration = 0.0
+music = &"spot"

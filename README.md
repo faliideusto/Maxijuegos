@@ -28,6 +28,7 @@ godot --headless --path . --script res://tests/input_test.gd
 godot --headless --path . --script res://tests/parallel_local_test.gd -- --log
 godot --headless --path . --script res://tests/cube_level_test.gd                  # nivel de Salto Neón: superable y con puertas efectivas
 godot --headless --path . --script res://tests/wave_level_test.gd                  # pasillo de Onda Neón: superable (bot en bucle cerrado)
+godot --headless --path . --script res://tests/spotlight_test.gd                    # Caza del Foco: reglas y partidas con bots
 godot --headless --path . --script res://tests/bomb_party_test.gd                  # Bomba de Palabras: diccionario, niveles y reglas
 godot --headless --path . --script res://tests/tongue_level_test.gd                # recorrido de Columpio de Lengua (se genera con tools/gen_tongue_level.gd)
 GODOT=/ruta/godot tests/online_test.sh 4 4 0 normal                  # 4 instancias reales por red

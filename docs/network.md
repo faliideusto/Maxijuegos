@@ -381,3 +381,21 @@ es "tuyo" (fuerte) o ajeno (bajito/ninguno). Machaca: pop que sube de tono + pit
 caída y chapuzón; Monedas: moneda normal/dorada y sprint; Reflejos: señal, error y acierto; Salto Neón: salto, aterrizaje,
 choque y hitos cada 100 m; Onda Neón: giro, choque y hitos; Columpio de Lengua: lengua, agarre, suelta, crujido y rotura del
 gancho rojo, chapuzón, gruñido de la niebla y hitos; Bomba de Palabras: mecha, tic-tac, acierto, error, paso y explosión.
+
+## 20. Caza del Foco (`spotlight`, HOST_AUTHORITATIVE)
+
+Sillas musicales con luces. Hay un foco menos que jugadores vivos y se mueven por la pista (trayectorias curvas con rebote);
+quien entra primero en un foco libre se lo queda mientras siga dentro (0,3 s de margen al salirse) y nadie puede robárselo
+entrando. Al acabar la ronda, quien no tiene foco queda eliminado y desaparece un foco; se repite hasta que queda uno. El
+ranking sigue el orden de eliminación (último eliminado = 2.º; dentro de una misma ronda, el más lejos de un foco cae antes).
+- **Control**: moverse y un empujón con la acción (enfriamiento 1,3 s): alcanzar un foco que se escapa o sacar a un rival.
+- **Dificultad por ronda**: focos más rápidos (190 → 390 px/s, siempre por debajo de lo que corre un jugador, ≈456 px/s, para
+  que se puedan seguir), más pequeños (88 → 58 px) y rondas más cortas (10 → 5,5 s). La ronda acaba antes si todos los focos
+  están ocupados 1 s. Si nadie tuviera foco, se salva al más cercano a uno (siempre queda un superviviente).
+- **Red**: sin código propio. El host simula; snapshots a 30 Hz (jugadores y focos, con extrapolación y suavizado en los
+  clientes) y eventos fiables (`round`, `claim`, `unclaim`, `lock`, `win`, `dash`, `bump`) que disparan sonidos y animaciones.
+- **Bots**: persiguen el foco libre (o el suyo) más cercano, con torpeza y un empujón ocasional.
+- **Sonido**: pista propia `spot` (baile con tensión), `claim`/`unclaim` al ocupar o perder un foco, `lock` al cerrarse la ronda,
+  pitidos en los 3 últimos segundos, choques y empujones; la fanfarria del final la pone el runner.
+- Pruebas: `tests/spotlight_test.gd` (reglas, reclamar/soltar, eliminación, partidas de 2/3/6/8 bots) y
+  `ONLY=spotlight tests/online_test.sh 4 1 0 normal` / `8 1 0 normal` / `4 1 0 kill_in_game` / `2 1 0 normal` OK.
