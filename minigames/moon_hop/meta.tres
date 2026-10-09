@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="MinigameMeta" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://core/minigame_meta.gd" id="1"]
+[ext_resource type="PackedScene" path="res://minigames/moon_hop/scene.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Salto Lunar"
+description = "¡A la Luna, montaña a montaña!"
+instructions = "Tu astronauta rueda y vuela por las montañas de la Luna. Mantén tu botón de acción para bajar en picado y suéltalo para planear. Para ir más rápido, aterriza sobre la ladera de bajada de una montaña con la caída casi paralela a la pendiente (¡PERFECTO!): caer contra una subida o en plano te frena. Si te quedas casi parado, se acabó. Gana quien llegue más lejos en 45 s. Todos tenéis el mismo terreno y no veréis a los demás."
+min_players = 2
+max_players = 8
+approx_duration = 50.0
+scene = ExtResource("2")
+accent_color = Color(0.6, 0.65, 1, 1)
+execution_mode = 1
+max_duration = 110.0
+music = &"moon"

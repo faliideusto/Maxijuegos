@@ -432,3 +432,23 @@ siguiente vivo. Gana el último y el ranking sigue el orden de eliminación.
 - **Sonido**: pista `log` (taberna con tensión), `throw`, `stick`, `clang`, pitidos cuando a tu turno le quedan 2 s y aviso de turno.
 - Pruebas: `tests/knife_test.gd` (colisión, turnos, salida aleatoria, dificultad, partidas de 2/3/5/8 bots) y
   `ONLY=knife_log tests/online_test.sh` (2/4/8 jugadores; la caída en partida con 3 rondas) OK.
+
+## 23. Salto Lunar (`moon_hop`, LOCAL_PARALLEL)
+
+Un astronauta rueda y vuela por las colinas de la Luna; gana quien llega más lejos en 45 s. Cada jugador juega en su pantalla
+sobre el MISMO terreno (sale de la semilla común) y el host ordena por distancia; sin código de red propio
+(`report_result(metros)`, `_bot_result`, `_validate_result`). **No se encontraron las reglas del "Moon Shot" original de Playus**
+(la búsqueda no dio nada): es una interpretación propia del género de "colinas" (un botón, aterrizajes en las laderas).
+- **Control**: un botón. MANTENER = bajar (en el aire cae en picado; en el suelo la gravedad a lo largo de la pendiente es mayor:
+  más ganancia bajando, más pérdida subiendo y no se despega por las cimas). SOLTAR = planear (en el suelo se despega por las cimas con
+  velocidad y se flota con gravedad lunar).
+- **Física** (paso fijo 120 Hz): en el suelo `v += −G·sen θ·dt` (G = 1400, 3000 manteniendo); despega cuando la trayectoria
+  balística queda por encima del terreno; al aterrizar solo se conserva la velocidad a lo largo del terreno (más un 20 % de perdón de
+  la caída contra el suelo). Caer paralelo a una ladera de bajada conserva todo (¡PERFECTO!, cos ≥ 0,93); caer contra una subida o en
+  llano frena (¡PORRAZO!). Si queda casi parado 1,2 s, se acaba.
+- **Terreno**: puntos de control de cima y valle alternados unidos con coseno suave; montañas cada vez más altas y cortas (pendiente
+  máx. ≈ 58°), alguna montaña extra alta; 140 000 px (2 800 m) de longitud. Velocidad máx. 2 100 px/s.
+- **Autopiloto/bots**: la IA mantiene mientras la pendiente por delante sea de bajada (mirando 0,16 s de camino) y suelta al subir;
+  `debug_skill` la hace más torpe. Con una política ingenua (nunca/siempre mantener) se queda en ~35 m; la IA llega a ~700 m.
+- **Sonido**: pista `moon` (espacial), `dive`, `launch`, `perfect`, golpe en los porrazos, hitos cada 100 m y pitidos finales.
+- Pruebas: `tests/moon_test.gd` y `ONLY=moon_hop tests/online_test.sh` (2/4/8 jugadores y `kill_in_parallel`) OK.
