@@ -160,8 +160,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		_mouse_recent = 1.5
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		_mouse_recent = 1.5
-		_pending_clicks.append(surface.get_local_mouse_position())
+		_mouse_recent = 1.5      # el disparo lo hace la acción (el clic es la acción del jugador)
 
 # ----------------------------------------------------------------------------
 # Jugador local (LOCAL_PARALLEL)

@@ -154,8 +154,8 @@ func _controls(id: StringName) -> Array[String]:
 		&"bomb_party":
 			return ["ESCRIBIR: teclado, Enter envía"]
 		&"target_range":
-			return ["APUNTAR: ratón o palanca", "DISPARAR: clic o botón"]
-	return ["ACCIÓN: espacio, clic o tu botón"]
+			return ["APUNTAR: ratón o WASD / flechas", "DISPARAR: clic o espacio"]
+	return ["ESPACIO o CLIC"]
 
 func _process(delta: float) -> void:
 	if _done:

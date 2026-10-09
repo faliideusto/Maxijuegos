@@ -155,6 +155,8 @@ func _events_for(device: String, suffix: String) -> Array[InputEvent]:
 		PlayerData.DEVICE_KB1:
 			var keys := {"left": KEY_A, "right": KEY_D, "up": KEY_W, "down": KEY_S, "action": KEY_SPACE}
 			events.append(_key(keys[suffix]))
+			if suffix == "action":
+				events.append(_click())
 		PlayerData.DEVICE_KB2:
 			var keys := {"left": KEY_LEFT, "right": KEY_RIGHT, "up": KEY_UP, "down": KEY_DOWN, "action": KEY_ENTER}
 			events.append(_key(keys[suffix]))
@@ -168,6 +170,7 @@ func _events_for(device: String, suffix: String) -> Array[InputEvent]:
 				events.append(_key(KEY_SPACE))
 				events.append(_key(KEY_ENTER))
 				events.append(_key(KEY_KP_ENTER))
+				events.append(_click())
 			else:
 				events.append(_key(wasd[suffix]))
 				events.append(_key(arrows[suffix]))
@@ -177,6 +180,12 @@ func _events_for(device: String, suffix: String) -> Array[InputEvent]:
 				var joy := int(device.substr(PlayerData.DEVICE_JOY_PREFIX.length()))
 				events.append_array(_joy_events(joy, suffix))
 	return events
+
+## Clic izquierdo = botón de acción (jugador que usa el ratón: online o teclado 1).
+func _click() -> InputEventMouseButton:
+	var ev := InputEventMouseButton.new()
+	ev.button_index = MOUSE_BUTTON_LEFT
+	return ev
 
 func _key(code: Key) -> InputEventKey:
 	var ev := InputEventKey.new()
