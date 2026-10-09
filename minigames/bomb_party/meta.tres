@@ -16,3 +16,4 @@ accent_color = Color(1, 0.55, 0.15, 1)
 execution_mode = 0
 max_duration = 0.0
 music = &"bomb"
+short_text = "Escribe una palabra con esas letras y pulsa Enter. ¡Si explota, estás fuera!"

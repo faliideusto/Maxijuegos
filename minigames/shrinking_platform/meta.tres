@@ -15,3 +15,4 @@ scene = ExtResource("2")
 accent_color = Color(0.18, 0.78, 0.85, 1)
 execution_mode = 0
 music = &"platform"
+short_text = "Muévete y empuja con tu botón: gana el último que siga en la plataforma."

@@ -16,3 +16,4 @@ accent_color = Color(0.96, 0.27, 0.32, 1)
 execution_mode = 1
 max_duration = 80.0
 music = &"aim"
+short_text = "Dispara a las dianas (las doradas valen el triple). ¡No falles!"

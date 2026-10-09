@@ -21,6 +21,8 @@ var id: StringName = &""
 @export var display_name: String = "Minijuego"
 @export_multiline var description: String = ""
 @export_multiline var instructions: String = ""
+## Frase corta para la pantalla de presentación (junto a la práctica jugable).
+@export var short_text: String = ""
 @export_range(1, 8) var min_players: int = 2
 @export_range(1, 8) var max_players: int = 8
 ## Duración aproximada en segundos (informativa; para la UI y el equilibrado).

@@ -16,3 +16,4 @@ accent_color = Color(0.45, 0.9, 0.35, 1)
 execution_mode = 1
 max_duration = 130.0
 music = &"tongue"
+short_text = "Mantén para agarrarte y suelta para salir volando. ¡Huye de la niebla!"

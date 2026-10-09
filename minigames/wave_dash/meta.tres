@@ -16,3 +16,4 @@ accent_color = Color(1, 0.35, 0.75, 1)
 execution_mode = 1
 max_duration = 130.0
 music = &"wave"
+short_text = "Mantén para subir y suelta para bajar. No toques las paredes."

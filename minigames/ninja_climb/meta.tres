@@ -16,3 +16,4 @@ accent_color = Color(0.7, 0.55, 1, 1)
 execution_mode = 1
 max_duration = 100.0
 music = &"ninja"
+short_text = "Pulsa cuando los puntos apunten bien y salta de pared en pared."

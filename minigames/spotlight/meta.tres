@@ -16,3 +16,4 @@ accent_color = Color(1, 0.85, 0.2, 1)
 execution_mode = 0
 max_duration = 0.0
 music = &"spot"
+short_text = "Métete en un foco libre y no te salgas. Quien se queda sin foco, fuera."

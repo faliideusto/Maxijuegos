@@ -16,3 +16,4 @@ accent_color = Color(0.8, 0.58, 0.35, 1)
 execution_mode = 0
 max_duration = 0.0
 music = &"log"
+short_text = "En tu turno, pulsa para lanzar. Si chocas con otra daga, quedas eliminado."

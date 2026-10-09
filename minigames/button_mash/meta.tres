@@ -15,3 +15,4 @@ scene = ExtResource("2")
 accent_color = Color(1, 0.78, 0.12, 1)
 execution_mode = 0
 music = &"mash"
+short_text = "Pulsa tu botón lo más rápido que puedas: gana quien más pulsa."

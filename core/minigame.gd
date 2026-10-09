@@ -44,6 +44,9 @@ var players: Array[PlayerData] = []
 ## Metadatos de este minijuego (los inyecta el runner).
 var meta: MinigameMeta
 var is_running: bool = false
+## true cuando el minijuego corre como PRÁCTICA en la pantalla de presentación: sin música propia y sin tocar nada del
+## resto de la partida (el resultado no cuenta). El jugador lo juega de verdad con sus controles.
+var demo: bool = false
 ## Modelo de ejecución (lo fija el runner a partir de meta.execution_mode).
 var mode: MinigameMeta.ExecutionMode = MinigameMeta.ExecutionMode.HOST_AUTHORITATIVE
 ## true en el host (y en partidas locales): este PC decide los resultados. Un cliente online: false.
@@ -90,7 +93,7 @@ func start(p_players: Array[PlayerData]) -> void:
 	_finished = false
 	_reported = false
 	is_running = true
-	if meta != null:
+	if meta != null and not demo:
 		Audio.play_music(meta.music)   # cada minijuego declara su pista en meta.tres
 	_on_start()
 

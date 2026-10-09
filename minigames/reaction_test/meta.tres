@@ -16,3 +16,4 @@ accent_color = Color(0.18, 0.82, 0.64, 1)
 execution_mode = 1
 max_duration = 60.0
 music = &""
+short_text = "Pulsa en cuanto cambie la pantalla. Si te adelantas, te penaliza."

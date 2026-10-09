@@ -477,3 +477,19 @@ código de red propio (`report_result(metros)`, `_bot_result`, `_validate_result
 - **Sonido**: pista `ninja` (pentatónica oriental), `swish` al saltar, `wall` al agarrarse, tic en los extremos de la oscilación, golpe al
   morir, hitos cada 25 m y pitidos finales.
 - Pruebas: `tests/ninja_test.gd` y `ONLY=ninja_climb tests/online_test.sh` (2/4/8 jugadores y `kill_in_parallel`) OK.
+
+## 25. Práctica jugable en la pantalla de presentación (`MinigamePractice`)
+
+Cada minijuego se presenta con un recuadro en miniatura donde **se juega de verdad** (con los controles reales y los bots de rivales) y un
+texto corto (`MinigameMeta.short_text`, ≤ 90 letras; el `instructions` largo ya no se muestra). La práctica no cuenta para nada y se
+reinicia sola al acabar.
+- **Cómo**: el propio minijuego corre dentro de un `SubViewport` reducido (con `size_2d_override` 1280x720, así que el juego ve su pantalla
+  de siempre) y un `SubViewportContainer` le reenvía ratón y teclado (clic para Puntería/Ninja, escribir en Bomba de Palabras...). Se ejecuta
+  con `Minigame.demo = true` (sin música propia: sigue la del menú; Puntería no oculta el cursor) y `is_authority = true` sin sesión de red.
+- **Quién juega**: en los minijuegos compartidos (HOST_AUTHORITATIVE) hay un recuadro y juegan a la vez todas las personas de este PC (modo local:
+  todas; online: la de este PC), y el resto del reparto (remotos incluidos) como bots con su nombre y color. En los de "cada uno en su pantalla"
+  (LOCAL_PARALLEL) sale solo TU pantalla de práctica (la de la primera persona de este PC), sin las de los demás.
+- **Pantalla**: el botón de acción se usa para jugar, así que ya no salta la presentación; avanza con ¡LISTO! (clic), ESC o sola a los 25 s (7 s en
+  pruebas/autopiloto). Online solo avanza el host; los demás siguen practicando hasta que empiece. Si el contenido no cabe, se reduce (`UIKit.fit_to_screen`).
+- **Headless** (pruebas automáticas): no se crea la práctica (solo el marco), para no meter ruido ni coste en los tests online.
+- Pruebas: `tests/practice_test.gd` (fuerza la práctica en headless: arrancan los 13 minijuegos, un solo recuadro, textos cortos y reinicio).

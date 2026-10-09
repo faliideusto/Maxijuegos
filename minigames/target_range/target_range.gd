@@ -142,7 +142,7 @@ func _on_start() -> void:
 		t.hit = false
 		t.announced = false
 	# El cursor del sistema se oculta: la mirilla la dibuja el juego (solo si juega una persona con ratón).
-	if local_player != null and not InputManager.is_simulated(local_player.id):
+	if local_player != null and not demo and not InputManager.is_simulated(local_player.id):
 		Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
 		_mouse_hidden = true
 
