@@ -30,6 +30,7 @@ godot --headless --path . --script res://tests/cube_level_test.gd               
 godot --headless --path . --script res://tests/wave_level_test.gd                  # pasillo de Onda Neón: superable (bot en bucle cerrado)
 godot --headless --path . --script res://tests/practice_test.gd                     # práctica jugable de la presentación de cada minijuego
 godot --headless --path . --script res://tests/ninja_test.gd                        # Ninja Trepador: salto, trayectoria de puntos y recorrido
+godot --headless --path . --script res://tests/obstacle_test.gd                     # Carrera de Obstáculos 3D: circuito, IA, carrera con 4 y estado de red
 godot --headless --path . --script res://tests/moon_test.gd                         # Salto Lunar: terreno, física y autopiloto
 godot --headless --path . --script res://tests/knife_test.gd                        # Tronco de Dagas: colisión, turnos y partidas con bots
 godot --headless --path . --script res://tests/target_test.gd                       # Puntería: dianas, puntuación y autopiloto

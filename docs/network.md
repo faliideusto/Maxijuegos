@@ -492,4 +492,18 @@ reinicia sola al acabar.
 - **Pantalla**: el botón de acción se usa para jugar, así que ya no salta la presentación; avanza con ¡LISTO! (clic), ESC o sola a los 25 s (7 s en
   pruebas/autopiloto). Online solo avanza el host; los demás siguen practicando hasta que empiece. Si el contenido no cabe, se reduce (`UIKit.fit_to_screen`).
 - **Headless** (pruebas automáticas): no se crea la práctica (solo el marco), para no meter ruido ni coste en los tests online.
-- Pruebas: `tests/practice_test.gd` (fuerza la práctica en headless: arrancan los 13 minijuegos, un solo recuadro, textos cortos y reinicio).
+- Pruebas: `tests/practice_test.gd` (fuerza la práctica en headless: arrancan los 14 minijuegos, un solo recuadro, textos cortos y reinicio).
+
+## 26. Carrera de Obstáculos (obstacle_run) — primer minijuego en 3D
+
+- **Modelo**: HOST_AUTHORITATIVE; todos corren A LA VEZ por la misma pista y se ven todos los personajes. Controles: A/D o flechas (esquivar) y
+  ESPACIO o CLIC (saltar; el clic izquierdo es ahora un botón de acción más para el teclado 1 y el jugador online).
+- **3D**: dentro del minijuego se monta un `SubViewportContainer` + `SubViewport` con `own_world_3d = true` (cámara, luz, niebla y cielo propios)
+  detrás del `DrawSurface`, que sigue dibujando el HUD en 2D. Es solo presentación: la simulación (60 Hz fijos, host) es 2D (z recorrida, x lateral,
+  y altura) con colisiones por cajas. Funciona igual dentro de la práctica de la presentación (SubViewport anidado).
+- **Circuito**: sale de la semilla (`_ensure_level`): vallas, lava, pilares, barras deslizantes (posición = f(tiempo de carrera)) y puertas con hueco;
+  más densidad y velocidad según la distancia. Meta a 480 m; la partida acaba al llegar todos, 15 s tras el primero o a los 60 s.
+- **Red**: estado ~30 Hz con `PackedFloat32Array` (10 floats por corredor) + tiempo/cuenta atrás/fin; eventos `jump/land/hit/fin/beep/go/over`.
+  Los clientes interpolan la posición mostrada. Rezagados con empujón de velocidad (hasta +10 %) para que no salgan de cámara.
+- **IA**: `_bot_move/_bot_action` por corredor (busca el hueco más cercano, salta lo saltable); cada bot tiene habilidad y ritmo propios.
+- Pruebas: `tests/obstacle_test.gd`; captura: `tools/run_shot.gd`.

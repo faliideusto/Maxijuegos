@@ -23,7 +23,7 @@ func _process(_delta: float) -> bool:
 		lobby.add_player("kb2")
 		lobby.add_bot()
 		_metas = root.get_node("MinigameRegistry").get_all().duplicate()
-		_check(_metas.size() >= 13, "hay %d minijuegos registrados" % _metas.size())
+		_check(_metas.size() >= 14, "hay %d minijuegos registrados" % _metas.size())
 		# Texto corto en todos y límite de longitud (es "un textito").
 		var all_short := true
 		for m in _metas:
