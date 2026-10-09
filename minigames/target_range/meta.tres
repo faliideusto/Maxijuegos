@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="MinigameMeta" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://core/minigame_meta.gd" id="1"]
+[ext_resource type="PackedScene" path="res://minigames/target_range/scene.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Puntería"
+description = "¡Un tiro, una diana!"
+instructions = "Dispara a las dianas antes de que desaparezcan: cuanto más cerca del centro, más puntos. Las doradas duran la mitad pero valen el triple. Encadena aciertos para subir el multiplicador; fallar quita 25 puntos y rompe la racha. Ratón: apunta y clic. Teclado o mando: mueve la mirilla y pulsa tu botón de acción. Todos tenéis las mismas dianas y no veréis a los demás."
+min_players = 2
+max_players = 8
+approx_duration = 35.0
+scene = ExtResource("2")
+accent_color = Color(0.96, 0.27, 0.32, 1)
+execution_mode = 1
+max_duration = 80.0
+music = &"aim"

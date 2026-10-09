@@ -8,7 +8,7 @@ extends RefCounted
 
 ## Orden en que se generan en segundo plano (la primera se necesita antes).
 const ORDER: Array[StringName] = [&"menu", &"mash", &"platform", &"coins", &"cube", &"wave", &"tongue", &"bomb",
-		&"spot", &"scoreboard", &"final"]
+		&"spot", &"aim", &"scoreboard", &"final"]
 
 const SPECS := {
 	# Menú, lobby y ajustes: cálido y tranquilo (Do mayor).
@@ -56,6 +56,11 @@ const SPECS := {
 		"bass": "pulse16", "arp": "up", "arp_rate": 1, "arp_wave": 4, "lead": "motif", "lead_wave": 2,
 		"drums": "four", "pad": true, "swing": 0.0, "seed": 131,
 		"mix": {"bass": 0.55, "arp": 0.2, "lead": 0.24, "drums": 0.55, "pad": 0.12}},
+	# Puntería: arcade alegre y concentrado (mayor, arpegio rápido, pulso constante).
+	&"aim": {"bpm": 128, "bars": 8, "root": 60, "scale": "major", "prog": [0, 5, 3, 4, 0, 5, 1, 4],
+		"bass": "root8", "arp": "updown", "arp_rate": 1, "arp_wave": 1, "lead": "motif", "lead_wave": 3,
+		"drums": "basic", "pad": false, "swing": 0.0, "seed": 149,
+		"mix": {"bass": 0.5, "arp": 0.16, "lead": 0.26, "drums": 0.45, "pad": 0.0}},
 	# Marcador: animado y breve.
 	&"scoreboard": {"bpm": 124, "bars": 4, "root": 60, "scale": "major", "prog": [0, 3, 4, 0],
 		"bass": "root8", "arp": "up", "arp_rate": 2, "arp_wave": 3, "lead": "motif", "lead_wave": 3,
@@ -71,5 +76,5 @@ const SPECS := {
 ## Volumen relativo de cada pista (dB): las que acompañan a la acción van más bajas.
 const VOLUME_DB := {
 	&"menu": -13.0, &"mash": -15.0, &"platform": -15.0, &"coins": -15.0, &"cube": -15.0, &"wave": -15.0,
-	&"tongue": -15.0, &"bomb": -17.0, &"spot": -15.0, &"scoreboard": -14.0, &"final": -13.0,
+	&"tongue": -15.0, &"bomb": -17.0, &"spot": -15.0, &"aim": -15.0, &"scoreboard": -14.0, &"final": -13.0,
 }

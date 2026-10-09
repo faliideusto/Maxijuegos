@@ -9,7 +9,7 @@ extends RefCounted
 ##   Partida      stinger beep beep_go score_tick score_pop fanfare_small fanfare_big confetti
 ##   Minijuegos   coin coin_gold jump land crash zap milestone flip_up flip_down dash thud plat_crack
 ##                plat_fall splash pop tongue_shoot tongue_attach release snap fog_growl reaction_ok
-##                claim unclaim lock
+##                claim unclaim lock shot hit hit_gold miss gold_spawn combo
 ##                good bad tick key pass_bomb boom   (los últimos 6, de Bomba de Palabras: ver SynthSfx)
 
 const RATE := 22050
@@ -34,7 +34,7 @@ const ALL_NAMES: Array[StringName] = [&"ui_click", &"ui_hover", &"ui_back", &"ui
 		&"error", &"swoosh", &"stinger", &"beep", &"beep_go", &"score_tick", &"score_pop", &"fanfare_small",
 		&"fanfare_big", &"confetti", &"coin", &"coin_gold", &"jump", &"land", &"crash", &"zap", &"milestone",
 		&"flip_up", &"flip_down", &"dash", &"thud", &"plat_crack", &"plat_fall", &"splash", &"pop",
-		&"tongue_shoot", &"tongue_attach", &"release", &"snap", &"fog_growl", &"reaction_ok", &"claim", &"unclaim", &"lock"]
+		&"tongue_shoot", &"tongue_attach", &"release", &"snap", &"fog_growl", &"reaction_ok", &"claim", &"unclaim", &"lock", &"shot", &"hit", &"hit_gold", &"miss", &"gold_spawn", &"combo"]
 
 static func _make(n: StringName) -> PackedFloat32Array:
 	match n:
@@ -80,6 +80,12 @@ static func _make(n: StringName) -> PackedFloat32Array:
 		&"claim": return _timed([[880.0, 0.0, 0.05], [1319.0, 0.05, 0.14]], 0.5, 13.0)
 		&"unclaim": return _sweep(520.0, 260.0, 0.14, 16.0, 0.4, 1)
 		&"lock": return _mix(_sweep(240.0, 70.0, 0.45, 5.0, 0.7), _mix(_noise(0.4, 7.0, 0.5, 0.1, 0.55, false), _timed([[196.0, 0.0, 0.3], [233.0, 0.0, 0.3], [294.0, 0.0, 0.3]], 0.35, 6.0)))
+		&"shot": return _mix(_noise(0.05, 40.0, 0.8, 0.6, 0.45, false), _sweep(220.0, 80.0, 0.07, 40.0, 0.5))
+		&"hit": return _timed([[1047.0, 0.0, 0.05], [1568.0, 0.04, 0.14]], 0.5, 15.0)
+		&"hit_gold": return _timed([[1319.0, 0.0, 0.04], [1760.0, 0.04, 0.04], [2349.0, 0.08, 0.04], [3136.0, 0.12, 0.22]], 0.45, 9.0)
+		&"miss": return _sweep(240.0, 150.0, 0.11, 24.0, 0.4, 1)
+		&"gold_spawn": return _timed([[2093.0, 0.0, 0.03], [2637.0, 0.03, 0.14]], 0.22, 12.0)
+		&"combo": return _timed([[659.0, 0.0, 0.06], [880.0, 0.06, 0.06], [1319.0, 0.12, 0.18]], 0.5, 10.0)
 		&"reaction_ok": return _timed([[784.0, 0.0, 0.07], [1175.0, 0.07, 0.14]], 0.5, 12.0)
 	return PackedFloat32Array()
 

@@ -399,3 +399,19 @@ ranking sigue el orden de eliminación (último eliminado = 2.º; dentro de una 
   pitidos en los 3 últimos segundos, choques y empujones; la fanfarria del final la pone el runner.
 - Pruebas: `tests/spotlight_test.gd` (reglas, reclamar/soltar, eliminación, partidas de 2/3/6/8 bots) y
   `ONLY=spotlight tests/online_test.sh 4 1 0 normal` / `8 1 0 normal` / `4 1 0 kill_in_game` / `2 1 0 normal` OK.
+
+## 21. Puntería (`target_range`, LOCAL_PARALLEL)
+
+Juego de precisión: cada jugador juega en su pantalla (sin verse) y el host ordena por puntos; sin código de red propio
+(`report_result(puntos, fallos)`, `_bot_result`, `_validate_result`).
+- **Dianas**: aparecen y se esfuman si no se aciertan a tiempo (anillo de tiempo que se cierra). Las **doradas** duran la mitad,
+  son más pequeñas y valen el triple (300 vs 100). Puntos por precisión (centro 100 %, borde 55 %) y por racha (cada 5 aciertos
+  seguidos: ×1, ×2, ×3). Fallar: −25, rompe la racha y bloquea el disparo 0,2 s. Desempate: menos fallos.
+- **Justo**: todas las dianas (posiciones y tiempos) salen de la semilla común (`Minigame.seed_value`), idénticas en todos los PC.
+  Dificultad creciente en 30 s: aparecen cada vez más deprisa (0,78 → 0,30 s), duran menos (1,9 → 1,0 s) y se encogen (46 → 29 px).
+- **Controles**: ratón (apuntar y clic; el cursor del sistema se oculta y se dibuja una mirilla), o teclado/mando: mover la mirilla y la
+  acción para disparar. En partida local, cada humano juega su turno.
+- **Validación**: el host rechaza puntuaciones por encima de (suma de puntos base × racha máxima).
+- **Bots/autopiloto**: apuntan con tiempo de reacción humano y algo de error (`debug_ai_skill`); los bots offline puntúan un 22-75 %.
+- **Sonido**: pista propia `aim` (arcade), `shot`, `hit`, `hit_gold`, `miss`, `combo`, aviso `gold_spawn` y pitidos finales.
+- Pruebas: `tests/target_test.gd` y `ONLY=target_range tests/online_test.sh` (2/4/8 jugadores y `kill_in_parallel`) OK.
