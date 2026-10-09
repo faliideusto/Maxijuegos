@@ -2,37 +2,39 @@ extends Minigame
 ## Salto Lunar (modelo LOCAL_PARALLEL): un astronauta rueda y vuela por las colinas de la Luna y gana quien
 ## llega más lejos en 45 s. Cada uno juega en su pantalla (sin verse) sobre el MISMO terreno, que sale de la semilla
 ## común. Un solo botón: MANTENER = bajar (en el aire cae en picado y pegado al suelo coge más fuerza al
-## bajar la montaña); SOLTAR = planear (en el suelo, despegar por la cima y flotar con la gravedad de la Luna).
+## bajar la montaña); SOLTAR = planear (en el suelo, despegar por la cima y flotar con la poca gravedad de la Luna).
 ##
 ## LO QUE HAY QUE DOMINAR (como los juegos de "colinas"): al aterrizar solo se conserva la velocidad a lo largo
 ## del terreno, así que si caes sobre la LADERA DE BAJADA de una montaña con la caída casi paralela a la pendiente,
 ## apenas pierdes nada y sales disparado (¡PERFECTO!); si caes contra una subida o en plano, te frenas en seco. Hay
 ## que mantener el botón al bajar para ganar velocidad y soltarlo al empezar a subir para no perderla. Si te
-## quedas casi parado más de 1,2 s, se acabó. Gana la mayor distancia; no hay desempate.
+## nunca te paras (siempre llevas una velocidad mínima), pero con buenos aterrizajes llegas mucho más lejos.
+## La partida dura 40 s: gana quien llegue más lejos, segundo el segundo más lejos, etc.
 ##
 ## Física (fija a 120 Hz): en el suelo la velocidad cambia con la pendiente (±G·sen θ; G sube al mantener el botón: más
 ## ganancia bajando y más pérdida subiendo) y se despega cuando la trayectoria balística queda por encima del terreno.
 ## En el aire hay gravedad lunar, o de picado si se mantiene. No hay nada de red: report_result(distancia en m).
 
 const STEP := 1.0 / 120.0
-const TIME_LIMIT := 45.0
+const TIME_LIMIT := 40.0
 const LEVEL_LEN := 140000.0           # px de terreno generado
 const PX_PER_M := 50.0                # px por "metro" mostrado
 const G_GROUND := 1400.0              # aceleración a lo largo de la pendiente (px/s² por sen θ)
-const G_GROUND_HOLD := 3000.0         # ... manteniendo el botón
-const G_AIR := 1000.0                 # gravedad lunar en el aire
-const G_AIR_HOLD := 3600.0            # ... en picado
+const G_GROUND_HOLD := 2600.0         # ... manteniendo el botón
+const G_AIR := 420.0                  # gravedad lunar en el aire (baja: se vuela alto y lejos)
+const G_AIR_HOLD := 2200.0            # ... en picado
 const DRAG_GROUND := 0.12
 const DRAG_AIR := 0.02
-const V_MAX := 2100.0
-const START_SPEED := 260.0
-const STUCK_SPEED := 30.0
-const STUCK_TIME := 1.2
+const V_MAX := 2100.0                # tope en el suelo
+const V_AIR_MAX := 2600.0            # tope en el aire (más alto: se acumula velocidad de caída)
+const START_SPEED := 320.0
+const MIN_SPEED := 260.0              # velocidad mínima: el astronauta NUNCA se para
 const DONE_DELAY := 1.5
 const PLAYER_X := 300.0               # x fija del astronauta en pantalla
 const SCREEN_REF := 580.0             # y de pantalla del suelo de referencia
-const PERFECT_COS := 0.93             # coseno del ángulo entre la caída y la ladera: por encima, aterrizaje perfecto
+const PERFECT_COS := 0.90             # coseno del ángulo entre la caída y la ladera: por encima, aterrizaje perfecto
 const BAD_COS := 0.70                 # por debajo, porrazo
+const PERFECT_BOOST := 1.12             # premio de un aterrizaje perfecto: la velocidad sube un 12 %
 const LAND_KEEP := 0.2                # fracción de la caída contra el suelo que aún se aprovecha al aterrizar (perdón)
 
 class PState:
@@ -56,11 +58,10 @@ var _terrain_ready: bool = false
 var _s := PState.new()
 var _time: float = 0.0
 var _accum: float = 0.0
-var _stuck_t: float = 0.0
 var _done: bool = false
 var _done_t: float = 0.0
-var _stuck_end: bool = false
 var _cam_y: float = 0.0
+var _zoom: float = 1.0               # la cámara se aleja cuando vuelas alto, para no perder de vista el suelo
 var _next_milestone: float = 100.0
 var _last_hold: bool = false
 var _dive_cd: float = 0.0
@@ -73,9 +74,10 @@ var _flash: float = 0.0
 var _hint_t: float = 4.0
 # IA (autopiloto)
 var debug_skill: float = 1.0          # 1 = reacciona justo; <1 = más tarde y con menos puntería
-var bot_hold_thr: float = 0.0        # la IA mantiene mientras la pendiente por delante sea menor que esto
-var bot_look_t: float = 0.16          # ... mirando tantos segundos de camino por delante
+var bot_hold_thr: float = 0.10       # la IA mantiene mientras la pendiente por delante sea menor que esto
+var bot_look_t: float = 0.10          # ... mirando tantos segundos de camino por delante
 var bot_air_dive: bool = true         # ... y también en el aire
+var bot_air_mode: int = 1             # 0 = pica en cuanto la bajada está por delante; 1 = primero sube y pica al caer
 var _ai_hold: bool = false
 
 # ----------------------------------------------------------------------------
@@ -132,6 +134,8 @@ func _seg(x: float) -> int:
 
 ## Altura del terreno en x.
 func height_at(x: float) -> float:
+	if _tx.size() < 2:
+		return 0.0                          # aún sin terreno (el nodo se anima antes de prepararse)
 	x = maxf(x, 0.0)
 	var i := _seg(x)
 	if i >= _tx.size() - 1:
@@ -141,6 +145,8 @@ func height_at(x: float) -> float:
 
 ## Pendiente (dy/dx) del terreno en x.
 func slope_at(x: float) -> float:
+	if _tx.size() < 2:
+		return 0.0
 	x = maxf(x, 0.0)
 	var i := _seg(x)
 	if i >= _tx.size() - 1:
@@ -166,10 +172,10 @@ func _step(s: PState, dt: float, hold: bool) -> void:
 		var g := G_GROUND_HOLD if hold else G_GROUND
 		s.speed += -g * sin(th) * dt
 		s.speed *= exp(-DRAG_GROUND * dt)
-		s.speed = clampf(s.speed, 0.0, V_MAX)
+		s.speed = clampf(s.speed, MIN_SPEED, V_MAX)
 		var vx := s.speed * cos(th)
 		var vy := s.speed * sin(th)
-		var ga := G_AIR_HOLD if hold else G_AIR
+		var ga := G_AIR
 		# ¿Despega? Si la trayectoria balística queda por encima del terreno (cima convexa y bastante velocidad).
 		var bx := s.x + vx * dt
 		var by := s.y + vy * dt - 0.5 * ga * dt * dt
@@ -186,7 +192,11 @@ func _step(s: PState, dt: float, hold: bool) -> void:
 	else:
 		var ga2 := G_AIR_HOLD if hold else G_AIR
 		s.vy -= ga2 * dt
-		s.vx *= exp(-DRAG_AIR * dt)
+		s.vx = maxf(s.vx * exp(-DRAG_AIR * dt), MIN_SPEED)
+		var vmag := Vector2(s.vx, s.vy).length()
+		if vmag > V_AIR_MAX:
+			s.vx *= V_AIR_MAX / vmag
+			s.vy *= V_AIR_MAX / vmag
 		s.x += s.vx * dt
 		s.y += s.vy * dt
 		var h := height_at(s.x)
@@ -199,7 +209,9 @@ func _step(s: PState, dt: float, hold: bool) -> void:
 			s.land_cos = vt / maxf(v.length(), 1.0)
 			s.land_slope = sl
 			var n := Vector2(-sl, 1.0).normalized()
-			s.speed = clampf(maxf(vt, 0.0) + LAND_KEEP * absf(v.dot(n)), 0.0, V_MAX)
+			s.speed = clampf(maxf(vt, 0.0) + LAND_KEEP * absf(v.dot(n)), MIN_SPEED, V_MAX)
+			if s.land_cos >= PERFECT_COS and sl < -0.02 and s.land_before > 450.0:
+				s.speed = clampf(s.speed * PERFECT_BOOST, MIN_SPEED, V_MAX)
 			s.land_after = s.speed
 			s.y = h
 			s.grounded = true
@@ -218,11 +230,10 @@ func _on_start() -> void:
 	_reset_state()
 	_time = 0.0
 	_accum = 0.0
-	_stuck_t = 0.0
 	_done = false
-	_stuck_end = false
 	_next_milestone = 100.0
-	_cam_y = _s.y - 150.0
+	_cam_y = _s.y
+	_zoom = 1.0
 	_hint_t = 4.0
 	_ai_hold = false
 
@@ -243,14 +254,6 @@ func _play(delta: float) -> void:
 		_step(_s, STEP, hold)
 		_react(_s)
 		_best_speed = maxf(_best_speed, _current_speed())
-	# Frenado total: se acabó.
-	if _s.grounded and _s.speed < STUCK_SPEED:
-		_stuck_t += delta
-		if _stuck_t >= STUCK_TIME:
-			_stuck_end = true
-			_finish_play()
-	else:
-		_stuck_t = 0.0
 	if hold and not _last_hold and not _s.grounded and _dive_cd <= 0.0:
 		_dive_cd = 0.35
 		Audio.sfx(&"dive", -9.0)
@@ -297,13 +300,15 @@ func _finish_play() -> void:
 		return
 	_done = true
 	_done_t = 0.0
-	DevCli.log_event("moon distance=%.0f m time=%.1f s stuck=%s" % [_distance_m(), _time, _stuck_end])
+	DevCli.log_event("moon distance=%.0f m time=%.1f s" % [_distance_m(), _time])
 
 func _animate(delta: float) -> void:
 	_shake = maxf(0.0, _shake - delta * 2.5)
 	_flash = maxf(0.0, _flash - delta * 2.0)
 	# La cámara sigue la altura del astronauta con suavidad.
-	_cam_y = lerpf(_cam_y, _s.y - 150.0, 1.0 - exp(-4.0 * delta))
+	_cam_y = lerpf(_cam_y, _s.y, 1.0 - exp(-5.0 * delta))
+	var above := maxf(_s.y - height_at(_s.x) - 120.0, 0.0)
+	_zoom = lerpf(_zoom, clampf(1.0 - above / 2400.0, 0.45, 1.0), 1.0 - exp(-3.0 * delta))
 	for p in _popups:
 		p.age += delta
 	_popups = _popups.filter(func(x: Dictionary) -> bool: return x.age < 1.1)
@@ -331,6 +336,8 @@ func _bot_hold() -> bool:
 	var threshold := bot_hold_thr - (1.0 - sk) * 0.25
 	if not _s.grounded and not bot_air_dive:
 		_ai_hold = false
+	elif not _s.grounded and bot_air_mode == 1:
+		_ai_hold = _s.vy < -40.0 and sl < threshold
 	else:
 		_ai_hold = sl < threshold
 	return _ai_hold
@@ -342,9 +349,9 @@ func _bot_action_held(_player: PlayerData) -> bool:
 func _bot_result(_player: PlayerData, r: RandomNumberGenerator) -> Dictionary:
 	return {"score": roundf(r.randf_range(120.0, 520.0)), "tiebreak": 0.0}
 
-# --- Plausibilidad: no se puede ir más deprisa que V_MAX durante TIME_LIMIT ---
+# --- Plausibilidad: no se puede ir más deprisa que V_AIR_MAX durante TIME_LIMIT ---
 func _validate_result(score: float, _tiebreak: float) -> bool:
-	return score >= 0.0 and score <= V_MAX * (TIME_LIMIT + 2.0) / PX_PER_M + 1.0
+	return score >= 0.0 and score <= V_AIR_MAX * (TIME_LIMIT + 2.0) / PX_PER_M + 1.0
 
 # ----------------------------------------------------------------------------
 # Utilidades de depuración / pruebas (tests/moon_test.gd)
@@ -367,7 +374,8 @@ func debug_run(policy: String, skill: float = 1.0, seconds: float = TIME_LIMIT) 
 	_reset_state()
 	debug_skill = skill
 	var t := 0.0
-	var stuck := 0.0
+	var min_speed := INF
+	var max_air := 0.0
 	var perfect := 0
 	var bad := 0
 	var max_speed := 0.0
@@ -383,15 +391,11 @@ func debug_run(policy: String, skill: float = 1.0, seconds: float = TIME_LIMIT) 
 			elif _s.land_cos < BAD_COS and _s.land_before > 350.0:
 				bad += 1
 		max_speed = maxf(max_speed, _current_speed())
+		min_speed = minf(min_speed, _current_speed())
+		max_air = maxf(max_air, _s.y - height_at(_s.x))
 		t += STEP
-		if _s.grounded and _s.speed < STUCK_SPEED:
-			stuck += STEP
-			if stuck >= STUCK_TIME:
-				break
-		else:
-			stuck = 0.0
 	return {"distance_m": _distance_m(), "time": t, "perfect": perfect, "bad": bad, "max_speed": max_speed,
-			"stuck": stuck >= STUCK_TIME}
+			"min_speed": min_speed, "max_air": max_air}
 
 func debug_state() -> PState:
 	return _s
@@ -408,10 +412,10 @@ func debug_step(hold: bool) -> void:
 # ----------------------------------------------------------------------------
 
 func _sx(x: float) -> float:
-	return x - _s.x + PLAYER_X
+	return PLAYER_X + (x - _s.x) * _zoom
 
 func _sy(y: float) -> float:
-	return SCREEN_REF - (y - _cam_y) + 150.0 - 150.0
+	return 430.0 - (y - _cam_y) * _zoom
 
 func _draw_game() -> void:
 	var s := surface
@@ -422,7 +426,7 @@ func _draw_game() -> void:
 	for d in _dust:
 		var a := clampf(float(d.life) / 0.7, 0.0, 1.0)
 		s.draw_circle(Vector2(_sx(d.pos.x), _sy(d.pos.y)), 3.0 + 4.0 * (1.0 - a), Color(0.75, 0.75, 0.8, a * 0.6))
-	if local_player != null and not _done or _done and not _stuck_end:
+	if local_player != null:
 		_draw_astronaut()
 	s.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	_draw_hud()
@@ -465,10 +469,10 @@ func _draw_sky() -> void:
 
 func _draw_terrain() -> void:
 	var s := surface
-	var x0 := _s.x - PLAYER_X - 20.0
+	var x0 := _s.x - (PLAYER_X + 20.0) / _zoom
 	var top := PackedVector2Array()
-	var step_px := 10.0
-	var n := int((1280.0 + 60.0) / step_px)
+	var step_px := 10.0 / _zoom
+	var n := int(1340.0 / 10.0)
 	for i in n + 1:
 		var wx := x0 + i * step_px
 		# Se limita la y para que el polígono nunca quede del revés (con la cámara muy alta, el suelo se sale por abajo).
@@ -488,12 +492,12 @@ func _draw_terrain() -> void:
 	s.draw_polyline(top, Color(0.88, 0.88, 0.96), 5.0, true)
 	# Cráteres (deterministas por celda).
 	var cell0 := int(floor(x0 / 170.0))
-	for k in range(cell0, cell0 + 10):
+	for k in range(cell0, cell0 + int(1400.0 / _zoom / 170.0) + 3):
 		var hsh := fposmod(sin(float(k) * 12.9898) * 43758.5453, 1.0)
 		if hsh < 0.5:
 			var cx := k * 170.0 + hsh * 140.0
-			var rad := 12.0 + hsh * 46.0
-			var c := Vector2(_sx(cx), _sy(height_at(cx)) + 22.0 + hsh * 20.0)
+			var rad := (12.0 + hsh * 46.0) * _zoom
+			var c := Vector2(_sx(cx), _sy(height_at(cx)) + (22.0 + hsh * 20.0) * _zoom)
 			s.draw_set_transform(c, 0.0, Vector2(1.0, 0.38))
 			s.draw_circle(Vector2.ZERO, rad, Color(0.34, 0.34, 0.44, 0.8))
 			s.draw_arc(Vector2.ZERO, rad, PI, TAU, 16, Color(0.8, 0.8, 0.9, 0.7), 3.0, true)
@@ -501,7 +505,7 @@ func _draw_terrain() -> void:
 
 func _draw_astronaut() -> void:
 	var s := surface
-	var c := Vector2(PLAYER_X, _sy(_s.y) - 20.0)
+	var c := Vector2(PLAYER_X, _sy(_s.y) - 20.0 * (0.6 + 0.4 * _zoom))
 	var roll := _s.x / 22.0 if _s.grounded else _s.x / 22.0 + _time * 3.0
 	var tilt := atan2(_s.vy, maxf(_s.vx, 1.0)) * 0.4 if not _s.grounded else atan(slope_at(_s.x)) * -0.8
 	# Estela de velocidad.
@@ -542,8 +546,7 @@ func _draw_hud() -> void:
 	if _hint_t > 0.0 and not _done:
 		s.text_centered(Vector2(640, 190), "¡MANTÉN para bajar las montañas, SUELTA para planear!", 30, Color(1, 1, 1, clampf(_hint_t, 0.0, 1.0)), 7)
 	if _done:
-		var msg := "¡SIN IMPULSO!" if _stuck_end else "¡TIEMPO!"
-		s.text_centered(Vector2(640, 300), msg, 84, Palette.YELLOW, 14)
+		s.text_centered(Vector2(640, 300), "¡TIEMPO!", 84, Palette.YELLOW, 14)
 		if _done_t > 0.4:
 			s.text_centered(Vector2(640, 380), "%d m" % int(_distance_m()), 64, Palette.WHITE, 10)
 			s.text_centered(Vector2(640, 440), "Más lejos = mejor posición", 28, Color(1, 1, 1, 0.8), 6)

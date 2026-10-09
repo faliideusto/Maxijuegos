@@ -7,12 +7,12 @@
 script = ExtResource("1")
 display_name = "Salto Lunar"
 description = "¡A la Luna, montaña a montaña!"
-instructions = "Tu astronauta rueda y vuela por las montañas de la Luna. Mantén tu botón de acción para bajar en picado y suéltalo para planear. Para ir más rápido, aterriza sobre la ladera de bajada de una montaña con la caída casi paralela a la pendiente (¡PERFECTO!): caer contra una subida o en plano te frena. Si te quedas casi parado, se acabó. Gana quien llegue más lejos en 45 s. Todos tenéis el mismo terreno y no veréis a los demás."
+instructions = "Tu astronauta rueda y vuela por las montañas de la Luna. Mantén tu botón de acción para bajar en picado y suéltalo para planear. Para ir más rápido, aterriza sobre la ladera de bajada de una montaña con la caída casi paralela a la pendiente (¡PERFECTO!): caer contra una subida o en plano te frena. Nunca te paras, pero con buenos aterrizajes llegas mucho más lejos. Gana quien llegue más lejos en 40 s, y así el segundo, el tercero... Todos tenéis el mismo terreno y no veréis a los demás."
 min_players = 2
 max_players = 8
-approx_duration = 50.0
+approx_duration = 45.0
 scene = ExtResource("2")
 accent_color = Color(0.6, 0.65, 1, 1)
 execution_mode = 1
-max_duration = 110.0
+max_duration = 100.0
 music = &"moon"

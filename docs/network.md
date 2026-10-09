@@ -435,20 +435,21 @@ siguiente vivo. Gana el último y el ranking sigue el orden de eliminación.
 
 ## 23. Salto Lunar (`moon_hop`, LOCAL_PARALLEL)
 
-Un astronauta rueda y vuela por las colinas de la Luna; gana quien llega más lejos en 45 s. Cada jugador juega en su pantalla
-sobre el MISMO terreno (sale de la semilla común) y el host ordena por distancia; sin código de red propio
-(`report_result(metros)`, `_bot_result`, `_validate_result`). **No se encontraron las reglas del "Moon Shot" original de Playus**
-(la búsqueda no dio nada): es una interpretación propia del género de "colinas" (un botón, aterrizajes en las laderas).
-- **Control**: un botón. MANTENER = bajar (en el aire cae en picado; en el suelo la gravedad a lo largo de la pendiente es mayor:
-  más ganancia bajando, más pérdida subiendo y no se despega por las cimas). SOLTAR = planear (en el suelo se despega por las cimas con
-  velocidad y se flota con gravedad lunar).
-- **Física** (paso fijo 120 Hz): en el suelo `v += −G·sen θ·dt` (G = 1400, 3000 manteniendo); despega cuando la trayectoria
-  balística queda por encima del terreno; al aterrizar solo se conserva la velocidad a lo largo del terreno (más un 20 % de perdón de
-  la caída contra el suelo). Caer paralelo a una ladera de bajada conserva todo (¡PERFECTO!, cos ≥ 0,93); caer contra una subida o en
-  llano frena (¡PORRAZO!). Si queda casi parado 1,2 s, se acaba.
+Un astronauta rueda y vuela por las colinas de la Luna; la partida dura **40 s** y gana quien llega más lejos (segundo, el segundo más
+lejos, etc.). Cada jugador juega en su pantalla sobre el MISMO terreno (sale de la semilla común) y el host ordena por distancia; sin
+código de red propio (`report_result(metros)`, `_bot_result`, `_validate_result`). **No se encontraron las reglas del "Moon Shot"
+original de Playus** (la búsqueda no dio nada): es una interpretación propia del género de "colinas".
+- **Control**: un botón. MANTENER = bajar (en el aire cae en picado; en el suelo la gravedad a lo largo de la pendiente es mayor: más
+  ganancia bajando y más pérdida subiendo). SOLTAR = planear: se despega por las cimas y se flota con **poca gravedad** (420 px/s²) para
+  volar muy alto (más de 1 000 px sobre el suelo); la cámara se aleja con la altura.
+- **Nunca se para**: hay una velocidad mínima (260 px/s) en el suelo y en el aire, y la partida no termina antes de los 40 s.
+- **Física** (paso fijo 120 Hz): en el suelo `v += −G·sen θ·dt` (G = 1400, 2600 manteniendo); despega cuando la trayectoria balística queda
+  por encima del terreno; al aterrizar solo se conserva la velocidad a lo largo del terreno (más un 20 % de perdón de la caída contra el
+  suelo). Caer paralelo a una ladera de bajada (cos ≥ 0,90) es **¡PERFECTO!** y da un +12 % de velocidad; caer contra una subida o en llano
+  frena (¡PORRAZO!). Tope de velocidad 2 100 px/s en el suelo y 2 600 en el aire.
 - **Terreno**: puntos de control de cima y valle alternados unidos con coseno suave; montañas cada vez más altas y cortas (pendiente
-  máx. ≈ 58°), alguna montaña extra alta; 140 000 px (2 800 m) de longitud. Velocidad máx. 2 100 px/s.
-- **Autopiloto/bots**: la IA mantiene mientras la pendiente por delante sea de bajada (mirando 0,16 s de camino) y suelta al subir;
-  `debug_skill` la hace más torpe. Con una política ingenua (nunca/siempre mantener) se queda en ~35 m; la IA llega a ~700 m.
+  máx. ≈ 58°), alguna extra alta; 140 000 px (2 800 m) de longitud.
+- **Autopiloto/bots**: la IA mantiene al bajar y suelta al subir; en el aire sube primero y pica al caer sobre una bajada. `debug_skill` la
+  hace más torpe. Políticas ingenuas: nunca mantener ≈ 320 m, siempre mantener ≈ 400 m; la IA ≈ 500-600 m.
 - **Sonido**: pista `moon` (espacial), `dive`, `launch`, `perfect`, golpe en los porrazos, hitos cada 100 m y pitidos finales.
 - Pruebas: `tests/moon_test.gd` y `ONLY=moon_hop tests/online_test.sh` (2/4/8 jugadores y `kill_in_parallel`) OK.

@@ -128,7 +128,7 @@ func _process(_delta: float) -> bool:
 		g.debug_step(false)
 		if sb.grounded:
 			break
-	_check(sb.grounded and sb.speed < 350.0 and sb.land_cos < 0.3, "caer en vertical contra suelo llano frena en seco (%.0f de 906, cos %.2f)" % [sb.speed, sb.land_cos], failures)
+	_check(sb.grounded and sb.speed < 500.0 and sb.land_cos < 0.35, "caer en vertical contra suelo llano frena en seco (%.0f de 906, cos %.2f)" % [sb.speed, sb.land_cos], failures)
 
 	# --- Políticas: la IA que mantiene al bajar y suelta al subir gana a las ingenuas ---
 	var never: Dictionary = g.debug_run("never")
@@ -137,21 +137,24 @@ func _process(_delta: float) -> bool:
 	var clumsy: Dictionary = g.debug_run("bot", 0.2)
 	print("  · nunca: %.0f m (%.1f s) | siempre: %.0f m (%.1f s) | IA: %.0f m (%.0f perfectos, %.0f porrazos, vel. máx. %.0f) | IA torpe: %.0f m" % [
 			never["distance_m"], never["time"], always["distance_m"], always["time"], bot["distance_m"], bot["perfect"], bot["bad"], bot["max_speed"], clumsy["distance_m"]])
-	_check(bot["distance_m"] > never["distance_m"] * 1.5 and bot["distance_m"] > always["distance_m"] * 1.2, "saber cuándo mantener y soltar gana a no hacerlo (IA %.0f m vs nunca %.0f / siempre %.0f)" % [bot["distance_m"], never["distance_m"], always["distance_m"]], failures)
+	_check(bot["distance_m"] > never["distance_m"] * 1.4 and bot["distance_m"] > always["distance_m"] * 1.2, "saber cuándo mantener y soltar gana a no hacerlo (IA %.0f m vs nunca %.0f / siempre %.0f)" % [bot["distance_m"], never["distance_m"], always["distance_m"]], failures)
+	_check(never["min_speed"] >= g.MIN_SPEED - 1.0 and always["min_speed"] >= g.MIN_SPEED - 1.0 and bot["min_speed"] >= g.MIN_SPEED - 1.0 and clumsy["min_speed"] >= g.MIN_SPEED - 1.0, "el astronauta NUNCA se para (velocidad mínima %.0f px/s en todas las políticas)" % [minf(never["min_speed"], minf(always["min_speed"], bot["min_speed"]))], failures)
+	_check(absf(never["time"] - g.TIME_LIMIT) < 0.05 and absf(bot["time"] - g.TIME_LIMIT) < 0.05 and absf(clumsy["time"] - g.TIME_LIMIT) < 0.05, "la partida dura siempre %.0f s (nadie acaba antes)" % g.TIME_LIMIT, failures)
+	_check(bot["max_air"] > 800.0, "con poca gravedad se vuela alto (hasta %.0f px sobre el suelo)" % bot["max_air"], failures)
 	_check(bot["distance_m"] > clumsy["distance_m"], "el nivel de habilidad importa (%.0f m vs %.0f m)" % [bot["distance_m"], clumsy["distance_m"]], failures)
-	_check(int(bot["perfect"]) >= 3, "hay aterrizajes perfectos (%d)" % int(bot["perfect"]), failures)
-	_check(bot["max_speed"] <= g.V_MAX + 1.0 and bot["distance_m"] < 1800.0, "la velocidad está acotada (máx. %.0f px/s)" % bot["max_speed"], failures)
+	_check(int(bot["perfect"]) >= 1, "hay aterrizajes perfectos (%d) y porrazos (%d)" % [int(bot["perfect"]), int(bot["bad"])], failures)
+	_check(bot["max_speed"] <= g.V_AIR_MAX + 1.0 and bot["distance_m"] < 1500.0, "la velocidad está acotada (máx. %.0f px/s)" % bot["max_speed"], failures)
 	_check(g.validate_result(bot["distance_m"], 0.0) and not g.validate_result(99999.0, 0.0) and not g.validate_result(-1.0, 0.0), "el host rechaza distancias imposibles", failures)
 
 	# --- Partida completa con el autopiloto ---
 	var ga = _new_game(777, true)
 	var steps := 0
-	while not ga._done and steps < 60 * 70:
+	while not ga._done and steps < 60 * 80:
 		ga._play(1.0 / 60.0)
 		steps += 1
 	for k in 120:
 		ga._animate(1.0 / 30.0)
-	_check(ga._done and not _reported.is_empty() and float(_reported[0]) > 100.0, "el autopiloto termina y envía su distancia (%s m, %.1f s)" % [str(_reported), steps / 60.0], failures)
+	_check(ga._done and not _reported.is_empty() and float(_reported[0]) > 100.0 and absf(steps / 60.0 - g.TIME_LIMIT) < 0.5, "el autopiloto juega los %.0f s y envía su distancia (%s m, %.1f s)" % [g.TIME_LIMIT, str(_reported), steps / 60.0], failures)
 
 	print("")
 	if failures.is_empty():
