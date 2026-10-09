@@ -494,16 +494,21 @@ reinicia sola al acabar.
 - **Headless** (pruebas automáticas): no se crea la práctica (solo el marco), para no meter ruido ni coste en los tests online.
 - Pruebas: `tests/practice_test.gd` (fuerza la práctica en headless: arrancan los 14 minijuegos, un solo recuadro, textos cortos y reinicio).
 
-## 26. Carrera de Obstáculos (obstacle_run) — primer minijuego en 3D
+## 26. Carrera de Ruinas (obstacle_run) — primer minijuego en 3D
 
-- **Modelo**: HOST_AUTHORITATIVE; todos corren A LA VEZ por la misma pista y se ven todos los personajes. Controles: A/D o flechas (esquivar) y
-  ESPACIO o CLIC (saltar; el clic izquierdo es ahora un botón de acción más para el teclado 1 y el jugador online).
-- **3D**: dentro del minijuego se monta un `SubViewportContainer` + `SubViewport` con `own_world_3d = true` (cámara, luz, niebla y cielo propios)
-  detrás del `DrawSurface`, que sigue dibujando el HUD en 2D. Es solo presentación: la simulación (60 Hz fijos, host) es 2D (z recorrida, x lateral,
-  y altura) con colisiones por cajas. Funciona igual dentro de la práctica de la presentación (SubViewport anidado).
-- **Circuito**: sale de la semilla (`_ensure_level`): vallas, lava, pilares, barras deslizantes (posición = f(tiempo de carrera)) y puertas con hueco;
-  más densidad y velocidad según la distancia. Meta a 480 m; la partida acaba al llegar todos, 15 s tras el primero o a los 60 s.
-- **Red**: estado ~30 Hz con `PackedFloat32Array` (10 floats por corredor) + tiempo/cuenta atrás/fin; eventos `jump/land/hit/fin/beep/go/over`.
-  Los clientes interpolan la posición mostrada. Rezagados con empujón de velocidad (hasta +10 %) para que no salgan de cámara.
-- **IA**: `_bot_move/_bot_action` por corredor (busca el hueco más cercano, salta lo saltable); cada bot tiene habilidad y ritmo propios.
+- **Modelo**: LOCAL_PARALLEL (cada uno en su pantalla, sin verse), 3D en tercera persona: la cámara va detrás de TU personaje. Controles: WASD o
+  flechas (o palanca) relativos a la cámara y ESPACIO o CLIC para saltar (el clic izquierdo es un botón de acción más para el teclado 1 y el
+  jugador online). Inspirado en un parkour de ruinas flotantes sobre la niebla.
+- **Recorrido** (`_ensure_level`, de la semilla común; ~220 m con giros): SALIDA → PIEDRAS (pilares con huecos) → VIGA (pasarela estrecha con
+  hueco y esquina) → ESCALERAS → PLATAFORMAS (losas que se deslizan) → BARRA (barra giratoria) → COLUMNAS (cada vez más altas) → FINAL (saltos largos)
+  → arco de meta. Cada zona empieza con un punto de control; caer a la niebla (y < -11) devuelve al último. Minimapa del recorrido en el HUD.
+- **Física propia** (60 Hz fijos, sin motor de físicas): cuerpo con colisión contra cajas alineadas a los ejes (`Solid`), subida automática de
+  escalones (0,55 m), salto con coyote time y buffer (la pulsación queda pendiente hasta el siguiente paso: en pantallas de más de 60 Hz hay fotogramas
+  sin paso), plataformas móviles que arrastran y barra giratoria que lanza. Progreso = proyección sobre la línea central del recorrido.
+- **3D**: dentro del minijuego se monta un `SubViewport` con `own_world_3d = true` (cámara, luz, cielo de atardecer, niebla y mar de niebla propios)
+  detrás del `DrawSurface`, que dibuja el HUD. Funciona igual dentro de la práctica de la presentación (SubViewport anidado).
+- **Resultado**: `report_result(metros, tiempo)`: llegar a la meta = longitud total del recorrido y desempata el menor tiempo; quien no llega, por
+  los metros recorridos. `_validate_result` rechaza llegar antes de lo posible o pasarse del recorrido.
+- **IA** (bots, autopiloto, práctica): sigue la ruta guardada (`_route`), salta en los bordes y ante los muros, espera alineada con las losas móviles,
+  salta la barra y frena en el aire para caer sobre la losa. Las pruebas exigen que complete todos los recorridos.
 - Pruebas: `tests/obstacle_test.gd`; captura: `tools/run_shot.gd`.

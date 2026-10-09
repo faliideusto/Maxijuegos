@@ -5,15 +5,15 @@
 
 [resource]
 script = ExtResource("1")
-display_name = "Carrera de Obstáculos"
-description = "¡Esquiva y salta hasta la meta!"
-instructions = "Todos corréis a la vez por la misma pista en 3D. Esquiva a los lados con A/D o las flechas y salta con ESPACIO o CLIC: vallas y lava se saltan, los pilares y las puertas se esquivan. Si chocas, tropiezas y pierdes velocidad. Gana quien llegue antes a la meta."
+display_name = "Carrera de Ruinas"
+description = "¡Salta por las ruinas hasta la meta!"
+instructions = "Parkour en 3D sobre unas ruinas flotantes: cada uno en su pantalla, con la cámara detrás de tu personaje. Muévete con WASD o las flechas y salta con ESPACIO o CLIC. Hay zonas distintas: piedras sueltas, una viga estrecha, escaleras, plataformas que se mueven, una barra giratoria y columnas. Si caes a la niebla vuelves al último punto de control. Gana quien llegue antes a la meta; el minimapa te muestra el recorrido."
 min_players = 2
 max_players = 8
-approx_duration = 45.0
+approx_duration = 60.0
 scene = ExtResource("2")
 accent_color = Color(1, 0.62, 0.25, 1)
-execution_mode = 0
-max_duration = 0.0
+execution_mode = 1
+max_duration = 140.0
 music = &"run"
-short_text = "Esquiva con A/D o flechas y salta con ESPACIO o CLIC. ¡Llega primero!"
+short_text = "Muévete con WASD y salta con ESPACIO o CLIC. Si caes, vuelves al último punto."

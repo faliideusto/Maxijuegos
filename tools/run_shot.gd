@@ -1,5 +1,5 @@
 extends SceneTree
-## Herramienta de desarrollo: captura la Carrera de Obstáculos 3D tras correr la IA unos segundos.
+## Herramienta de desarrollo: captura la Carrera de Ruinas 3D tras jugar la IA unos segundos.
 ##   godot --path . --script res://tools/run_shot.gd -- <salida.png> [segundos] [semilla]
 var _n: int = 0
 var _mg: Node = null
@@ -14,17 +14,15 @@ func _process(_d: float) -> bool:
 		var lobby = root.get_node("Lobby")
 		var me = lobby.add_bot()
 		lobby.add_bot()
-		lobby.add_bot()
-		lobby.add_bot()
 		var meta = load("res://minigames/obstacle_run/meta.tres")
 		_mg = (meta.scene as PackedScene).instantiate()
 		root.add_child(_mg)
-		_mg.configure(0, sd, me)
+		_mg.configure(1, sd, me)
 		_mg.prepare(lobby.players)
 		_mg.start(lobby.players)
 		var t := 0.0
 		while t < secs + 3.0:
-			_mg._simulate(1.0 / 60.0)
+			_mg._play(1.0 / 60.0)
 			_mg._animate(1.0 / 60.0)
 			t += 1.0 / 60.0
 		_mg._hint_t = 0.0

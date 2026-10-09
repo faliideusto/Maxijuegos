@@ -154,7 +154,7 @@ func _controls(id: StringName) -> Array[String]:
 		&"bomb_party":
 			return ["ESCRIBIR: teclado, Enter envía"]
 		&"obstacle_run":
-			return ["MOVERSE: A/D o flechas", "SALTAR: ESPACIO o CLIC"]
+			return ["MOVERSE: WASD o flechas", "SALTAR: ESPACIO o CLIC"]
 		&"target_range":
 			return ["APUNTAR: ratón o WASD / flechas", "DISPARAR: clic o espacio"]
 	return ["ESPACIO o CLIC"]
