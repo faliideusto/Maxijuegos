@@ -28,6 +28,8 @@ func _ready() -> void:
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(760, 0)
 	var instr := UIKit.label(meta.instructions)
+	if meta.instructions.length() > 230:
+		instr.add_theme_font_size_override("font_size", 22)   # textos largos: letra algo menor para que quepa mejor
 	instr.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	card.add_child(instr)
 	box.add_child(card)
@@ -53,6 +55,7 @@ func _ready() -> void:
 	go.pressed.connect(_finish)
 	box.add_child(go)
 
+	UIKit.fit_to_screen(box)
 	var i := 0
 	for child in box.get_children():
 		UIKit.pop_in(child as Control, 0.07 * i)

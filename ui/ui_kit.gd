@@ -35,6 +35,24 @@ static func centered_vbox(root: Control, separation: int = 20) -> VBoxContainer:
 	center.add_child(vbox)
 	return vbox
 
+## Si el contenido de `box` es más alto que la pantalla (mucho texto), lo reduce lo justo para que quepa entero,
+## escalándolo desde su centro. Hay que llamarlo cuando el contenido ya esté añadido (espera un fotograma).
+static func fit_to_screen(box: Control, margin: float = 36.0) -> void:
+	await box.get_tree().process_frame
+	if not is_instance_valid(box):
+		return
+	var screen_h := box.get_viewport_rect().size.y
+	var avail := screen_h - margin
+	var h := box.get_combined_minimum_size().y
+	if h > avail and h > 0.0:
+		# Un CenterContainer cuyo hijo no cabe se estira y deja el hijo pegado arriba: se escala desde el borde
+		# superior y se baja lo justo para que quede centrado en pantalla.
+		var s := avail / h
+		box.size = box.get_combined_minimum_size()
+		box.pivot_offset = Vector2(box.size.x * 0.5, 0.0)
+		box.scale = Vector2.ONE * s
+		box.position.y = (screen_h - h * s) * 0.5
+
 ## Aparición con rebote (escala desde 0). Funciona dentro de contenedores.
 static func pop_in(node: Control, delay: float = 0.0) -> void:
 	node.modulate.a = 0.0
