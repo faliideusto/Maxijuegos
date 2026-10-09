@@ -441,7 +441,10 @@ código de red propio (`report_result(metros)`, `_bot_result`, `_validate_result
 original de Playus** (la búsqueda no dio nada): es una interpretación propia del género de "colinas".
 - **Control**: un botón. MANTENER = bajar (en el aire cae en picado; en el suelo la gravedad a lo largo de la pendiente es mayor: más
   ganancia bajando y más pérdida subiendo). SOLTAR = planear: se despega por las cimas y se flota con **poca gravedad** (420 px/s²) para
-  volar muy alto (más de 1 000 px sobre el suelo); la cámara se aleja con la altura.
+  volar muy alto (más de 1 000 px sobre el suelo).
+- **Cámara con zoom**: encuadra siempre la bola Y el punto más bajo del terreno en los próximos ~700 px (donde va a caer): cuanto más
+  alto vuelas, más se aleja (zoom de 1,0 a 0,2) y el astronauta se dibuja más grande para no perderlo. `tests/moon_test.gd` comprueba que
+  la bola y el suelo se ven en ≥ 97 % de los fotogramas y también a 2 400 px de altura.
 - **Nunca se para**: hay una velocidad mínima (260 px/s) en el suelo y en el aire, y la partida no termina antes de los 40 s.
 - **Física** (paso fijo 120 Hz): en el suelo `v += −G·sen θ·dt` (G = 1400, 2600 manteniendo); despega cuando la trayectoria balística queda
   por encima del terreno; al aterrizar solo se conserva la velocidad a lo largo del terreno (más un 20 % de perdón de la caída contra el

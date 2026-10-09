@@ -156,6 +156,41 @@ func _process(_delta: float) -> bool:
 		ga._animate(1.0 / 30.0)
 	_check(ga._done and not _reported.is_empty() and float(_reported[0]) > 100.0 and absf(steps / 60.0 - g.TIME_LIMIT) < 0.5, "el autopiloto juega los %.0f s y envía su distancia (%s m, %.1f s)" % [g.TIME_LIMIT, str(_reported), steps / 60.0], failures)
 
+	# --- Cámara: con la bola alta se aleja y SIEMPRE se ven la bola y el suelo donde va a caer ---
+	var gc = _new_game(1234, true)
+	var frames := 0
+	var good := 0
+	var min_zoom := 1.0
+	var worst_ball := 0.0
+	var worst_ground := 0.0
+	while not gc._done and frames < 60 * 45:
+		gc._play(1.0 / 60.0)
+		gc._animate(1.0 / 60.0)
+		frames += 1
+		var cs = gc.debug_state()
+		var ball_y: float = gc.debug_screen_y(cs.y)
+		var gnd := minf(gc.height_at(cs.x), minf(gc.height_at(cs.x + 350.0), gc.height_at(cs.x + 700.0)))
+		var gnd_y: float = gc.debug_screen_y(gnd)
+		min_zoom = minf(min_zoom, gc.debug_zoom())
+		if ball_y > 30.0 and ball_y < 700.0 and gnd_y < 715.0:
+			good += 1
+		worst_ball = maxf(worst_ball, absf(ball_y - 360.0))
+		worst_ground = maxf(worst_ground, gnd_y)
+	_check(min_zoom < 0.5, "al volar alto la cámara se aleja (zoom mínimo %.2f)" % min_zoom, failures)
+	_check(float(good) / float(frames) > 0.97, "la bola y el suelo donde va a caer se ven en el %.1f %% de los fotogramas (suelo más bajo en pantalla: y=%.0f)" % [100.0 * good / frames, worst_ground], failures)
+
+	# Caso extremo: a 2 400 px sobre el suelo también se ven la bola y el terreno.
+	var gx = _new_game(1234)
+	gx.debug_reset()
+	var hs = gx.debug_state()
+	hs.x = 20000.0
+	hs.grounded = false
+	hs.y = gx.height_at(20000.0) + 2400.0
+	gx._camera_target(0.0, true)
+	var by: float = gx.debug_screen_y(hs.y)
+	var gy: float = gx.debug_screen_y(minf(gx.height_at(hs.x), minf(gx.height_at(hs.x + 350.0), gx.height_at(hs.x + 700.0))))
+	_check(by > 30.0 and by < 700.0 and gy < 715.0 and gx.debug_zoom() >= gx.ZOOM_MIN, "a 2 400 px de altura se ve la bola (y=%.0f) y el suelo (y=%.0f) con zoom %.2f" % [by, gy, gx.debug_zoom()], failures)
+
 	print("")
 	if failures.is_empty():
 		print("MOON TEST OK")

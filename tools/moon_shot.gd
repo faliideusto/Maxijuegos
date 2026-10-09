@@ -1,6 +1,6 @@
 extends SceneTree
 ## Herramienta de desarrollo: captura Salto Lunar tras jugar la IA unos segundos.
-##   godot --path . --script res://tools/moon_shot.gd -- <salida.png> [segundos]
+##   godot --path . --script res://tools/moon_shot.gd -- <salida.png> [segundos] [alto]   ("alto" = vuela a 1 800 px de altura)
 var _n: int = 0
 var _mg: Node = null
 var _out: String = "moon.png"
@@ -24,6 +24,12 @@ func _process(_d: float) -> bool:
 			_mg._play(1.0 / 60.0)
 			_mg._animate(1.0 / 60.0)
 			t += 1.0 / 60.0
+		if a.size() > 2 and a[2] == "alto":
+			var st = _mg.debug_state()
+			st.grounded = false
+			st.y = _mg.height_at(st.x) + 1800.0
+			st.vy = 0.0
+			_mg._camera_target(0.0, true)
 	elif _n == 6:
 		root.get_viewport().get_texture().get_image().save_png(_out)
 		quit()

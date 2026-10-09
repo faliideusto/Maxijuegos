@@ -30,6 +30,10 @@ const V_AIR_MAX := 2600.0            # tope en el aire (más alto: se acumula ve
 const START_SPEED := 320.0
 const MIN_SPEED := 260.0              # velocidad mínima: el astronauta NUNCA se para
 const DONE_DELAY := 1.5
+const CAM_SPAN := 520.0                # alto (px de pantalla) que se reserva para ver desde la bola hasta el suelo
+const CAM_MARGIN := 240.0            # margen (px de mundo) que se añade a esa distancia
+const ZOOM_MIN := 0.2
+const CAM_CENTER_Y := 400.0          # y de pantalla del punto medio entre la bola y el suelo
 const PLAYER_X := 300.0               # x fija del astronauta en pantalla
 const SCREEN_REF := 580.0             # y de pantalla del suelo de referencia
 const PERFECT_COS := 0.90             # coseno del ángulo entre la caída y la ladera: por encima, aterrizaje perfecto
@@ -61,7 +65,7 @@ var _accum: float = 0.0
 var _done: bool = false
 var _done_t: float = 0.0
 var _cam_y: float = 0.0
-var _zoom: float = 1.0               # la cámara se aleja cuando vuelas alto, para no perder de vista el suelo
+var _zoom: float = 1.0               # la cámara se aleja cuando vuelas alto, para ver a la vez la bola y el terreno donde vas a caer
 var _next_milestone: float = 100.0
 var _last_hold: bool = false
 var _dive_cd: float = 0.0
@@ -234,6 +238,7 @@ func _on_start() -> void:
 	_next_milestone = 100.0
 	_cam_y = _s.y
 	_zoom = 1.0
+	_camera_target(1.0, true)
 	_hint_t = 4.0
 	_ai_hold = false
 
@@ -302,13 +307,25 @@ func _finish_play() -> void:
 	_done_t = 0.0
 	DevCli.log_event("moon distance=%.0f m time=%.1f s" % [_distance_m(), _time])
 
+## Cámara: encuadra la bola Y el suelo que tiene debajo y por delante (el punto más bajo del terreno en los próximos
+## ~700 px, que es donde va a caer). Cuanto más alto vuelas, más se aleja (zoom out), siempre con ambos a la vista.
+## `snap` = colocar sin suavizar (al empezar).
+func _camera_target(delta: float, snap: bool) -> void:
+	var gnd := minf(height_at(_s.x), minf(height_at(_s.x + 350.0), height_at(_s.x + 700.0)))
+	var above := maxf(_s.y - gnd, 0.0)
+	var target_zoom := clampf(CAM_SPAN / (above + CAM_MARGIN), ZOOM_MIN, 1.0)
+	var target_cam := _s.y - above * 0.5
+	if snap:
+		_zoom = target_zoom
+		_cam_y = target_cam
+		return
+	_zoom = lerpf(_zoom, target_zoom, 1.0 - exp(-5.0 * delta))
+	_cam_y = lerpf(_cam_y, target_cam, 1.0 - exp(-7.0 * delta))
+
 func _animate(delta: float) -> void:
 	_shake = maxf(0.0, _shake - delta * 2.5)
 	_flash = maxf(0.0, _flash - delta * 2.0)
-	# La cámara sigue la altura del astronauta con suavidad.
-	_cam_y = lerpf(_cam_y, _s.y, 1.0 - exp(-5.0 * delta))
-	var above := maxf(_s.y - height_at(_s.x) - 120.0, 0.0)
-	_zoom = lerpf(_zoom, clampf(1.0 - above / 2400.0, 0.45, 1.0), 1.0 - exp(-3.0 * delta))
+	_camera_target(delta, false)
 	for p in _popups:
 		p.age += delta
 	_popups = _popups.filter(func(x: Dictionary) -> bool: return x.age < 1.1)
@@ -397,6 +414,12 @@ func debug_run(policy: String, skill: float = 1.0, seconds: float = TIME_LIMIT) 
 	return {"distance_m": _distance_m(), "time": t, "perfect": perfect, "bad": bad, "max_speed": max_speed,
 			"min_speed": min_speed, "max_air": max_air}
 
+func debug_zoom() -> float:
+	return _zoom
+
+func debug_screen_y(y: float) -> float:
+	return _sy(y)
+
 func debug_state() -> PState:
 	return _s
 
@@ -415,7 +438,7 @@ func _sx(x: float) -> float:
 	return PLAYER_X + (x - _s.x) * _zoom
 
 func _sy(y: float) -> float:
-	return 430.0 - (y - _cam_y) * _zoom
+	return CAM_CENTER_Y - (y - _cam_y) * _zoom
 
 func _draw_game() -> void:
 	var s := surface
@@ -505,7 +528,8 @@ func _draw_terrain() -> void:
 
 func _draw_astronaut() -> void:
 	var s := surface
-	var c := Vector2(PLAYER_X, _sy(_s.y) - 20.0 * (0.6 + 0.4 * _zoom))
+	var asc := minf(1.0 / sqrt(_zoom), 2.2)         # al alejar la cámara el astronauta no se hace diminuto
+	var c := Vector2(PLAYER_X, _sy(_s.y) - 20.0 * asc)
 	var roll := _s.x / 22.0 if _s.grounded else _s.x / 22.0 + _time * 3.0
 	var tilt := atan2(_s.vy, maxf(_s.vx, 1.0)) * 0.4 if not _s.grounded else atan(slope_at(_s.x)) * -0.8
 	# Estela de velocidad.
@@ -514,7 +538,7 @@ func _draw_astronaut() -> void:
 		var a := clampf((spd - 800.0) / 900.0, 0.0, 1.0)
 		for k in 6:
 			s.draw_line(c + Vector2(-30 - k * 18, -14 + k * 6), c + Vector2(-70 - k * 30, -14 + k * 6), Color(1, 1, 1, 0.5 * a), 3.0)
-	s.draw_set_transform(c, tilt, Vector2.ONE)
+	s.draw_set_transform(c, tilt, Vector2.ONE * asc)
 	var col: Color = local_player.color if local_player != null else Palette.YELLOW
 	s.draw_circle(Vector2(0, 4), 24.0, Color(0, 0, 0, 0.3))
 	s.draw_circle(Vector2.ZERO, 24.0, Palette.PURPLE_DARK)
@@ -523,7 +547,7 @@ func _draw_astronaut() -> void:
 	s.draw_circle(Vector2(2, -3), 12.0, col)                                  # visor con tu color
 	s.draw_circle(Vector2(-3, -8), 3.5, Color(1, 1, 1, 0.55))
 	# Mochila que gira (indica que rueda).
-	s.draw_set_transform(c, roll, Vector2.ONE)
+	s.draw_set_transform(c, roll, Vector2.ONE * asc)
 	s.draw_rect(Rect2(-6, 14, 12, 6), Color(0.62, 0.64, 0.74))
 	s.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
