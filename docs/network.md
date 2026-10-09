@@ -415,3 +415,20 @@ Juego de precisión: cada jugador juega en su pantalla (sin verse) y el host ord
 - **Bots/autopiloto**: apuntan con tiempo de reacción humano y algo de error (`debug_ai_skill`); los bots offline puntúan un 22-75 %.
 - **Sonido**: pista propia `aim` (arcade), `shot`, `hit`, `hit_gold`, `miss`, `combo`, aviso `gold_spawn` y pitidos finales.
 - Pruebas: `tests/target_test.gd` y `ONLY=target_range tests/online_test.sh` (2/4/8 jugadores y `kill_in_parallel`) OK.
+
+## 22. Tronco de Dagas (`knife_log`, HOST_AUTHORITATIVE)
+
+Todos ven el mismo tronco girando y juegan por turnos (empieza uno al azar, sorteado en el host). En tu turno, la acción lanza
+la daga: si cae sobre otra (ángulo local a menos de 0,2 rad), el jugador queda eliminado; si cae en un hueco, se clava y sigue el
+siguiente vivo. Gana el último y el ranking sigue el orden de eliminación.
+- **Dificultad**: cada daga acelera el giro (1,5 → 4,2 rad/s), a partir de la 6.ª el tronco "respira" (±35 %) y cada 5 dagas invierte
+  el sentido pasando por cero. Caben unas 15 dagas, así que el hueco libre se estrecha. Sin lanzar en 6 s, la daga sale sola.
+- **Física justa**: la daga tarda 0,1 s en llegar y el tronco sigue girando durante el vuelo; el impacto se evalúa al final con el
+  giro de ese instante (un único cálculo en el host: nadie ve nada distinto).
+- **Red**: sin código propio. Snapshots a 30 Hz (giro, velocidad, dagas, turno, tiempo) con extrapolación del giro en los clientes y
+  eventos fiables (`turn`, `throw`, `stick`, `clang`, `win`) para sonidos y animaciones. El host consume las pulsaciones de todos
+  los jugadores cada fotograma y solo cuenta la del que tiene el turno.
+- **Bots**: esperan un hueco con margen y lanzan con un retraso humano (a más velocidad, más fácil fallar).
+- **Sonido**: pista `log` (taberna con tensión), `throw`, `stick`, `clang`, pitidos cuando a tu turno le quedan 2 s y aviso de turno.
+- Pruebas: `tests/knife_test.gd` (colisión, turnos, salida aleatoria, dificultad, partidas de 2/3/5/8 bots) y
+  `ONLY=knife_log tests/online_test.sh` (2/4/8 jugadores; la caída en partida con 3 rondas) OK.

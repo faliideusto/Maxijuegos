@@ -28,6 +28,7 @@ godot --headless --path . --script res://tests/input_test.gd
 godot --headless --path . --script res://tests/parallel_local_test.gd -- --log
 godot --headless --path . --script res://tests/cube_level_test.gd                  # nivel de Salto Neón: superable y con puertas efectivas
 godot --headless --path . --script res://tests/wave_level_test.gd                  # pasillo de Onda Neón: superable (bot en bucle cerrado)
+godot --headless --path . --script res://tests/knife_test.gd                        # Tronco de Dagas: colisión, turnos y partidas con bots
 godot --headless --path . --script res://tests/target_test.gd                       # Puntería: dianas, puntuación y autopiloto
 godot --headless --path . --script res://tests/spotlight_test.gd                    # Caza del Foco: reglas y partidas con bots
 godot --headless --path . --script res://tests/bomb_party_test.gd                  # Bomba de Palabras: diccionario, niveles y reglas

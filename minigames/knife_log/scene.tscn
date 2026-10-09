@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://minigames/knife_log/knife_log.gd" id="1"]
+
+[node name="KnifeLog" type="Node"]
+script = ExtResource("1")

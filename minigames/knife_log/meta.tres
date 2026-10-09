@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="MinigameMeta" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://core/minigame_meta.gd" id="1"]
+[ext_resource type="PackedScene" path="res://minigames/knife_log/scene.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Tronco de Dagas"
+description = "¡Busca el hueco!"
+instructions = "Un tronco gira y hay que clavarle dagas por turnos (empieza uno al azar). En tu turno pulsa tu botón de acción para lanzar: si tu daga cae encima de otra, queda eliminado quien la lanzó. Cada daga acelera el giro y a veces el tronco cambia de sentido. Gana el último que quede."
+min_players = 2
+max_players = 8
+approx_duration = 60.0
+scene = ExtResource("2")
+accent_color = Color(0.8, 0.58, 0.35, 1)
+execution_mode = 0
+max_duration = 0.0
+music = &"log"
