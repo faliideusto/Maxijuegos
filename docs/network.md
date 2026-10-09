@@ -496,19 +496,23 @@ reinicia sola al acabar.
 
 ## 26. Carrera de Ruinas (obstacle_run) — primer minijuego en 3D
 
-- **Modelo**: LOCAL_PARALLEL (cada uno en su pantalla, sin verse), 3D en tercera persona: la cámara va detrás de TU personaje. Controles: WASD o
-  flechas (o palanca) relativos a la cámara y ESPACIO o CLIC para saltar (el clic izquierdo es un botón de acción más para el teclado 1 y el
-  jugador online). Inspirado en un parkour de ruinas flotantes sobre la niebla.
+- **Modelo**: HOST_AUTHORITATIVE: todos corren A LA VEZ por el mismo recorrido y se ven unos a otros; la cámara de cada PC va en tercera persona
+  detrás de SU personaje (nombre flotando sobre cada corredor, flecha amarilla sobre el tuyo, minimapa con todos). Controles: WASD o flechas (o
+  palanca) relativos a la cámara y ESPACIO o CLIC para saltar (el clic izquierdo es un botón de acción más para el teclado 1 y el jugador online).
+  Inspirado en un parkour de ruinas flotantes sobre la niebla.
 - **Recorrido** (`_ensure_level`, de la semilla común; ~220 m con giros): SALIDA → PIEDRAS (pilares con huecos) → VIGA (pasarela estrecha con
-  hueco y esquina) → ESCALERAS → PLATAFORMAS (losas que se deslizan) → BARRA (barra giratoria) → COLUMNAS (cada vez más altas) → FINAL (saltos largos)
-  → arco de meta. Cada zona empieza con un punto de control; caer a la niebla (y < -11) devuelve al último. Minimapa del recorrido en el HUD.
-- **Física propia** (60 Hz fijos, sin motor de físicas): cuerpo con colisión contra cajas alineadas a los ejes (`Solid`), subida automática de
-  escalones (0,55 m), salto con coyote time y buffer (la pulsación queda pendiente hasta el siguiente paso: en pantallas de más de 60 Hz hay fotogramas
-  sin paso), plataformas móviles que arrastran y barra giratoria que lanza. Progreso = proyección sobre la línea central del recorrido.
-- **3D**: dentro del minijuego se monta un `SubViewport` con `own_world_3d = true` (cámara, luz, cielo de atardecer, niebla y mar de niebla propios)
-  detrás del `DrawSurface`, que dibuja el HUD. Funciona igual dentro de la práctica de la presentación (SubViewport anidado).
-- **Resultado**: `report_result(metros, tiempo)`: llegar a la meta = longitud total del recorrido y desempata el menor tiempo; quien no llega, por
-  los metros recorridos. `_validate_result` rechaza llegar antes de lo posible o pasarse del recorrido.
-- **IA** (bots, autopiloto, práctica): sigue la ruta guardada (`_route`), salta en los bordes y ante los muros, espera alineada con las losas móviles,
-  salta la barra y frena en el aire para caer sobre la losa. Las pruebas exigen que complete todos los recorridos.
+  hueco y esquina) → ESCALERAS → PLATAFORMAS (losas que se deslizan) → BARRA (barra giratoria que lanza a todos) → COLUMNAS (cada vez más altas) →
+  FINAL (saltos largos) → arco de meta. Cada zona empieza con un punto de control; caer a la niebla (y < -11) devuelve al último.
+- **Host**: simula a todos a 60 Hz fijos (`_simulate`; sin motor de físicas): un `RS` por corredor con colisión contra cajas alineadas a los
+  ejes (`Solid`), subida automática de escalones (0,55 m), salto con coyote time y buffer (la pulsación queda pendiente hasta el siguiente paso),
+  plataformas móviles que arrastran y barra giratoria. Los corredores no chocan entre sí. Quien va muy rezagado corre hasta un 10 % más.
+  La entrada se interpreta respecto al `yaw` de cada jugador (sigue el recorrido y viaja en el estado), así que es igual en todos los PCs.
+- **Red**: estado ~30 Hz con `PackedFloat32Array` (18 floats por corredor) + tiempo/cuenta atrás/fin; eventos `jump/land/fall/bar/cp/zone/fin/beep/go/over`.
+  Los clientes interpolan posición, orientación y tiempo de carrera (losas y barra).
+- **Fin**: llegan todos, 20 s después del primero o a los 90 s. Ranking: quien llega, por tiempo; los demás, por metros.
+- **3D**: `SubViewport` con `own_world_3d = true` (cámara, luz con sombras, cielo de atardecer, niebla, mar de nubes, ruinas lejanas y escombros
+  flotantes) detrás del `DrawSurface`, que dibuja el HUD. Piedra con textura procedural y personajes con contorno. Funciona dentro de la práctica.
+- **IA** (bots, autopiloto, práctica): sigue la ruta guardada (`_route`) por su carril (reparte a los bots por las losas anchas), salta en bordes y
+  muros, espera alineada con las losas móviles, salta la barra y frena en el aire para caer sobre la losa. Las pruebas exigen que complete todos
+  los recorridos y que una carrera con 5 corredores acabe con ranking correcto y estado idéntico en un "cliente".
 - Pruebas: `tests/obstacle_test.gd`; captura: `tools/run_shot.gd`.

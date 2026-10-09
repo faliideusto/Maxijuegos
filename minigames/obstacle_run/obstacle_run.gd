@@ -1,7 +1,8 @@
 extends Minigame
-## Carrera de Ruinas (id obstacle_run; modelo LOCAL_PARALLEL, 3D en tercera persona): un parkour de ruinas flotantes sobre
-## la niebla. Cada uno juega en su pantalla (sin verse) con la cámara detrás de su personaje, sobre el MISMO recorrido, que
-## sale de la semilla común. Gana quien llega antes a la meta; quien no llega se ordena por lo lejos que ha llegado.
+## Carrera de Ruinas (id obstacle_run; modelo HOST_AUTHORITATIVE, 3D en tercera persona): un parkour de ruinas flotantes
+## sobre la niebla. Todos corren A LA VEZ por el mismo recorrido (que sale de la semilla común) y se ven unos a otros; la
+## cámara de cada PC va detrás de SU personaje. Gana quien llega antes a la meta; quien no llega se ordena por lo lejos que ha
+## llegado. La partida acaba cuando llegan todos, 20 s después de que llegue el primero, o a los 90 s.
 ## Controles: WASD / flechas (o palanca) para moverte respecto a la cámara y ESPACIO o CLIC para saltar.
 ##
 ## El recorrido es una sucesión de ZONAS (cada una pide algo distinto):
@@ -14,10 +15,12 @@ extends Minigame
 ## Física propia (nada de motor de físicas): un cuerpo con colisión contra cajas alineadas a los ejes, paso fijo de 60 Hz,
 ## subida automática de escalones, salto con "coyote time" y buffer, plataformas móviles que te arrastran y barras que
 ## te lanzan. Todo es determinista con la semilla, y una IA (bots, autopiloto y pruebas) sigue la ruta guardada.
-## El 3D (SubViewport con su propio mundo) es solo presentación. No hay nada de red: report_result(metros, tiempo).
+## Red: el host simula a todos (60 Hz) y envía ~30 Hz el estado de cada corredor; los clientes interpolan. El 3D
+## (SubViewport con su propio mundo) es solo presentación. La entrada se interpreta respecto a la cámara de cada jugador
+## (su `yaw`, que sigue el recorrido y va en el estado), así que es igual en todos los PCs.
 
 const STEP := 1.0 / 60.0
-const TIME_LIMIT := 100.0
+const TIME_LIMIT := 90.0
 const COUNTDOWN := 3.0
 const DONE_DELAY := 2.2
 # --- Cuerpo ---
@@ -73,70 +76,100 @@ var _o: Vector3 = Vector3.ZERO
 var _th: float = 0.0
 var _grng: RandomNumberGenerator
 
-# --- Estado del corredor ---
-var _p: Vector3 = Vector3.ZERO          # pies
-var _v: Vector3 = Vector3.ZERO
-var _grounded: bool = false
-var _gs: int = -1                       # losa sobre la que estás
-var _face: float = 0.0
-var _yaw: float = 0.0                   # dirección de la cámara
-var _jump_buf: float = 0.0
-var _coyote_t: float = 0.0
-var _jump_pending: bool = false
-var _stun: float = 0.0
-var _respawn_t: float = -1.0
-var _cp_i: int = 0
-var _falls: int = 0
-var _seg: int = 0
-var _arc: float = 0.0
-var _t: float = 0.0                     # segundos de carrera
+# --- Estado de la carrera ---
+## Un corredor: lo simula el host y los clientes lo reciben (se interpola solo la presentación).
+class RS:
+	var id: int = 0
+	var idx: int = 0
+	var p: Vector3 = Vector3.ZERO           # pies
+	var v: Vector3 = Vector3.ZERO
+	var grounded: bool = false
+	var gs: int = -1                        # losa sobre la que está
+	var yaw: float = 0.0                    # dirección de su cámara (el movimiento es relativo a ella)
+	var face: float = 0.0                   # hacia dónde mira el personaje
+	var jump_buf: float = 0.0
+	var coyote: float = 0.0
+	var jump_pending: bool = false          # pulsación aún sin aplicar (en pantallas rápidas hay fotogramas sin paso de 60 Hz)
+	var stun: float = 0.0
+	var respawn_t: float = -1.0
+	var cp_i: int = 0
+	var falls: int = 0
+	var seg: int = 0
+	var arc: float = 0.0
+	var zone_i: int = 0
+	var done: bool = false                  # ya no corre (meta o fin de la partida)
+	var finished: bool = false              # ha llegado a la meta
+	var ftime: float = 0.0
+	# Eventos de este paso (los recoge quien simula).
+	var ev_jump: bool = false
+	var ev_land: bool = false
+	var ev_fall: bool = false
+	var ev_bar: bool = false
+	var ev_cp: bool = false
+	var ev_zone: bool = false
+	var ev_fin: bool = false
+	# IA
+	var skill: float = 1.0
+	var lane: float = 0.0                   # carril preferido de la IA (reparte a los corredores por las losas anchas)
+	var bi: int = 0
+	var bot_jump: bool = false
+	var bot_rng: RandomNumberGenerator = null
+	# Presentación
+	var dp: Vector3 = Vector3.ZERO
+	var dyaw: float = 0.0
+	var dface: float = 0.0
+	var anim: float = 0.0
+	var node: Node3D = null
+	var body: Node3D = null
+	var arm_l: Node3D = null
+	var arm_r: Node3D = null
+	var leg_l: Node3D = null
+	var leg_r: Node3D = null
+	var cape: Node3D = null
+	var shadow: MeshInstance3D = null
+	var dust: CPUParticles3D = null
+	var puff: CPUParticles3D = null
+	var burst: bool = false
+	var burst_fall: bool = false
+
+const FLOATS := 18                      # por corredor en el estado enviado
+const CATCH_UP := 0.10                  # empujón máximo de velocidad (fracción) para los rezagados
+const CATCH_DIST := 60.0
+const FIRST_FINISH_GRACE := 20.0        # segundos que se espera a los demás cuando llega el primero
+
+var _rs: Dictionary = {}                # player id -> RS
+var _order: Array[int] = []             # ids en el orden del reparto (= orden del estado enviado)
+var _t: float = 0.0                     # segundos de carrera (iguales para todos: mueven las losas y la barra)
+var _t_vis: float = 0.0                 # lo mismo, suavizado en los clientes
 var _cd: float = COUNTDOWN
 var _last_cd: int = 99
 var _accum: float = 0.0
-var _done: bool = false
-var _finished_race: bool = false
-var _ftime: float = 0.0
-var _done_t: float = 0.0
-var _zone_i: int = 0
+var _over: bool = false
+var _over_t: float = 0.0
+var _first_finish_t: float = -1.0
+var _finish_order: Array[int] = []
+var _winner_id: int = -1
 var _toast: String = ""
 var _toast_t: float = 0.0
 var _hint_t: float = 7.0
 var _shake: float = 0.0
 var _anim: float = 0.0
-var _land_ev: bool = false
-var _jump_ev: bool = false
 
 # --- IA ---
-var debug_skill: float = 1.0
-var _bi: int = 0
-var _bot_jump: bool = false
-var _bot_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+var debug_skill: float = -1.0           # >= 0: fuerza la habilidad de todas las IAs (pruebas)
 
 # --- Escena 3D ---
 var _vp: SubViewport
 var _root3: Node3D
 var _cam: Camera3D
-var _pl: Node3D
-var _pl_body: Node3D
-var _leg_l: Node3D
-var _leg_r: Node3D
-var _shadow: MeshInstance3D
 var _built: bool = false
 var _fov: float = 68.0
 var _cam_pos: Vector3 = Vector3.ZERO
 var _sun: DirectionalLight3D
-var _arm_l: Node3D
-var _arm_r: Node3D
-var _cape: Node3D
 var _cloud_mats: Array[StandardMaterial3D] = []
 var _debris: Array = []
 var _cp_nodes: Array = []
-var _run_dust: CPUParticles3D
-var _land_puff: CPUParticles3D
-var _fall_puff: CPUParticles3D
 var _motes: CPUParticles3D
-var _burst_land: bool = false
-var _burst_fall: bool = false
 
 # ----------------------------------------------------------------------------
 # Generador del recorrido
@@ -170,7 +203,21 @@ func _slab(lx: float, top: float, lz: float, hx: float, hz: float, thick: float 
 	return _add_solid(Vector3(lx, top - hy, lz), Vector3(hx, hy, hz), style)
 
 func _node(l: Vector3, mover: int = -1) -> void:
-	_route.append({"p": _lp(l), "mover": mover, "zone": _zones.size() - 1})
+	var wp := _lp(l)
+	var rg := _rgt(_th)
+	# Semianchura (en lateral) de la losa donde está el punto: la IA reparte a los corredores por ella.
+	var hw := 0.8
+	var idx := mover
+	if idx < 0:
+		for i in range(_solids.size() - 1, -1, -1):
+			var s := _solids[i]
+			if absf(wp.x - s.c0.x) <= s.h.x + 0.01 and absf(wp.z - s.c0.z) <= s.h.z + 0.01 and absf(wp.y - (s.c0.y + s.h.y)) < 1.2:
+				idx = i
+				break
+	if idx >= 0:
+		var sd := _solids[idx]
+		hw = absf(rg.x) * sd.h.x + absf(rg.z) * sd.h.z
+	_route.append({"p": wp, "mover": mover, "zone": _zones.size() - 1, "rgt": rg, "hw": hw})
 
 func _zone(zname: String, l_start: Vector3 = Vector3.ZERO) -> void:
 	_zones.append({"name": zname, "arc": 0.0, "pt": _path.size()})
@@ -343,34 +390,34 @@ func _finish_path() -> void:
 # Simulación
 # ----------------------------------------------------------------------------
 
-func _reset_state() -> void:
-	_cp_i = 0
-	_p = (_cps[0]["pos"] as Vector3)
-	_v = Vector3.ZERO
-	_grounded = false
-	_gs = -1
-	_face = 0.0
-	_yaw = 0.0
-	_jump_buf = 0.0
-	_coyote_t = 0.0
-	_jump_pending = false
-	_stun = 0.0
-	_respawn_t = -1.0
-	_falls = 0
-	_seg = 0
-	_arc = 0.0
+func _make_rs(p: PlayerData, idx: int, count: int) -> RS:
+	var s := RS.new()
+	s.id = p.id
+	s.idx = idx
+	var lx := 0.0 if count <= 1 else lerpf(-3.6, 3.6, float(idx) / float(count - 1))
+	var start: Vector3 = (_cps[0]["pos"] as Vector3)
+	s.p = start + _rgt(0.0) * lx
+	s.dp = s.p
+	s.bot_rng = RandomNumberGenerator.new()
+	s.bot_rng.seed = hash([seed_value, p.id])
+	s.skill = 0.78 + 0.22 * s.bot_rng.randf()
+	s.lane = clampf((float(idx) - float(count - 1) * 0.5) * 1.15, -2.8, 2.8)
+	s.yaw = _path_yaw(s)
+	s.dyaw = s.yaw
+	s.face = s.yaw
+	s.dface = s.yaw
+	return s
+
+func _setup_runners() -> void:
+	_rs.clear()
+	_order.clear()
+	for i in players.size():
+		var pl := players[i]
+		_rs[pl.id] = _make_rs(pl, i, players.size())
+		_order.append(pl.id)
 	_t = 0.0
-	_done = false
-	_finished_race = false
-	_ftime = 0.0
-	_done_t = 0.0
-	_zone_i = 0
-	_toast = ""
-	_toast_t = 0.0
-	_bi = 0
-	_bot_jump = false
+	_t_vis = 0.0
 	_update_solids(true)
-	_yaw = _path_yaw()
 
 func _update_solids(snap: bool = false) -> void:
 	for s in _solids:
@@ -379,6 +426,12 @@ func _update_solids(snap: bool = false) -> void:
 			s.c = s.c0 + s.move_dir * (s.amp * sin(s.ph + s.freq * _t))
 		if snap:
 			s.pc = s.c
+
+func _leader_arc() -> float:
+	var m := 0.0
+	for id in _order:
+		m = maxf(m, (_rs[id] as RS).arc)
+	return m
 
 func _bar_angle(b: Bar, t: float) -> float:
 	return b.ph + b.omega * t
@@ -395,156 +448,141 @@ func _overlap_y(s: Solid, py: float) -> bool:
 	return py < s.c.y + s.h.y - 0.001 and py + HEIGHT > s.c.y - s.h.y + 0.001
 
 ## Resuelve los choques laterales en un eje (0 = x, 1 = z); sube solo los escalones bajos.
-func _resolve_axis(axis: int) -> void:
+func _resolve_axis(r: RS, axis: int) -> void:
 	for s in _solids:
-		if absf(_p.x - s.c.x) > s.h.x + RADIUS or absf(_p.z - s.c.z) > s.h.z + RADIUS:
+		if absf(r.p.x - s.c.x) > s.h.x + RADIUS or absf(r.p.z - s.c.z) > s.h.z + RADIUS:
 			continue
-		if not _overlap_y(s, _p.y):
+		if not _overlap_y(s, r.p.y):
 			continue
 		var top := s.c.y + s.h.y
-		if top - _p.y <= STEP_H and _v.y <= 1.0:
-			_p.y = top + 0.001                          # escalón: se sube
+		if top - r.p.y <= STEP_H and r.v.y <= 1.0:
+			r.p.y = top + 0.001                          # escalón: se sube
 			continue
 		if axis == 0:
-			_p.x = s.c.x + (s.h.x + RADIUS if _p.x > s.c.x else -(s.h.x + RADIUS))
-			_v.x = 0.0
+			r.p.x = s.c.x + (s.h.x + RADIUS if r.p.x > s.c.x else -(s.h.x + RADIUS))
+			r.v.x = 0.0
 		else:
-			_p.z = s.c.z + (s.h.z + RADIUS if _p.z > s.c.z else -(s.h.z + RADIUS))
-			_v.z = 0.0
+			r.p.z = s.c.z + (s.h.z + RADIUS if r.p.z > s.c.z else -(s.h.z + RADIUS))
+			r.v.z = 0.0
 
-## Un paso de simulación. dir = dirección de movimiento deseada en el mundo (longitud <= 1).
-func _sim_step(dt: float, dir: Vector3, jump: bool) -> void:
-	_jump_ev = false
-	_land_ev = false
-	_t += dt
-	# Plataformas móviles: se mueven y te arrastran.
-	_update_solids()
-	if _gs >= 0:
-		var gsolid := _solids[_gs]
-		_p += gsolid.c - gsolid.pc
-	if _respawn_t >= 0.0:
-		_respawn_t -= dt
-		if _respawn_t < 0.0:
-			_respawn()
+## Un paso de simulación de un corredor. dir = dirección de movimiento deseada en el mundo (longitud <= 1).
+func _sim_step(r: RS, dt: float, dir: Vector3, jump: bool, leader_arc: float) -> void:
+	# (las losas ya se han movido en este paso: _update_solids)
+	if r.gs >= 0:
+		var gsolid := _solids[r.gs]
+		r.p += gsolid.c - gsolid.pc                      # las losas móviles te arrastran
+	if r.respawn_t >= 0.0:
+		r.respawn_t -= dt
+		if r.respawn_t < 0.0:
+			_respawn(r)
 		return
-	# Velocidad horizontal.
-	var want := dir * RUN_SPEED
-	var acc := GROUND_ACCEL if _grounded else AIR_ACCEL
-	if _done:
+	# Velocidad horizontal (quien va muy rezagado corre algo más para no perderse la carrera).
+	var boost := 1.0 + CATCH_UP * clampf((leader_arc - r.arc) / CATCH_DIST, 0.0, 1.0)
+	var want := dir * RUN_SPEED * boost
+	var acc := GROUND_ACCEL if r.grounded else AIR_ACCEL
+	if r.done:
 		want = Vector3.ZERO
-	if _stun > 0.0:
-		_stun = maxf(0.0, _stun - dt)
-		want = Vector3(_v.x, 0.0, _v.z)
+	if r.stun > 0.0:
+		r.stun = maxf(0.0, r.stun - dt)
+		want = Vector3(r.v.x, 0.0, r.v.z)
 		acc = 4.0
-	_v.x = move_toward(_v.x, want.x, acc * dt)
-	_v.z = move_toward(_v.z, want.z, acc * dt)
+	r.v.x = move_toward(r.v.x, want.x, acc * dt)
+	r.v.z = move_toward(r.v.z, want.z, acc * dt)
 	# Salto.
 	if jump:
-		_jump_buf = JUMP_BUFFER
-	_jump_buf = maxf(0.0, _jump_buf - dt)
-	if _grounded:
-		_coyote_t = COYOTE
+		r.jump_buf = JUMP_BUFFER
+	r.jump_buf = maxf(0.0, r.jump_buf - dt)
+	if r.grounded:
+		r.coyote = COYOTE
 	else:
-		_coyote_t = maxf(0.0, _coyote_t - dt)
-	if _jump_buf > 0.0 and _coyote_t > 0.0 and not _done and _stun <= 0.0:
-		_v.y = JUMP_V
-		_grounded = false
-		_gs = -1
-		_coyote_t = 0.0
-		_jump_buf = 0.0
-		_jump_ev = true
-	_v.y = maxf(_v.y - GRAVITY * dt, -MAX_FALL)
+		r.coyote = maxf(0.0, r.coyote - dt)
+	if r.jump_buf > 0.0 and r.coyote > 0.0 and not r.done and r.stun <= 0.0:
+		r.v.y = JUMP_V
+		r.grounded = false
+		r.gs = -1
+		r.coyote = 0.0
+		r.jump_buf = 0.0
+		r.ev_jump = true
+	r.v.y = maxf(r.v.y - GRAVITY * dt, -MAX_FALL)
 	# Movimiento por ejes.
-	_p.x += _v.x * dt
-	_resolve_axis(0)
-	_p.z += _v.z * dt
-	_resolve_axis(1)
-	var prev_y := _p.y
-	_p.y += _v.y * dt
-	var was_grounded := _grounded
-	_grounded = false
-	_gs = -1
+	r.p.x += r.v.x * dt
+	_resolve_axis(r, 0)
+	r.p.z += r.v.z * dt
+	_resolve_axis(r, 1)
+	var prev_y := r.p.y
+	r.p.y += r.v.y * dt
+	var was_grounded := r.grounded
+	r.grounded = false
+	r.gs = -1
 	var best_top := -1e9
 	for i in _solids.size():
 		var s := _solids[i]
-		if absf(_p.x - s.c.x) >= s.h.x + RADIUS or absf(_p.z - s.c.z) >= s.h.z + RADIUS:
+		if absf(r.p.x - s.c.x) >= s.h.x + RADIUS or absf(r.p.z - s.c.z) >= s.h.z + RADIUS:
 			continue
 		var top := s.c.y + s.h.y
 		var bottom := s.c.y - s.h.y
-		if _v.y <= 0.0:
-			if prev_y >= top - 0.12 and _p.y <= top and top > best_top:
+		if r.v.y <= 0.0:
+			if prev_y >= top - 0.12 and r.p.y <= top and top > best_top:
 				best_top = top
-				_gs = i
+				r.gs = i
 		else:
-			if prev_y + HEIGHT <= bottom + 0.1 and _p.y + HEIGHT > bottom:
-				_p.y = bottom - HEIGHT
-				_v.y = 0.0
-	if _gs >= 0:
-		_p.y = best_top
-		_v.y = 0.0
-		_grounded = true
+			if prev_y + HEIGHT <= bottom + 0.1 and r.p.y + HEIGHT > bottom:
+				r.p.y = bottom - HEIGHT
+				r.v.y = 0.0
+	if r.gs >= 0:
+		r.p.y = best_top
+		r.v.y = 0.0
+		r.grounded = true
 		if not was_grounded:
-			_land_ev = true
+			r.ev_land = true
 	# Barras giratorias.
 	for b in _bars:
-		if _p.y < b.pivot.y + b.top and _p.y + HEIGHT > b.pivot.y - 0.2:
-			if absf(_p.x - b.pivot.x) < b.half_len + 1.0 and absf(_p.z - b.pivot.z) < b.half_len + 1.0:
-				if _bar_dist(b, _t, _p) < RADIUS + 0.22 and _stun <= 0.0:
+		if r.p.y < b.pivot.y + b.top and r.p.y + HEIGHT > b.pivot.y - 0.2:
+			if absf(r.p.x - b.pivot.x) < b.half_len + 1.0 and absf(r.p.z - b.pivot.z) < b.half_len + 1.0:
+				if _bar_dist(b, _t, r.p) < RADIUS + 0.22 and r.stun <= 0.0:
 					var a := _bar_angle(b, _t)
 					var tang := Vector3(-sin(a), 0.0, cos(a)) * signf(b.omega)
-					_v.x = tang.x * BAR_KNOCK
-					_v.z = tang.z * BAR_KNOCK
-					_v.y = 5.0
-					_grounded = false
-					_gs = -1
-					_stun = 0.45
-					_shake = 0.5
-					if _hot():
-						Audio.sfx(&"thud", -4.0)
+					r.v.x = tang.x * BAR_KNOCK
+					r.v.z = tang.z * BAR_KNOCK
+					r.v.y = 5.0
+					r.grounded = false
+					r.gs = -1
+					r.stun = 0.45
+					r.ev_bar = true
 	# Niebla: caída.
-	if _p.y < FALL_Y and _respawn_t < 0.0 and not _done:
-		_falls += 1
-		_respawn_t = RESPAWN_DELAY
-		_toast = "¡A LA NIEBLA!"
-		_burst_fall = true
-		_toast_t = 1.0
-		if _hot():
-			Audio.sfx(&"splash", -6.0)
+	if r.p.y < FALL_Y and r.respawn_t < 0.0 and not r.done:
+		r.falls += 1
+		r.respawn_t = RESPAWN_DELAY
+		r.ev_fall = true
 	# Progreso, puntos de control y meta.
-	_track_progress()
-	if not _done:
-		var gd := Vector2(_p.x - _goal.x, _p.z - _goal.z).length()
-		if gd < 3.2 and absf(_p.y - _goal.y) < 2.5:
-			_done = true
-			_finished_race = true
-			_ftime = _t
-			_done_t = 0.0
-			if _hot():
-				Audio.sfx(&"fanfare_small", -4.0)
-			DevCli.log_event("ruins finished time=%.2f s falls=%d" % [_ftime, _falls])
-		elif _t >= TIME_LIMIT:
-			_done = true
-			_done_t = 0.0
-			DevCli.log_event("ruins timeout progress=%.0f m falls=%d" % [_arc, _falls])
+	_track_progress(r)
+	if not r.done:
+		var gd := Vector2(r.p.x - _goal.x, r.p.z - _goal.z).length()
+		if gd < 3.2 and absf(r.p.y - _goal.y) < 2.5:
+			r.done = true
+			r.finished = true
+			r.ftime = _t
+			r.ev_fin = true
 
-func _respawn() -> void:
-	var cp: Dictionary = _cps[_cp_i]
-	_p = cp["pos"]
-	_v = Vector3.ZERO
-	_grounded = false
-	_gs = -1
-	_stun = 0.0
-	_bi = int(cp["route_i"])
-	_seg = maxi(int(cp["path_i"]) - 1, 0)
-	_yaw = _path_yaw()
+func _respawn(r: RS) -> void:
+	var cp: Dictionary = _cps[r.cp_i]
+	r.p = (cp["pos"] as Vector3) + _rgt(_path_yaw_at(int(cp["path_i"]))) * (float(r.idx % 5) - 2.0) * 0.8
+	r.v = Vector3.ZERO
+	r.grounded = false
+	r.gs = -1
+	r.stun = 0.0
+	r.bi = int(cp["route_i"])
+	r.seg = maxi(int(cp["path_i"]) - 1, 0)
+	r.yaw = _path_yaw(r)
+	r.dp = r.p
 
 ## Posición sobre la línea central → progreso (m); también la zona y el punto de control actuales.
-func _track_progress() -> void:
+func _track_progress(r: RS) -> void:
 	var best_d := 1e9
-	var best_i := _seg
+	var best_i := r.seg
 	var best_t := 0.0
-	var lo := maxi(_seg - 1, 0)
-	var hi := mini(_seg + 3, _path.size() - 2)
+	var lo := maxi(r.seg - 1, 0)
+	var hi := mini(r.seg + 3, _path.size() - 2)
 	for i in range(lo, hi + 1):
 		var a := _path[i]
 		var b := _path[i + 1]
@@ -552,121 +590,315 @@ func _track_progress() -> void:
 		var l2 := ab.length_squared()
 		var tt := 0.0
 		if l2 > 0.0001:
-			tt = clampf(Vector2(_p.x - a.x, _p.z - a.z).dot(ab) / l2, 0.0, 1.0)
+			tt = clampf(Vector2(r.p.x - a.x, r.p.z - a.z).dot(ab) / l2, 0.0, 1.0)
 		var qx := a.x + ab.x * tt
 		var qz := a.z + ab.y * tt
-		var d := Vector2(_p.x - qx, _p.z - qz).length()
+		var d := Vector2(r.p.x - qx, r.p.z - qz).length()
 		if d < best_d:
 			best_d = d
 			best_i = i
 			best_t = tt
-	_seg = best_i
+	r.seg = best_i
 	var arc := _cum[best_i] + best_t * (_cum[best_i + 1] - _cum[best_i])
-	if arc > _arc and _respawn_t < 0.0:
-		_arc = arc
+	if arc > r.arc and r.respawn_t < 0.0:
+		r.arc = arc
 	# Zona.
-	while _zone_i + 1 < _zones.size() and _arc >= float(_zones[_zone_i + 1]["arc"]):
-		_zone_i += 1
-		_toast = String(_zones[_zone_i]["name"])
-		_toast_t = 1.6
-		if _hot():
-			Audio.sfx(&"claim", -8.0)
+	while r.zone_i + 1 < _zones.size() and r.arc >= float(_zones[r.zone_i + 1]["arc"]):
+		r.zone_i += 1
+		r.ev_zone = true
 	# Punto de control (al pisar el inicio de la zona).
-	while _cp_i + 1 < _cps.size() and _grounded:
-		var nxt: Dictionary = _cps[_cp_i + 1]
+	while r.cp_i + 1 < _cps.size() and r.grounded:
+		var nxt: Dictionary = _cps[r.cp_i + 1]
 		var npos: Vector3 = nxt["pos"]
-		if Vector2(_p.x - npos.x, _p.z - npos.z).length() < 3.2 and absf(_p.y - npos.y) < 2.0:
-			_cp_i += 1
-			if _hot():
-				Audio.sfx(&"coin", -9.0)
+		if Vector2(r.p.x - npos.x, r.p.z - npos.z).length() < 3.2 and absf(r.p.y - npos.y) < 2.0:
+			r.cp_i += 1
+			r.ev_cp = true
 		else:
 			break
 
-func _path_yaw() -> float:
-	var i := clampi(_seg, 0, _path.size() - 2)
+func _path_yaw_at(seg: int) -> float:
+	var i := clampi(seg, 0, _path.size() - 2)
 	var d := _path[i + 1] - _path[i]
 	d.y = 0.0
 	if d.length() < 0.01:
-		return _yaw
+		return 0.0
 	return atan2(d.x, d.z)
 
-func _hot() -> bool:
-	return local_player != null and is_audible(local_player)
+func _path_yaw(r: RS) -> float:
+	var i := clampi(r.seg, 0, _path.size() - 2)
+	var d := _path[i + 1] - _path[i]
+	d.y = 0.0
+	if d.length() < 0.01:
+		return r.yaw
+	return atan2(d.x, d.z)
+
+## ¿Suena lo de este corredor en este PC?
+func _mine(r: RS) -> bool:
+	var pl := _player_by_id(r.id)
+	return pl != null and is_audible(pl)
+
+func _player_by_id(id: int) -> PlayerData:
+	for pl in players:
+		if pl.id == id:
+			return pl
+	return null
 
 # ----------------------------------------------------------------------------
-# Ciclo del minijuego
+# Ciclo del minijuego (el host simula a todos)
 # ----------------------------------------------------------------------------
 
 func _on_prepare() -> void:
 	_ensure_level()
+	_setup_runners()
 	_build_world()
 	surface.draw_callback = _draw_hud
 
 func _on_start() -> void:
 	_ensure_level()
-	_reset_state()
+	_setup_runners()
+	_rebuild_runner_nodes()
 	_accum = 0.0
 	_cd = COUNTDOWN
 	_last_cd = 99
+	_over = false
+	_over_t = 0.0
+	_first_finish_t = -1.0
+	_finish_order.clear()
+	_winner_id = -1
 	_hint_t = 7.0
-	_bot_rng.seed = hash([seed_value, local_player.id if local_player != null else 0])
-	_cam_pos = _p - _fwd(_yaw) * 5.0 + Vector3(0, 3.0, 0)
+	_toast = ""
+	_toast_t = 0.0
+	var cs := _cam_runner()
+	if cs != null:
+		_cam_pos = cs.p - _fwd(cs.yaw) * 5.0 + Vector3(0, 3.0, 0)
 
-func _play(delta: float) -> void:
-	if local_player == null:
+func _simulate(delta: float) -> void:
+	if _over:
+		_over_t += delta
+		if _over_t >= DONE_DELAY:
+			finish(_ranking_ids())
+		else:
+			_t += delta
+			_update_solids()
+			var la := _leader_arc()
+			for id in _order:
+				_sim_step(_rs[id] as RS, delta, Vector3.ZERO, false, la)
+				_collect_events(_rs[id] as RS)
 		return
-	_anim += delta
 	if _cd > 0.0:
 		var c := ceili(_cd)
 		if c != _last_cd:
 			_last_cd = c
-			if _hot():
-				Audio.sfx(&"beep", -7.0)
+			send_event("beep", null)
 		_cd -= delta
-		if _cd <= 0.0 and _hot():
-			Audio.sfx(&"beep_go", -5.0)
+		if _cd <= 0.0:
+			send_event("go", null)
 		return
-	_hint_t = maxf(0.0, _hint_t - delta)
-	# La cámara gira poco a poco hacia donde va el recorrido; el movimiento es relativo a ella.
-	_yaw = lerp_angle(_yaw, _path_yaw(), 1.0 - exp(-2.2 * delta))
-	var inp := move_input(local_player)
-	if action_presses(local_player) > 0:
-		_jump_pending = true
-	var fwd := _fwd(_yaw)
-	var rgt := _rgt(_yaw)
-	var dir := (rgt * inp.x + fwd * (-inp.y))
-	if dir.length() > 1.0:
-		dir = dir.normalized()
+	# Entrada de cada jugador (una lectura por fotograma). El movimiento es relativo a la cámara de cada uno.
+	var dirs: Dictionary = {}
+	for pl in players:
+		var r: RS = _rs[pl.id]
+		r.yaw = lerp_angle(r.yaw, _path_yaw(r), 1.0 - exp(-2.2 * delta))
+		var inp := move_input(pl)
+		if action_presses(pl) > 0:
+			r.jump_pending = true
+		var d := _rgt(r.yaw) * inp.x + _fwd(r.yaw) * (-inp.y)
+		if d.length() > 1.0:
+			d = d.normalized()
+		dirs[pl.id] = d
+		if d.length() > 0.2 and not r.done:
+			r.face = lerp_angle(r.face, atan2(d.x, d.z), 1.0 - exp(-14.0 * delta))
 	_accum += delta
 	var steps := 0
 	while _accum >= STEP and steps < 12:
 		_accum -= STEP
 		steps += 1
-		_sim_step(STEP, dir, _jump_pending)
-		_jump_pending = false
-		if _jump_ev:
-			_burst_land = true
-			if _hot():
-				Audio.sfx(&"jump", -7.0)
-		if _land_ev:
-			_burst_land = true
-			if _hot():
-				Audio.sfx(&"land", -13.0)
-	if dir.length() > 0.2 and not _done:
-		_face = lerp_angle(_face, atan2(dir.x, dir.z), 1.0 - exp(-14.0 * delta))
+		_t += STEP
+		_update_solids()
+		var la2 := _leader_arc()
+		for pl in players:
+			var r2: RS = _rs[pl.id]
+			_sim_step(r2, STEP, dirs[pl.id] as Vector3, r2.jump_pending, la2)
+			r2.jump_pending = false
+			_collect_events(r2)
+	# ¿Se acaba?
+	var all_done := true
+	for id in _order:
+		if not (_rs[id] as RS).done:
+			all_done = false
+	if _first_finish_t < 0.0 and not _finish_order.is_empty():
+		_first_finish_t = _t
+	var grace_over := _first_finish_t >= 0.0 and _t - _first_finish_t >= FIRST_FINISH_GRACE
+	if all_done or grace_over or _t >= TIME_LIMIT:
+		_over = true
+		_over_t = 0.0
+		for id in _order:
+			(_rs[id] as RS).done = true
+		_winner_id = _finish_order[0] if not _finish_order.is_empty() else _best_by_distance()
+		send_event("over", {"w": _winner_id})
+		DevCli.log_event("ruins over winner=%d finished=%d" % [_winner_id, _finish_order.size()])
+
+func _best_by_distance() -> int:
+	var best := -1
+	var ba := -1.0
+	for id in _order:
+		var r: RS = _rs[id]
+		if r.arc > ba:
+			ba = r.arc
+			best = id
+	return best
+
+func _collect_events(r: RS) -> void:
+	if r.ev_jump:
+		send_event("jump", {"p": r.id})
+	if r.ev_land:
+		send_event("land", {"p": r.id})
+	if r.ev_fall:
+		send_event("fall", {"p": r.id})
+	if r.ev_bar:
+		send_event("bar", {"p": r.id})
+	if r.ev_cp:
+		send_event("cp", {"p": r.id, "i": r.cp_i})
+	if r.ev_zone:
+		send_event("zone", {"p": r.id, "i": r.zone_i})
+	if r.ev_fin:
+		_finish_order.append(r.id)
+		send_event("fin", {"p": r.id, "n": _finish_order.size(), "t": r.ftime})
+	r.ev_jump = false
+	r.ev_land = false
+	r.ev_fall = false
+	r.ev_bar = false
+	r.ev_cp = false
+	r.ev_zone = false
+	r.ev_fin = false
+
+## Orden de la carrera: primero los que han llegado (por tiempo), luego el resto por distancia.
+func _ranking_ids() -> Array[int]:
+	var ids: Array[int] = []
+	for id in _order:
+		ids.append(id)
+	ids.sort_custom(func(a: int, b: int) -> bool:
+		var sa: RS = _rs[a]
+		var sb: RS = _rs[b]
+		if sa.finished != sb.finished:
+			return sa.finished
+		if sa.finished and not is_equal_approx(sa.ftime, sb.ftime):
+			return sa.ftime < sb.ftime
+		if not sa.finished and not is_equal_approx(sa.arc, sb.arc):
+			return sa.arc > sb.arc
+		return a < b)
+	return ids
+
+func _place_of(id: int) -> int:
+	return _ranking_ids().find(id) + 1
+
+# ----------------------------------------------------------------------------
+# Red: el host envía el estado de todos; los eventos suenan/animan en cada PC
+# ----------------------------------------------------------------------------
+
+func _serialize_state() -> Variant:
+	var arr := PackedFloat32Array()
+	for id in _order:
+		var r: RS = _rs[id]
+		arr.append_array(PackedFloat32Array([r.p.x, r.p.y, r.p.z, r.v.x, r.v.y, r.v.z, r.yaw, r.face,
+				1.0 if r.grounded else 0.0, r.stun, 1.0 if r.respawn_t < 0.0 or r.respawn_t > RESPAWN_DELAY * 0.5 else 0.0,
+				1.0 if r.done else 0.0, r.ftime if r.finished else -1.0, float(r.falls), r.arc, float(r.cp_i), float(r.zone_i),
+				float(r.gs)]))
+	return {"r": arr, "t": _t, "cd": _cd, "o": _over, "w": _winner_id}
+
+func _apply_state(state: Variant) -> void:
+	if not state is Dictionary:
+		return
+	var st: Dictionary = state
+	_t = float(st.get("t", _t))
+	_cd = float(st.get("cd", _cd))
+	_over = bool(st.get("o", _over))
+	_winner_id = int(st.get("w", _winner_id))
+	var arr: Variant = st.get("r")
+	if not arr is PackedFloat32Array or arr.size() < _order.size() * FLOATS:
+		return
+	for i in _order.size():
+		var r: RS = _rs[_order[i]]
+		var o := i * FLOATS
+		r.p = Vector3(arr[o], arr[o + 1], arr[o + 2])
+		r.v = Vector3(arr[o + 3], arr[o + 4], arr[o + 5])
+		r.yaw = arr[o + 6]
+		r.face = arr[o + 7]
+		r.grounded = arr[o + 8] > 0.5
+		r.stun = arr[o + 9]
+		r.respawn_t = -1.0 if arr[o + 10] > 0.5 else 0.0
+		r.done = arr[o + 11] > 0.5
+		var ft: float = arr[o + 12]
+		r.finished = ft >= 0.0
+		if r.finished:
+			r.ftime = ft
+		r.falls = int(arr[o + 13])
+		r.arc = arr[o + 14]
+		r.cp_i = int(arr[o + 15])
+		r.zone_i = int(arr[o + 16])
+		r.gs = int(arr[o + 17])
+
+func _on_event(event_name: String, data: Variant) -> void:
+	var d: Dictionary = data if data is Dictionary else {}
+	var r: RS = _rs.get(int(d.get("p", -1)))
+	match event_name:
+		"beep":
+			Audio.sfx(&"beep", -7.0)
+		"go":
+			Audio.sfx(&"beep_go", -5.0)
+		"jump":
+			if r != null:
+				r.burst = true
+				if _mine(r):
+					Audio.sfx(&"jump", -7.0)
+		"land":
+			if r != null:
+				r.burst = true
+				if _mine(r):
+					Audio.sfx(&"land", -13.0)
+		"fall":
+			if r != null:
+				r.burst_fall = true
+				if _mine(r):
+					Audio.sfx(&"splash", -6.0)
+					_toast = "¡A LA NIEBLA!"
+					_toast_t = 1.0
+		"bar":
+			if r != null and _mine(r):
+				_shake = 0.5
+				Audio.sfx(&"thud", -4.0)
+		"cp":
+			if r != null and _mine(r):
+				Audio.sfx(&"coin", -9.0)
+		"zone":
+			if r != null and _mine(r):
+				Audio.sfx(&"claim", -8.0)
+				_toast = String(_zones[int(d.get("i", 0))]["name"])
+				_toast_t = 1.6
+		"fin":
+			if r != null:
+				Audio.sfx(&"fanfare_small" if _mine(r) else &"swish", -5.0)
+		"over":
+			_winner_id = int(d.get("w", -1))
 
 func _animate(delta: float) -> void:
 	_shake = maxf(0.0, _shake - delta * 2.5)
 	_toast_t = maxf(0.0, _toast_t - delta)
+	_anim += delta
+	if _cd <= 0.0:
+		_hint_t = maxf(0.0, _hint_t - delta)
+	# Tiempo de carrera suavizado (en los clientes llega a ~30 Hz).
+	if is_authority:
+		_t_vis = _t
+	else:
+		_t_vis += delta if _cd <= 0.0 else 0.0
+		if absf(_t_vis - _t) > 0.25:
+			_t_vis = _t
+		else:
+			_t_vis = lerpf(_t_vis, _t, 0.1)
 	_update_world(delta)
-	if _done:
-		_done_t += delta
-		if _done_t >= DONE_DELAY and not _reported:
-			if _finished_race:
-				report_result(snappedf(_total, 0.1), snappedf(_ftime, 0.01))
-			else:
-				report_result(snappedf(_arc, 0.1), TIME_LIMIT)
 
+# ----------------------------------------------------------------------------
 # ----------------------------------------------------------------------------
 # IA (bots, autopiloto, práctica): sigue la ruta guardada, salta en los bordes y esquiva la barra
 # ----------------------------------------------------------------------------
@@ -679,81 +911,90 @@ func _support_at(x: float, z: float, lo: float, hi: float) -> bool:
 				return true
 	return false
 
-func _bot_decide() -> Vector3:
-	_bot_jump = false
-	if _respawn_t >= 0.0 or _done or _route.is_empty():
+func _lane_off(nd: Dictionary, r: RS) -> float:
+	var m := maxf(float(nd["hw"]) - 0.9, 0.0)
+	return clampf(r.lane, -m, m)
+
+func _route_target(nd: Dictionary, r: RS) -> Vector3:
+	return (nd["p"] as Vector3) + (nd["rgt"] as Vector3) * _lane_off(nd, r)
+
+func _bot_decide(r: RS, sk: float) -> Vector3:
+	r.bot_jump = false
+	if r.respawn_t >= 0.0 or r.done or _route.is_empty():
 		return Vector3.ZERO
-	_bi = clampi(_bi, 0, _route.size() - 1)
+	r.bi = clampi(r.bi, 0, _route.size() - 1)
 	# Avanza por la ruta.
-	while _bi < _route.size() - 1:
-		var nd: Dictionary = _route[_bi]
-		var np: Vector3 = nd["p"]
+	while r.bi < _route.size() - 1:
+		var nd: Dictionary = _route[r.bi]
+		var np: Vector3 = _route_target(nd, r)
 		var mv := int(nd["mover"])
 		var reached := false
 		if mv >= 0:
-			reached = _gs == mv
+			reached = r.gs == mv
 		else:
-			reached = Vector2(_p.x - np.x, _p.z - np.z).length() < 1.0 and absf(_p.y - np.y) < 1.6
+			reached = Vector2(r.p.x - np.x, r.p.z - np.z).length() < 1.0 and absf(r.p.y - np.y) < 1.6
 		if reached:
-			_bi += 1
+			r.bi += 1
 		else:
 			break
-	var node: Dictionary = _route[_bi]
-	var target: Vector3 = node["p"]
+	var node: Dictionary = _route[r.bi]
+	var target: Vector3 = _route_target(node, r)
 	var mvi := int(node["mover"])
 	if mvi >= 0:
 		var ms := _solids[mvi]
-		target = ms.c + Vector3(0, ms.h.y, 0)
+		target = ms.c + Vector3(0, ms.h.y, 0) + (node["rgt"] as Vector3) * _lane_off(node, r)
 		var vel := ms.move_dir * (ms.amp * ms.freq * cos(ms.ph + ms.freq * _t))
 		target += vel * 0.45
-	var to := Vector3(target.x - _p.x, 0, target.z - _p.z)
+	var to := Vector3(target.x - r.p.x, 0, target.z - r.p.z)
 	var dist := to.length()
 	var dir := to / maxf(dist, 0.001)
-	var sk := clampf(debug_skill, 0.0, 1.0)
 	# Esperar en el borde, alineado con la losa móvil.
-	if mvi >= 0 and _gs != mvi and _grounded:
+	if mvi >= 0 and r.gs != mvi and r.grounded:
 		var ms2 := _solids[mvi]
-		var lat := Vector3(ms2.c.x - _p.x, 0, ms2.c.z - _p.z)
+		var lat := Vector3(ms2.c.x - r.p.x, 0, ms2.c.z - r.p.z)
 		var lat_off := lat.dot(ms2.move_dir)
-		var ahead_free := not _support_at(_p.x + dir.x * 1.0, _p.z + dir.z * 1.0, _p.y - 0.7, _p.y + STEP_H)
+		var ahead_free := not _support_at(r.p.x + dir.x * 1.0, r.p.z + dir.z * 1.0, r.p.y - 0.7, r.p.y + STEP_H)
 		if absf(lat_off) > 1.0 and lat.length() < 6.5 and ahead_free:
 			return ms2.move_dir * signf(lat_off) * clampf(absf(lat_off), 0.0, 1.0)
 	# Barra giratoria: salta cuando está a punto de pasar por encima.
-	if _grounded:
+	if r.grounded:
 		for b in _bars:
-			if Vector2(_p.x - b.pivot.x, _p.z - b.pivot.z).length() < b.half_len + 1.5 and absf(_p.y - b.pivot.y) < 1.0:
-				if _bar_dist(b, _t + 0.16, _p) < 1.15 or _bar_dist(b, _t, _p) < 1.15:
-					_bot_jump = true
+			if Vector2(r.p.x - b.pivot.x, r.p.z - b.pivot.z).length() < b.half_len + 1.5 and absf(r.p.y - b.pivot.y) < 1.0:
+				if _bar_dist(b, _t + 0.16, r.p) < 1.15 or _bar_dist(b, _t, r.p) < 1.15:
+					r.bot_jump = true
 	# Bordes y muros: saltar.
-	if _grounded and dist > 1.0:
+	if r.grounded and dist > 1.0:
 		var probe := 0.9
-		var supported := _support_at(_p.x + dir.x * probe, _p.z + dir.z * probe, _p.y - 0.7, _p.y + STEP_H)
-		var wall := _support_at(_p.x + dir.x * 0.9, _p.z + dir.z * 0.9, _p.y + STEP_H + 0.02, _p.y + 1.7)
+		var supported := _support_at(r.p.x + dir.x * probe, r.p.z + dir.z * probe, r.p.y - 0.7, r.p.y + STEP_H)
+		var wall := _support_at(r.p.x + dir.x * 0.9, r.p.z + dir.z * 0.9, r.p.y + STEP_H + 0.02, r.p.y + 1.7)
 		if wall:
-			_bot_jump = true
-		elif not supported and target.y > _p.y - 4.0:
-			_bot_jump = true
-	if sk < 1.0 and _bot_jump and _bot_rng.randf() < (1.0 - sk) * 0.05:
-		_bot_jump = false
+			r.bot_jump = true
+		elif not supported and target.y > r.p.y - 4.0:
+			r.bot_jump = true
+	if sk < 1.0 and r.bot_jump and r.bot_rng.randf() < (1.0 - sk) * 0.05:
+		r.bot_jump = false
 	# En el aire se frena para caer sobre la losa y no pasarse de largo.
-	if not _grounded and dist > 0.5:
-		var tl := (_v.y + sqrt(maxf(_v.y * _v.y + 2.0 * GRAVITY * (_p.y - target.y), 0.0))) / GRAVITY
+	if not r.grounded and dist > 0.5:
+		var tl := (r.v.y + sqrt(maxf(r.v.y * r.v.y + 2.0 * GRAVITY * (r.p.y - target.y), 0.0))) / GRAVITY
 		var want_speed := maxf(dist - 0.6, 0.0) / maxf(tl, 0.05)
 		dir *= clampf(want_speed / RUN_SPEED, 0.12, 1.0)
 	return dir
 
 func _bot_move(player: PlayerData) -> Vector2:
-	if player != local_player:
+	var r: RS = _rs.get(player.id)
+	if r == null:
 		return Vector2.ZERO
-	var d := _bot_decide()
-	# Entrada relativa a la cámara: x = derecha, y = (-adelante).
-	return Vector2(d.dot(_rgt(_yaw)), -d.dot(_fwd(_yaw)))
+	var sk := r.skill if debug_skill < 0.0 else debug_skill
+	var d := _bot_decide(r, sk)
+	# Entrada relativa a la cámara de este corredor: x = derecha, y = (-adelante).
+	return Vector2(d.dot(_rgt(r.yaw)), -d.dot(_fwd(r.yaw)))
 
 func _bot_action(player: PlayerData) -> int:
-	if player != local_player:
+	var r: RS = _rs.get(player.id)
+	if r == null:
 		return 0
-	var v := 1 if _bot_jump else 0
-	_bot_jump = false
+	var v := 1 if r.bot_jump else 0
+	r.bot_jump = false
 	return v
 
 func _bot_action_held(_player: PlayerData) -> bool:
@@ -1152,14 +1393,8 @@ func _build_world() -> void:
 		rock.position = rp
 		rock.rotation = Vector3(dr.randf_range(0, 3), dr.randf_range(0, 3), dr.randf_range(0, 3))
 		_debris.append({"n": rock, "y": rp.y, "ph": dr.randf_range(0.0, TAU), "sp": dr.randf_range(0.3, 0.8), "rot": Vector3(dr.randf_range(-0.3, 0.3), dr.randf_range(-0.4, 0.4), dr.randf_range(-0.3, 0.3))})
-	# --- Personaje, partículas y cámara ---
-	_build_player()
-	_run_dust = _particles(Color(1.0, 0.88, 0.7, 0.6), 10, 0.5, false, 0.09, 0.4, 1.2, 45.0, Vector3(0, 0.6, 0))
-	_root3.add_child(_run_dust)
-	_land_puff = _particles(Color(1.0, 0.88, 0.7, 0.7), 12, 0.45, true, 0.1, 1.0, 2.6, 85.0, Vector3(0, -2.0, 0))
-	_root3.add_child(_land_puff)
-	_fall_puff = _particles(Color(1.0, 0.93, 0.8, 0.9), 26, 0.9, true, 0.3, 2.0, 5.5, 55.0, Vector3(0, -3.0, 0))
-	_root3.add_child(_fall_puff)
+	# --- Corredores (uno por jugador), motas de luz y cámara ---
+	_rebuild_runner_nodes()
 	_motes = _particles(Color(1.0, 0.86, 0.5, 0.75), 70, 5.0, false, 0.05, 0.0, 0.25, 180.0, Vector3(0, 0.12, 0), true)
 	_motes.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
 	_motes.emission_box_extents = Vector3(14.0, 7.0, 14.0)
@@ -1198,69 +1433,111 @@ func _gate_glow_mat() -> StandardMaterial3D:
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return m
 
-## El personaje: un explorador con gorro de pompón, bufanda-capa que ondea, mochila, brazos y piernas que se mueven.
-func _build_player() -> void:
-	_pl = Node3D.new()
-	_root3.add_child(_pl)
-	var col: Color = local_player.color if local_player != null else Palette.YELLOW
+## Crea (o recrea) el modelo 3D de cada corredor, con su nombre flotando encima.
+func _rebuild_runner_nodes() -> void:
+	if not _built:
+		return
+	for id in _order:
+		var r: RS = _rs[id]
+		for n in [r.node, r.shadow, r.dust, r.puff]:
+			if n != null and is_instance_valid(n):
+				(n as Node).queue_free()
+		_build_runner(r, _player_by_id(id))
+
+## El personaje: un explorador con gorro de pompón, capa que ondea, mochila, brazos y piernas que se mueven.
+func _build_runner(r: RS, pl: PlayerData) -> void:
+	r.node = Node3D.new()
+	_root3.add_child(r.node)
+	var col: Color = pl.color if pl != null else Palette.YELLOW
 	var dark := col.darkened(0.35)
 	var skin := Color(1.0, 0.86, 0.7)
-	_pl_body = Node3D.new()
-	_pl.add_child(_pl_body)
+	r.body = Node3D.new()
+	r.node.add_child(r.body)
+	var body := r.body
 	# Torso y cabeza.
-	_capsule(_pl_body, 0.34, 0.96, Vector3(0, 0.82, 0), _toon(col))
-	_mesh(_pl_body, _cyl(0.355, 0.1), Vector3(0, 0.62, 0), _toon(dark, 0.0, 0.02))       # cinturón
-	_sphere(_pl_body, 0.34, Vector3(0, 1.5, 0), _toon(skin))
+	_capsule(body, 0.34, 0.96, Vector3(0, 0.82, 0), _toon(col))
+	_mesh(body, _cyl(0.355, 0.1), Vector3(0, 0.62, 0), _toon(dark, 0.0, 0.02))       # cinturón
+	_sphere(body, 0.34, Vector3(0, 1.5, 0), _toon(skin))
 	# Gorro con pompón.
-	var hat := _sphere(_pl_body, 0.375, Vector3(0, 1.64, -0.015), _toon(col.lightened(0.1)))
+	var hat := _sphere(body, 0.375, Vector3(0, 1.64, -0.015), _toon(col.lightened(0.1)))
 	hat.scale = Vector3(1.0, 0.72, 1.0)
-	_mesh(_pl_body, _cyl(0.375, 0.1), Vector3(0, 1.5, -0.01), _toon(dark, 0.0, 0.02))      # ala del gorro
-	_sphere(_pl_body, 0.11, Vector3(0, 1.98, -0.02), _toon(Color.WHITE, 0.15))
+	_mesh(body, _cyl(0.375, 0.1), Vector3(0, 1.5, -0.01), _toon(dark, 0.0, 0.02))      # ala del gorro
+	_sphere(body, 0.11, Vector3(0, 1.98, -0.02), _toon(Color.WHITE, 0.15))
 	# Cara (se ve al arrancar y al llegar): ojos y sonrisa.
 	for sx in [-1.0, 1.0]:
-		_sphere(_pl_body, 0.07, Vector3(sx * 0.13, 1.5, 0.3), _mat(Color(0.12, 0.08, 0.1), 0.0, 0.2))
-		_sphere(_pl_body, 0.025, Vector3(sx * 0.13 + 0.02, 1.53, 0.36), _mat(Color.WHITE, 0.5, 0.2))
-	var smile := _box(_pl_body, Vector3(0.14, 0.03, 0.03), Vector3(0, 1.38, 0.32), _mat(Color(0.5, 0.2, 0.2)))
+		_sphere(body, 0.07, Vector3(sx * 0.13, 1.5, 0.3), _mat(Color(0.12, 0.08, 0.1), 0.0, 0.2))
+		_sphere(body, 0.025, Vector3(sx * 0.13 + 0.02, 1.53, 0.36), _mat(Color.WHITE, 0.5, 0.2))
+	var smile := _box(body, Vector3(0.14, 0.03, 0.03), Vector3(0, 1.38, 0.32), _mat(Color(0.5, 0.2, 0.2)))
 	smile.rotation.x = 0.1
 	# Mochila y capa.
-	_box(_pl_body, Vector3(0.5, 0.55, 0.25), Vector3(0, 0.95, -0.38), _toon(Color(0.62, 0.42, 0.28)))
-	_box(_pl_body, Vector3(0.52, 0.14, 0.27), Vector3(0, 1.17, -0.38), _toon(Color(0.45, 0.28, 0.2)))
-	_cape = Node3D.new()
-	_cape.position = Vector3(0, 1.18, -0.3)
-	_pl_body.add_child(_cape)
-	_box(_cape, Vector3(0.5, 0.72, 0.04), Vector3(0, -0.36, -0.1), _mat(dark.lerp(Color(0.6, 0.3, 0.2), 0.3), 0.0, 0.8))
-	_box(_cape, Vector3(0.52, 0.07, 0.05), Vector3(0, -0.72, -0.1), _mat(Color(1.0, 0.8, 0.3), 0.3, 0.5))
+	_box(body, Vector3(0.5, 0.55, 0.25), Vector3(0, 0.95, -0.38), _toon(Color(0.62, 0.42, 0.28)))
+	_box(body, Vector3(0.52, 0.14, 0.27), Vector3(0, 1.17, -0.38), _toon(Color(0.45, 0.28, 0.2)))
+	r.cape = Node3D.new()
+	r.cape.position = Vector3(0, 1.18, -0.3)
+	body.add_child(r.cape)
+	_box(r.cape, Vector3(0.5, 0.72, 0.04), Vector3(0, -0.36, -0.1), _mat(dark.lerp(Color(0.6, 0.3, 0.2), 0.3), 0.0, 0.8))
+	_box(r.cape, Vector3(0.52, 0.07, 0.05), Vector3(0, -0.72, -0.1), _mat(Color(1.0, 0.8, 0.3), 0.3, 0.5))
 	# Brazos y piernas (con pivote en hombro / cadera).
-	_arm_l = Node3D.new()
-	_arm_l.position = Vector3(-0.42, 1.15, 0)
-	_pl_body.add_child(_arm_l)
-	_arm_r = Node3D.new()
-	_arm_r.position = Vector3(0.42, 1.15, 0)
-	_pl_body.add_child(_arm_r)
+	r.arm_l = Node3D.new()
+	r.arm_l.position = Vector3(-0.42, 1.15, 0)
+	body.add_child(r.arm_l)
+	r.arm_r = Node3D.new()
+	r.arm_r.position = Vector3(0.42, 1.15, 0)
+	body.add_child(r.arm_r)
 	var arm_mat := _toon(col)
-	_capsule(_arm_l, 0.095, 0.56, Vector3(0, -0.24, 0), arm_mat)
-	_capsule(_arm_r, 0.095, 0.56, Vector3(0, -0.24, 0), arm_mat)
-	_sphere(_arm_l, 0.1, Vector3(0, -0.5, 0), _toon(skin, 0.0, 0.02))
-	_sphere(_arm_r, 0.1, Vector3(0, -0.5, 0), _toon(skin, 0.0, 0.02))
-	_leg_l = Node3D.new()
-	_leg_l.position = Vector3(-0.16, 0.5, 0)
-	_pl_body.add_child(_leg_l)
-	_leg_r = Node3D.new()
-	_leg_r.position = Vector3(0.16, 0.5, 0)
-	_pl_body.add_child(_leg_r)
+	for arm in [r.arm_l, r.arm_r]:
+		_capsule(arm, 0.095, 0.56, Vector3(0, -0.24, 0), arm_mat)
+		_sphere(arm, 0.1, Vector3(0, -0.5, 0), _toon(skin, 0.0, 0.02))
+	r.leg_l = Node3D.new()
+	r.leg_l.position = Vector3(-0.16, 0.5, 0)
+	body.add_child(r.leg_l)
+	r.leg_r = Node3D.new()
+	r.leg_r.position = Vector3(0.16, 0.5, 0)
+	body.add_child(r.leg_r)
 	var leg_mat := _toon(dark)
 	var shoe_mat := _toon(Color(0.4, 0.26, 0.18), 0.0, 0.02)
-	for leg in [_leg_l, _leg_r]:
+	for leg in [r.leg_l, r.leg_r]:
 		_capsule(leg, 0.12, 0.5, Vector3(0, -0.2, 0), leg_mat)
 		_box(leg, Vector3(0.24, 0.13, 0.36), Vector3(0, -0.44, 0.06), shoe_mat)
-	# Sombra bajo los pies.
-	var sh := _cyl(0.55, 0.02)
+	# Nombre flotando encima (y una flecha sobre el jugador de este PC).
+	var is_me := pl != null and pl == local_player
+	var tag := Label3D.new()
+	tag.text = ("▼ " if is_me else "") + (pl.display_name if pl != null else "")
+	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	tag.no_depth_test = true
+	tag.pixel_size = 0.0105 if is_me else 0.0085
+	tag.font_size = 64
+	tag.outline_size = 22
+	tag.modulate = Palette.YELLOW if is_me else Color.WHITE
+	tag.outline_modulate = Palette.PURPLE_DARK
+	tag.position = Vector3(0, 2.55, 0)
+	r.node.add_child(tag)
+	# Sombra bajo los pies y partículas propias.
 	var sm := StandardMaterial3D.new()
 	sm.albedo_color = Color(0.2, 0.08, 0.02, 0.38)
 	sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_shadow = _mesh(_root3, sh, Vector3.ZERO, sm)
-	_shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	r.shadow = _mesh(_root3, _cyl(0.55, 0.02), Vector3.ZERO, sm)
+	r.shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	r.dust = _particles(Color(1.0, 0.88, 0.7, 0.6), 10, 0.5, false, 0.09, 0.4, 1.2, 45.0, Vector3(0, 0.6, 0))
+	_root3.add_child(r.dust)
+	r.puff = _particles(Color(1.0, 0.88, 0.7, 0.7), 12, 0.45, true, 0.1, 1.0, 2.6, 85.0, Vector3(0, -2.0, 0))
+	_root3.add_child(r.puff)
+	r.dp = r.p
+	r.dyaw = r.yaw
+	r.dface = r.face
+	r.node.position = r.p
+
+## El corredor que sigue la cámara: el de este PC; si no hay (varios en un mismo PC), el que va primero.
+func _cam_runner() -> RS:
+	if local_player != null and _rs.has(local_player.id):
+		return _rs[local_player.id]
+	var best: RS = null
+	for id in _order:
+		var r: RS = _rs[id]
+		if best == null or r.arc > best.arc:
+			best = r
+	return best
 
 ## Altura de la superficie bajo (x, z) por debajo de `y` (para la sombra).
 func _floor_under(x: float, z: float, y: float) -> float:
@@ -1275,71 +1552,79 @@ func _floor_under(x: float, z: float, y: float) -> float:
 func _update_world(delta: float) -> void:
 	if not _built or _cam == null:
 		return
+	# Losas móviles y barra giratoria (con el tiempo de carrera suavizado).
 	for s in _solids:
 		if s.node != null and s.amp != 0.0:
-			s.node.position = s.c
+			s.node.position = s.c0 + s.move_dir * (s.amp * sin(s.ph + s.freq * _t_vis))
 	for b in _bars:
 		if b.node != null:
-			b.node.rotation.y = -_bar_angle(b, _t)
-	# Personaje.
-	_pl.position = _p
-	_pl.visible = _respawn_t < 0.0 or _respawn_t > RESPAWN_DELAY * 0.5
-	_pl.rotation.y = _face
-	var speed_h := Vector2(_v.x, _v.z).length()
-	var running := _grounded and speed_h > 1.0 and not _done
-	var ph := _anim * (6.0 + speed_h * 0.9)
-	var swing := clampf(speed_h / RUN_SPEED, 0.0, 1.0)
-	if running:
-		_leg_l.rotation.x = sin(ph) * 1.0 * swing
-		_leg_r.rotation.x = -sin(ph) * 1.0 * swing
-		_arm_l.rotation.x = -sin(ph) * 0.9 * swing
-		_arm_r.rotation.x = sin(ph) * 0.9 * swing
-		_pl_body.position.y = absf(sin(ph)) * 0.09 * swing
-	elif not _grounded:
-		_leg_l.rotation.x = -0.6 if _v.y > 0.0 else 0.4          # en el aire: una pierna adelante y otra atrás
-		_leg_r.rotation.x = 0.5 if _v.y > 0.0 else -0.3
-		_arm_l.rotation.x = -2.5 if _v.y > 0.0 else -1.3         # brazos arriba al saltar
-		_arm_r.rotation.x = -2.5 if _v.y > 0.0 else -1.3
-		_pl_body.position.y = 0.0
-	else:
-		var idle := sin(_anim * 2.2)
-		_leg_l.rotation.x = lerpf(_leg_l.rotation.x, 0.0, 0.3)
-		_leg_r.rotation.x = lerpf(_leg_r.rotation.x, 0.0, 0.3)
-		_arm_l.rotation.x = lerpf(_arm_l.rotation.x, 0.06 * idle, 0.3)
-		_arm_r.rotation.x = lerpf(_arm_r.rotation.x, -0.06 * idle, 0.3)
-		_pl_body.position.y = 0.012 * idle
-	_pl_body.rotation.x = 0.16 * swing + (0.0 if _grounded else (-0.18 if _v.y > 0 else 0.22))
-	# Estirar al saltar, achatar al caer (un poco de "jugo").
-	var squash := 1.0
-	if not _grounded:
-		squash = 1.0 + clampf(absf(_v.y) * 0.012, 0.0, 0.12)
-	_pl_body.scale = Vector3(1.0 / sqrt(squash), squash, 1.0 / sqrt(squash))
-	# La capa ondea hacia atrás cuanto más rápido vas.
-	_cape.rotation.x = 0.25 + 0.75 * swing + 0.16 * sin(_anim * 11.0 + 1.0) * (0.3 + swing) + (0.25 if not _grounded else 0.0)
-	_cape.rotation.z = 0.07 * sin(_anim * 7.0)
-	if _stun > 0.0:
-		_pl_body.rotation.x = -0.5
-		_arm_l.rotation.x = -2.2
-		_arm_r.rotation.x = -2.2
-	var fy := _floor_under(_p.x, _p.z, _p.y)
-	_shadow.visible = fy > -1e8
-	_shadow.position = Vector3(_p.x, fy + 0.03, _p.z)
-	var sc := clampf(1.0 - (_p.y - fy) * 0.12, 0.4, 1.0)
-	_shadow.scale = Vector3(sc, 1.0, sc)
-	# Polvo al correr, nubecitas al saltar/aterrizar y motas de luz alrededor.
-	_run_dust.position = Vector3(_p.x, _p.y + 0.05, _p.z)
-	_run_dust.emitting = running and speed_h > 3.0
-	_motes.position = Vector3(_p.x, _p.y + 2.5, _p.z)
-	if _burst_land:
-		_burst_land = false
-		_land_puff.position = Vector3(_p.x, _p.y + 0.05, _p.z)
-		_land_puff.restart()
-		_land_puff.emitting = true
-	if _burst_fall:
-		_burst_fall = false
-		_fall_puff.position = Vector3(_p.x, FALL_Y + 1.0, _p.z)
-		_fall_puff.restart()
-		_fall_puff.emitting = true
+			b.node.rotation.y = -_bar_angle(b, _t_vis)
+	var k := 1.0 if delta <= 0.0 else 1.0 - exp(-22.0 * delta)
+	for id in _order:
+		var r: RS = _rs[id]
+		if r.node == null:
+			continue
+		if r.dp.distance_to(r.p) > 6.0:
+			r.dp = r.p
+		else:
+			r.dp = r.dp.lerp(r.p, k)
+		r.dyaw = lerp_angle(r.dyaw, r.yaw, 1.0 if delta <= 0.0 else 1.0 - exp(-8.0 * delta))
+		r.dface = lerp_angle(r.dface, r.face, 1.0 if delta <= 0.0 else 1.0 - exp(-16.0 * delta))
+		r.anim += delta
+		r.node.position = r.dp
+		r.node.rotation.y = r.dface
+		r.node.visible = r.respawn_t < 0.0 or r.respawn_t > RESPAWN_DELAY * 0.5
+		var speed_h := Vector2(r.v.x, r.v.z).length()
+		var running := r.grounded and speed_h > 1.0 and not r.done
+		var ph := r.anim * (6.0 + speed_h * 0.9)
+		var swing := clampf(speed_h / RUN_SPEED, 0.0, 1.0)
+		if running:
+			r.leg_l.rotation.x = sin(ph) * 1.0 * swing
+			r.leg_r.rotation.x = -sin(ph) * 1.0 * swing
+			r.arm_l.rotation.x = -sin(ph) * 0.9 * swing
+			r.arm_r.rotation.x = sin(ph) * 0.9 * swing
+			r.body.position.y = absf(sin(ph)) * 0.09 * swing
+		elif not r.grounded:
+			r.leg_l.rotation.x = -0.6 if r.v.y > 0.0 else 0.4          # en el aire: una pierna adelante y otra atrás
+			r.leg_r.rotation.x = 0.5 if r.v.y > 0.0 else -0.3
+			r.arm_l.rotation.x = -2.5 if r.v.y > 0.0 else -1.3         # brazos arriba al saltar
+			r.arm_r.rotation.x = -2.5 if r.v.y > 0.0 else -1.3
+			r.body.position.y = 0.0
+		else:
+			var idle := sin(r.anim * 2.2)
+			r.leg_l.rotation.x = lerpf(r.leg_l.rotation.x, 0.0, 0.3)
+			r.leg_r.rotation.x = lerpf(r.leg_r.rotation.x, 0.0, 0.3)
+			r.arm_l.rotation.x = lerpf(r.arm_l.rotation.x, 0.06 * idle, 0.3)
+			r.arm_r.rotation.x = lerpf(r.arm_r.rotation.x, -0.06 * idle, 0.3)
+			r.body.position.y = 0.012 * idle
+		r.body.rotation.x = 0.16 * swing + (0.0 if r.grounded else (-0.18 if r.v.y > 0 else 0.22))
+		var squash := 1.0
+		if not r.grounded:
+			squash = 1.0 + clampf(absf(r.v.y) * 0.012, 0.0, 0.12)
+		r.body.scale = Vector3(1.0 / sqrt(squash), squash, 1.0 / sqrt(squash))
+		r.cape.rotation.x = 0.25 + 0.75 * swing + 0.16 * sin(r.anim * 11.0 + 1.0) * (0.3 + swing) + (0.25 if not r.grounded else 0.0)
+		r.cape.rotation.z = 0.07 * sin(r.anim * 7.0)
+		if r.stun > 0.0:
+			r.body.rotation.x = -0.5
+			r.arm_l.rotation.x = -2.2
+			r.arm_r.rotation.x = -2.2
+		var fy := _floor_under(r.dp.x, r.dp.z, r.dp.y)
+		r.shadow.visible = fy > -1e8 and r.node.visible
+		r.shadow.position = Vector3(r.dp.x, fy + 0.03, r.dp.z)
+		var sc := clampf(1.0 - (r.dp.y - fy) * 0.12, 0.4, 1.0)
+		r.shadow.scale = Vector3(sc, 1.0, sc)
+		r.dust.position = Vector3(r.dp.x, r.dp.y + 0.05, r.dp.z)
+		r.dust.emitting = running and speed_h > 3.0
+		if r.burst:
+			r.burst = false
+			r.puff.position = Vector3(r.dp.x, r.dp.y + 0.05, r.dp.z)
+			r.puff.restart()
+			r.puff.emitting = true
+		if r.burst_fall:
+			r.burst_fall = false
+			r.puff.position = Vector3(r.dp.x, FALL_Y + 1.0, r.dp.z)
+			r.puff.restart()
+			r.puff.emitting = true
 	# Escenario vivo: nubes que se desplazan, escombros que flotan, banderas de los puntos de control.
 	for i in _cloud_mats.size():
 		_cloud_mats[i].uv1_offset = Vector3(_anim * 0.0045 * (1.0 + 0.5 * i), _anim * 0.0022 * (1.0 + 0.3 * i), 0.0)
@@ -1347,16 +1632,20 @@ func _update_world(delta: float) -> void:
 		var rn: Node3D = d["n"]
 		rn.position.y = float(d["y"]) + sin(_anim * float(d["sp"]) + float(d["ph"])) * 0.5
 		rn.rotation += (d["rot"] as Vector3) * delta
+	var cs := _cam_runner()
+	var my_cp := cs.cp_i if cs != null else 0
 	for i in _cp_nodes.size():
-		var on := i <= _cp_i
+		var on := i <= my_cp
 		var cmat: StandardMaterial3D = _cp_nodes[i]["mat"]
 		cmat.albedo_color = Color(0.25, 1.0, 0.7) if on else Color(0.92, 0.92, 0.92)
 		cmat.emission_enabled = on
 		cmat.emission = Color(0.25, 1.0, 0.7)
 		cmat.emission_energy_multiplier = 1.2
-	# Cámara en tercera persona: detrás y arriba, mirando a tu personaje y un poco por delante.
-	var fwd := _fwd(_yaw)
-	var focus := _p + Vector3(0, 1.2, 0)
+	if cs == null:
+		return
+	# Cámara en tercera persona sobre TU personaje: detrás y arriba, mirando un poco por delante.
+	var fwd := _fwd(cs.dyaw)
+	var focus := cs.dp + Vector3(0, 1.2, 0)
 	var tgt := focus - fwd * 5.4 + Vector3(0, 2.9, 0)
 	if delta <= 0.0:
 		_cam_pos = tgt
@@ -1365,6 +1654,7 @@ func _update_world(delta: float) -> void:
 	var shake := Vector3(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0), 0.0) * _shake * 0.15
 	_cam.position = _cam_pos + shake
 	_cam.look_at(focus + fwd * 2.2 + Vector3(0, 0.2, 0), Vector3.UP)
+	_motes.position = Vector3(cs.dp.x, cs.dp.y + 2.5, cs.dp.z)
 
 # ----------------------------------------------------------------------------
 # HUD (dibujo 2D encima del 3D): minimapa del recorrido, progreso, tiempo
@@ -1382,7 +1672,9 @@ func _map_bounds() -> Rect2:
 
 func _draw_hud() -> void:
 	var s := surface
-	# Minimapa (arriba a la derecha): el recorrido visto desde arriba, con las zonas y tu posición.
+	var cs := _cam_runner()
+	var arc_me := cs.arc if cs != null else 0.0
+	# Minimapa (arriba a la derecha): el recorrido visto desde arriba, con las zonas y todos los corredores.
 	var box := Rect2(1050, 70, 200, 200)
 	s.rounded_rect(box.grow(8), 16, Color(0, 0, 0, 0.45))
 	var bnd := _map_bounds()
@@ -1397,27 +1689,39 @@ func _draw_hud() -> void:
 		var a := _to_map(_path[i], bnd, origin, sc)
 		var b := _to_map(_path[i + 1], bnd, origin, sc)
 		var zc: Color = zone_cols[zi % zone_cols.size()]
-		var passed := _cum[i + 1] <= _arc
+		var passed := _cum[i + 1] <= arc_me
 		s.draw_line(a, b, zc if passed else Color(zc.r, zc.g, zc.b, 0.45), 6.0)
 	for cp in _cps:
 		s.draw_circle(_to_map(cp["pos"], bnd, origin, sc), 3.5, Palette.WHITE)
 	s.draw_circle(_to_map(_goal, bnd, origin, sc), 6.0, Palette.YELLOW)
-	var me := _to_map(_p, bnd, origin, sc)
-	var col: Color = local_player.color if local_player != null else Palette.YELLOW
-	s.draw_circle(me, 7.5, Palette.WHITE)
-	s.draw_circle(me, 5.5, col)
-	# Progreso y tiempo.
-	var frac := clampf(_arc / _total, 0.0, 1.0)
-	s.text_centered(Vector2(640, 40), "%d %%" % int(100.0 * frac), 48, Palette.WHITE, 9)
+	for id in _order:
+		var r: RS = _rs[id]
+		var pl := _player_by_id(id)
+		var col: Color = pl.color if pl != null else Palette.WHITE
+		var mine := cs != null and r == cs
+		var pt := _to_map(r.dp, bnd, origin, sc)
+		s.draw_circle(pt, 8.5 if mine else 6.0, Palette.WHITE)
+		s.draw_circle(pt, 6.5 if mine else 4.2, col)
+	# Posición, progreso y tiempo.
+	var frac := clampf(arc_me / _total, 0.0, 1.0)
+	if cs != null:
+		s.text_centered(Vector2(640, 40), "%d.º de %d" % [_place_of(cs.id), _order.size()], 46, Palette.YELLOW, 9)
 	var bar := Rect2(440, 74, 400, 14)
 	s.rounded_rect(bar.grow(4), 10, Color(0, 0, 0, 0.45))
 	s.rounded_rect(Rect2(bar.position, Vector2(maxf(bar.size.x * frac, 14.0), bar.size.y)), 7, Palette.MINT)
-	var zname := String(_zones[_zone_i]["name"]) if _zones.size() > 0 else ""
+	for id in _order:
+		var r2: RS = _rs[id]
+		var pl2 := _player_by_id(id)
+		var c2: Color = pl2.color if pl2 != null else Palette.WHITE
+		var px := bar.position.x + bar.size.x * clampf(r2.arc / _total, 0.0, 1.0)
+		s.draw_circle(Vector2(px, bar.position.y + 7.0), 8.0, Palette.WHITE)
+		s.draw_circle(Vector2(px, bar.position.y + 7.0), 5.5, c2)
+	var zname := String(_zones[cs.zone_i]["name"]) if cs != null and _zones.size() > 0 else ""
 	s.text_centered(Vector2(640, 108), zname, 24, Color(1, 1, 1, 0.85), 5)
 	var left := maxi(0, ceili(TIME_LIMIT - _t))
 	s.text_centered(Vector2(120, 44), "%d s" % left, 40, Palette.YELLOW if left > 15 else Palette.CORAL, 8)
-	if _falls > 0:
-		s.text_centered(Vector2(120, 88), "Caídas: %d" % _falls, 22, Color(1, 1, 1, 0.8), 5)
+	if cs != null and cs.falls > 0:
+		s.text_centered(Vector2(120, 88), "Caídas: %d" % cs.falls, 22, Color(1, 1, 1, 0.8), 5)
 	if _toast_t > 0.0:
 		s.text_centered(Vector2(640, 220), _toast, 64, Color(1, 1, 1, clampf(_toast_t * 2.0, 0.0, 1.0)), 12)
 	if _cd > 0.0:
@@ -1426,17 +1730,16 @@ func _draw_hud() -> void:
 		s.text_centered(Vector2(640, 300), str(n), int(130.0 + 60.0 * frac_c), Palette.YELLOW, 16)
 	elif _t < 0.8:
 		s.text_centered(Vector2(640, 300), "¡YA!", 130, Palette.MINT, 16)
-	if _hint_t > 0.0 and not _done and _cd <= 0.0:
+	if _hint_t > 0.0 and not _over and _cd <= 0.0:
 		s.text_centered(Vector2(640, 670), "WASD / flechas para moverte  ·  ESPACIO o CLIC para saltar", 28, Color(1, 1, 1, clampf(_hint_t, 0.0, 1.0)), 7)
-	if _done:
-		if _finished_race:
-			s.text_centered(Vector2(640, 300), "¡META!", 100, Palette.YELLOW, 14)
-			if _done_t > 0.4:
-				s.text_centered(Vector2(640, 390), "%.2f s" % _ftime, 60, Palette.WHITE, 10)
-		else:
-			s.text_centered(Vector2(640, 300), "¡TIEMPO!", 90, Palette.CORAL, 14)
-			if _done_t > 0.4:
-				s.text_centered(Vector2(640, 390), "%d %%" % int(100.0 * frac), 60, Palette.WHITE, 10)
+	if cs != null and cs.finished and not _over:
+		var pos := _finish_order.find(cs.id) + 1
+		s.text_centered(Vector2(640, 300), "¡META!  %d.º" % maxi(pos, 1), 90, Palette.YELLOW, 14)
+	if _over:
+		var w := _player_by_id(_winner_id)
+		s.text_centered(Vector2(640, 280), "¡FIN!", 100, Palette.YELLOW, 14)
+		if w != null:
+			s.text_centered(Vector2(640, 370), "Gana %s" % w.display_name, 56, w.color.lightened(0.25), 10)
 
 ## Mundo → minimapa: +z hacia arriba y +x hacia la izquierda (igual que la vista al salir).
 func _to_map(q: Vector3, bnd: Rect2, origin: Vector2, sc: float) -> Vector2:
@@ -1457,28 +1760,46 @@ func debug_info() -> Dictionary:
 	_ensure_level()
 	return {"solids": _solids.size(), "total": _total, "zones": _zones.size(), "cps": _cps.size(), "route": _route.size(), "bars": _bars.size()}
 
-func debug_state() -> Dictionary:
-	return {"p": _p, "v": _v, "grounded": _grounded, "arc": _arc, "t": _t, "falls": _falls, "done": _done, "finished": _finished_race,
-			"ftime": _ftime, "cp": _cp_i, "gs": _gs, "zone": _zone_i}
+func debug_runner(id: int) -> Dictionary:
+	var r: RS = _rs.get(id)
+	if r == null:
+		return {}
+	return {"p": r.p, "v": r.v, "grounded": r.grounded, "arc": r.arc, "falls": r.falls, "done": r.done, "finished": r.finished,
+			"ftime": r.ftime, "cp": r.cp_i, "gs": r.gs, "zone": r.zone_i}
 
-func debug_place(p: Vector3) -> void:
-	_p = p
-	_v = Vector3.ZERO
+func debug_place(id: int, p: Vector3) -> void:
+	var r: RS = _rs.get(id)
+	if r != null:
+		r.p = p
+		r.v = Vector3.ZERO
 
-## Simula una partida con una política: "bot" (la IA) o "idle" (no hace nada).
+func debug_over() -> bool:
+	return _over
+
+func debug_winner() -> int:
+	return _winner_id
+
+## Un corredor SOLO con una política: "bot" (la IA) o "idle" (no hace nada). Devuelve el resultado.
 func debug_run(policy: String, skill: float = 1.0, seconds: float = TIME_LIMIT + 1.0) -> Dictionary:
 	_ensure_level()
-	_reset_state()
-	debug_skill = skill
-	_bot_rng.seed = seed_value
+	var fake := PlayerData.new()
+	fake.id = 999
+	var r := _make_rs(fake, 0, 1)
+	r.bot_rng.seed = seed_value
+	_t = 0.0
+	_update_solids(true)
 	var t := 0.0
-	while t < seconds and not _done:
+	while t < seconds and not r.done:
+		_t += STEP
+		_update_solids()
 		var dir := Vector3.ZERO
 		var jump := false
 		if policy == "bot":
-			dir = _bot_decide()
-			jump = _bot_jump
-			_bot_jump = false
-		_sim_step(STEP, dir, jump)
+			dir = _bot_decide(r, skill)
+			jump = r.bot_jump
+			r.bot_jump = false
+		_sim_step(r, STEP, dir, jump, r.arc)
+		if _t >= TIME_LIMIT and not r.done:
+			r.done = true
 		t += STEP
-	return {"finished": _finished_race, "time": _t, "progress": _arc, "falls": _falls, "total": _total}
+	return {"finished": r.finished, "time": r.ftime if r.finished else _t, "progress": r.arc, "falls": r.falls, "total": _total}
