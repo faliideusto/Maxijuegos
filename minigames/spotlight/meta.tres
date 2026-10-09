@@ -7,7 +7,7 @@
 script = ExtResource("1")
 display_name = "Caza del Foco"
 description = "¡Quédate en la luz!"
-instructions = "Hay un foco menos que jugadores y se mueven cada vez más rápido. Entra en un foco libre para quedártelo y no te salgas de él: cuando acabe la ronda, quien se quede sin foco queda eliminado y desaparece un foco. Tu botón de acción da un empujón con el que puedes alcanzar un foco que se escapa o sacar a un rival de el suyo. Gana el último que quede."
+instructions = "Hay un foco menos que jugadores y se mueven cada vez más rápido. Entra en un foco libre para quedártelo (si ya es de otro, saldrá una ✕ roja sobre ti) y no te salgas de él: cuando acabe la ronda, quien se quede sin foco queda eliminado y desaparece un foco. Tu botón de acción da un empujón con el que puedes alcanzar un foco que se escapa o sacar a un rival de el suyo. Gana el último que quede."
 min_players = 2
 max_players = 8
 approx_duration = 60.0

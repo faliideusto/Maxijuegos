@@ -390,7 +390,7 @@ entrando. Al acabar la ronda, quien no tiene foco queda eliminado y desaparece u
 ranking sigue el orden de eliminación (último eliminado = 2.º; dentro de una misma ronda, el más lejos de un foco cae antes).
 - **Control**: moverse y un empujón con la acción (enfriamiento 1,3 s): alcanzar un foco que se escapa o sacar a un rival.
 - **Dificultad por ronda**: focos más rápidos (190 → 390 px/s, siempre por debajo de lo que corre un jugador, ≈456 px/s, para
-  que se puedan seguir), más pequeños (88 → 58 px) y rondas más cortas (10 → 5,5 s). La ronda acaba antes si todos los focos
+  que se puedan seguir), más pequeños (62 → 42 px de radio: poco más que un jugador, cabe uno solo; si entras en un foco ya ocupado sale una ✕ roja sobre tu avatar) y rondas más cortas (10 → 5,5 s). La ronda acaba antes si todos los focos
   están ocupados 1 s. Si nadie tuviera foco, se salva al más cercano a uno (siempre queda un superviviente).
 - **Red**: sin código propio. El host simula; snapshots a 30 Hz (jugadores y focos, con extrapolación y suavizado en los
   clientes) y eventos fiables (`round`, `claim`, `unclaim`, `lock`, `win`, `dash`, `bump`) que disparan sonidos y animaciones.

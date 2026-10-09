@@ -1,7 +1,7 @@
 extends Minigame
 ## Caza del Foco (modelo HOST_AUTHORITATIVE): sillas musicales con luces. Hay UN FOCO MENOS que jugadores
-## y los focos se mueven por la pista cada vez más rápido. Entra en un foco libre para quedártelo (mientras
-## sigas dentro es tuyo; nadie más puede reclamarlo) y no te salgas: cuando acaba la ronda, quien se queda sin
+## y los focos se mueven por la pista cada vez más rápido. Entra en un foco LIBRE para quedártelo (mientras
+## sigas dentro es tuyo; nadie más puede reclamarlo: si entras en uno ocupado, sale una ✕ roja) y no te salgas: cuando acaba la ronda, quien se queda sin
 ## foco queda ELIMINADO y desaparece un foco. Se repite hasta que solo queda uno: gana, y el ranking sigue el
 ## orden de eliminación (último eliminado = 2.º...).
 ##
@@ -23,9 +23,9 @@ const ACCEL := 2100.0
 const DRAG := 4.6                    # velocidad máxima ≈ ACCEL / DRAG ≈ 456 px/s
 const DASH_SPEED := 650.0
 const DASH_COOLDOWN := 1.3
-const SPOT_R0 := 88.0
-const SPOT_R_MIN := 58.0
-const SPOT_R_STEP := 5.0
+const SPOT_R0 := 62.0                # un foco es poco más ancho que un jugador (radio 22): cabe uno solo
+const SPOT_R_MIN := 42.0
+const SPOT_R_STEP := 3.0
 const SPOT_SPEED0 := 190.0
 const SPOT_SPEED_STEP := 26.0
 const SPOT_SPEED_MAX := 390.0        # siempre por debajo de lo que corre un jugador: se puede seguir un foco
@@ -600,6 +600,13 @@ func _in_any_spot(t: Token) -> bool:
 			return true
 	return false
 
+## ¿Está el jugador dentro de un foco que tiene otro dueño?
+func _inside_taken_spot(t: Token) -> bool:
+	for sp in _spots:
+		if sp.owner_id >= 0 and sp.owner_id != t.player.id and t.pos.distance_to(sp.pos) < _radius:
+			return true
+	return false
+
 func _draw_tokens() -> void:
 	var s := surface
 	for t in _tokens:
@@ -626,6 +633,11 @@ func _draw_tokens() -> void:
 				s.draw_line(e + Vector2(-5, 5), e + Vector2(5, -5), Palette.WHITE, 3.0)
 		s.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		if t.alive:
+			# Estás dentro de un foco que ya es de otro: aviso rojo para que busques uno libre.
+			if _phase == Phase.PLAY and t.spot < 0 and _inside_taken_spot(t):
+				s.draw_circle(t.pos + Vector2(0, -radius - 20.0), 13.0, Palette.PURPLE_DARK)
+				s.draw_circle(t.pos + Vector2(0, -radius - 20.0), 11.0, Palette.CORAL)
+				s.text_centered(t.pos + Vector2(0, -radius - 20.0), "✕", 17, Palette.WHITE, 0)
 			if is_local_player(t.player):
 				draw_local_marker(t.pos, radius)
 			s.text_centered(t.pos + Vector2(0, radius + 16.0), t.player.display_name, 18, Palette.WHITE, 5)
