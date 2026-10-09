@@ -9,7 +9,7 @@ extends RefCounted
 ##   Partida      stinger beep beep_go score_tick score_pop fanfare_small fanfare_big confetti
 ##   Minijuegos   coin coin_gold jump land crash zap milestone flip_up flip_down dash thud plat_crack
 ##                plat_fall splash pop tongue_shoot tongue_attach release snap fog_growl reaction_ok
-##                claim unclaim lock shot hit hit_gold miss gold_spawn combo throw stick clang dive perfect launch
+##                claim unclaim lock shot hit hit_gold miss gold_spawn combo throw stick clang dive perfect launch swish wall
 ##                good bad tick key pass_bomb boom   (los últimos 6, de Bomba de Palabras: ver SynthSfx)
 
 const RATE := 22050
@@ -34,7 +34,7 @@ const ALL_NAMES: Array[StringName] = [&"ui_click", &"ui_hover", &"ui_back", &"ui
 		&"error", &"swoosh", &"stinger", &"beep", &"beep_go", &"score_tick", &"score_pop", &"fanfare_small",
 		&"fanfare_big", &"confetti", &"coin", &"coin_gold", &"jump", &"land", &"crash", &"zap", &"milestone",
 		&"flip_up", &"flip_down", &"dash", &"thud", &"plat_crack", &"plat_fall", &"splash", &"pop",
-		&"tongue_shoot", &"tongue_attach", &"release", &"snap", &"fog_growl", &"reaction_ok", &"claim", &"unclaim", &"lock", &"shot", &"hit", &"hit_gold", &"miss", &"gold_spawn", &"combo", &"throw", &"stick", &"clang", &"dive", &"perfect", &"launch"]
+		&"tongue_shoot", &"tongue_attach", &"release", &"snap", &"fog_growl", &"reaction_ok", &"claim", &"unclaim", &"lock", &"shot", &"hit", &"hit_gold", &"miss", &"gold_spawn", &"combo", &"throw", &"stick", &"clang", &"dive", &"perfect", &"launch", &"swish", &"wall"]
 
 static func _make(n: StringName) -> PackedFloat32Array:
 	match n:
@@ -92,6 +92,8 @@ static func _make(n: StringName) -> PackedFloat32Array:
 		&"dive": return _mix(_sweep(700.0, 180.0, 0.16, 12.0, 0.3), _noise(0.14, 14.0, 0.1, 0.5, 0.25, true))
 		&"perfect": return _mix(_timed([[659.0, 0.0, 0.06], [988.0, 0.05, 0.06], [1319.0, 0.1, 0.06], [1976.0, 0.15, 0.3]], 0.45, 8.0), _noise(0.25, 8.0, 0.05, 0.5, 0.25, true))
 		&"launch": return _mix(_sweep(240.0, 760.0, 0.22, 7.0, 0.35), _noise(0.2, 10.0, 0.05, 0.4, 0.3, true))
+		&"swish": return _mix(_noise(0.13, 18.0, 0.55, 0.08, 0.45, true), _sweep(1500.0, 420.0, 0.1, 22.0, 0.22, 2))
+		&"wall": return _mix(_sweep(210.0, 95.0, 0.07, 32.0, 0.75), _noise(0.05, 45.0, 0.45, 0.12, 0.35, false))
 		&"reaction_ok": return _timed([[784.0, 0.0, 0.07], [1175.0, 0.07, 0.14]], 0.5, 12.0)
 	return PackedFloat32Array()
 

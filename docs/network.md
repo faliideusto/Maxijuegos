@@ -456,3 +456,24 @@ original de Playus** (la búsqueda no dio nada): es una interpretación propia d
   hace más torpe. Políticas ingenuas: nunca mantener ≈ 320 m, siempre mantener ≈ 400 m; la IA ≈ 500-600 m.
 - **Sonido**: pista `moon` (espacial), `dive`, `launch`, `perfect`, golpe en los porrazos, hitos cada 100 m y pitidos finales.
 - Pruebas: `tests/moon_test.gd` y `ONLY=moon_hop tests/online_test.sh` (2/4/8 jugadores y `kill_in_parallel`) OK.
+
+## 24. Ninja Trepador (`ninja_climb`, LOCAL_PARALLEL)
+
+Inspirado en Ninja Climb: dos paredes verticales enfrentadas y un ninja que sube saltando de una a otra. Cada jugador juega en su
+pantalla sobre las MISMAS paredes (semilla común) durante 45 s; gana la **altura máxima** (segundo, el segundo más alto...); sin
+código de red propio (`report_result(metros)`, `_bot_result`, `_validate_result`).
+- **Mecánica central**: desde el ninja sale una trayectoria de PUNTOS que oscila sola entre 20° y 60° (periodo 1,6 s → 1,1 s con la
+  altura). El jugador no la dirige: el único botón (acción o clic izquierdo) hace saltar AL INSTANTE con el ángulo de ese momento; no
+  hay carga de potencia. Sin pulsar, el ninja se desliza despacio (36 px/s). Un tic suave marca cada extremo de la oscilación.
+- **Los puntos son el salto**: la misma función (`pos_at`/`trajectory`, paso 1/240) calcula el dibujo, el salto y la comprobación de
+  choques; la trayectoria acaba en ○ (aterrizaje libre) o en ✕ (choque con pinchos). `tests/ninja_test.gd` comprueba que coinciden al píxel.
+- **Física**: velocidad inicial fija (1 238 px/s) y gravedad 1 800 px/s²; la horizontal es constante, así que siempre llega a la otra pared
+  y el ángulo solo decide la altura ganada (29 px a 20° → 303 px a 60°, creciente en todo el rango): más vertical = más altura.
+- **Recorrido** (igual para todos): bloques con pinchos en las paredes. Cada zona de aterrizaje es un hueco entre dos bloques que se
+  estrecha con la altura (±80 → ±52 px); el ninja muere al aterrizar contra un bloque, al deslizarse contra uno o al caer más de 250 px por
+  debajo de la cámara (que solo sube). Las zonas son alcanzables unas desde otras con el rango de ángulos.
+- **Bot/autopiloto**: salta en cuanto el ángulo actual (y los de alrededor, según su tolerancia) llevan a un aterrizaje seguro con progreso y
+  margen para deslizarse; un bot exacto sube ~235 m en 45 s sin morir y con ±4° y 0,06 s de retraso llega a ~115 m.
+- **Sonido**: pista `ninja` (pentatónica oriental), `swish` al saltar, `wall` al agarrarse, tic en los extremos de la oscilación, golpe al
+  morir, hitos cada 25 m y pitidos finales.
+- Pruebas: `tests/ninja_test.gd` y `ONLY=ninja_climb tests/online_test.sh` (2/4/8 jugadores y `kill_in_parallel`) OK.

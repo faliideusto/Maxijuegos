@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="MinigameMeta" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://core/minigame_meta.gd" id="1"]
+[ext_resource type="PackedScene" path="res://minigames/ninja_climb/scene.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Ninja Trepador"
+description = "¡Salta de pared en pared!"
+instructions = "Sube saltando de una pared a otra. Los puntos de delante de tu ninja marcan la dirección del próximo salto y oscilan solos: pulsa tu botón de acción (o clic) justo cuando apunten donde quieres. Más vertical = más altura. Evita los pinchos y no te dejes caer: sin pulsar, el ninja resbala por la pared. Gana quien llegue más alto en 45 s. Todos tenéis las mismas paredes y no veréis a los demás."
+min_players = 2
+max_players = 8
+approx_duration = 50.0
+scene = ExtResource("2")
+accent_color = Color(0.7, 0.55, 1, 1)
+execution_mode = 1
+max_duration = 100.0
+music = &"ninja"
