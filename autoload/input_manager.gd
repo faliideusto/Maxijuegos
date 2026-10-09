@@ -18,6 +18,10 @@ const MAX_REMOTE_PRESSES_PER_FRAME := 6
 ## Solo desarrollo: los jugadores locales se controlan solos (para pruebas desatendidas).
 var autopilot: bool = false
 
+## Web en móvil/tableta: la entrada la ponen los controles táctiles (TouchControls), así que el
+## toque (que el navegador también envía como clic) no se enlaza como botón de acción.
+var touch_mode: bool = false
+
 ## Estado simulado de un bot.
 class BotState:
 	var dir: Vector2 = Vector2.ZERO
@@ -175,9 +179,9 @@ func _events_for(device: String, suffix: String) -> Array[InputEvent]:
 		PlayerData.DEVICE_KB1:
 			var keys := {"left": KEY_A, "right": KEY_D, "up": KEY_W, "down": KEY_S, "action": KEY_SPACE, "action2": KEY_E}
 			events.append(_key(keys[suffix]))
-			if suffix == "action":
+			if suffix == "action" and not touch_mode:
 				events.append(_click())
-			elif suffix == "action2":
+			elif suffix == "action2" and not touch_mode:
 				events.append(_click(MOUSE_BUTTON_RIGHT))
 		PlayerData.DEVICE_KB2:
 			var keys := {"left": KEY_LEFT, "right": KEY_RIGHT, "up": KEY_UP, "down": KEY_DOWN, "action": KEY_ENTER, "action2": KEY_KP_0}

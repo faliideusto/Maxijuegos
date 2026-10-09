@@ -148,6 +148,8 @@ func _pill(s: String, bg: Color, fg: Color) -> Control:
 
 ## Controles de cada minijuego (texto de la píldora).
 func _controls(id: StringName) -> Array[String]:
+	if TouchControls.active:
+		return TouchControls.controls_text(id)
 	match id:
 		&"coin_grab", &"shrinking_platform", &"spotlight":
 			return ["MOVERSE: flechas / WASD / palanca"]

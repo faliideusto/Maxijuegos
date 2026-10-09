@@ -56,5 +56,6 @@ godot --headless --path . --export-release "Web" build/web/index.html   # necesi
 python -m http.server 8765 --directory build/web                         # y abrir http://localhost:8765
 ```
 
-En web no hay red ni sonido: el menú solo ofrece "JUGAR CONTRA BOTS" (tú + 3 bots). El preset `Web` de
+En web no hay red ni sonido: el menú solo ofrece "JUGAR CONTRA BOTS" (tú + 3 bots). En móvil o tableta aparecen controles táctiles
+(`autoload/touch_controls.gd`): joystick y botones en los minijuegos con movimiento, y tocar la pantalla en los de un botón. El preset `Web` de
 `export_presets.cfg` deja fuera Bomba de Palabras y el diccionario (`data/`), las pruebas y las herramientas.
