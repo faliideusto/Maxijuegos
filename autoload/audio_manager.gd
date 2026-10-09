@@ -13,7 +13,7 @@ extends Node
 ##
 ## Las pistas se generan en un hilo al arrancar (unos 12 s en total; el menú, en ~1 s) y suenan en cuanto
 ## están listas. F10 silencia/activa todo el sonido; los volúmenes se guardan en user://settings.cfg.
-## En modo headless (pruebas) no se genera ni se reproduce nada.
+## En modo headless (pruebas) y en web no se genera ni se reproduce nada.
 
 const SFX_POOL_SIZE := 14
 const SETTINGS_PATH := "user://settings.cfg"
@@ -44,7 +44,9 @@ var _fades: Dictionary = {}           # AudioStreamPlayer → Tween (un fundido 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	enabled = DisplayServer.get_name() != "headless"
+	# En web (demo del portfolio) tampoco hay sonido: las pistas se generan en un hilo y la exportación
+	# web sin hilos no puede hacerlo.
+	enabled = DisplayServer.get_name() != "headless" and not OS.has_feature("web")
 	if not enabled:
 		return
 	_load_settings()
@@ -242,7 +244,7 @@ func _on_roster_changed() -> void:
 	_roster_count = n
 
 func _unhandled_key_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F10:
+	if enabled and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F10:
 		toggle_mute()
 		get_viewport().set_input_as_handled()
 

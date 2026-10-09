@@ -10,6 +10,8 @@ var _notice: Label
 var _title: Label
 var _busy: bool = false
 
+const WEB_BOTS := 3
+
 func _ready() -> void:
 	UIKit.setup_screen(self)
 	_main_box = UIKit.centered_vbox(self, 18)
@@ -26,6 +28,12 @@ func _ready() -> void:
 	var local := UIKit.button("MODO LOCAL (PRUEBAS)", &"SecondaryButton")
 	local.pressed.connect(GameManager.go_to_lobby)
 	_main_box.add_child(local)
+	# En web (demo del portfolio) no hay red: solo se juega contra bots.
+	if OS.has_feature("web"):
+		online.visible = false
+		local.text = "JUGAR CONTRA BOTS"
+		local.pressed.disconnect(GameManager.go_to_lobby)
+		local.pressed.connect(_play_vs_bots)
 
 	var quit := UIKit.button("SALIR", &"DangerButton")
 	quit.pressed.connect(func() -> void: get_tree().quit())
@@ -58,6 +66,14 @@ func _ready() -> void:
 	_notice.text = GameManager.take_notice()
 	GameManager.notice.connect(_on_notice)
 	NetworkManager.connection_failed.connect(_on_connection_failed)
+
+## (web) Lobby ya preparado: tú (WASD + Espacio o clic) contra 3 bots.
+func _play_vs_bots() -> void:
+	if Lobby.players.is_empty():
+		Lobby.add_player(PlayerData.DEVICE_KB1)
+		for i in WEB_BOTS:
+			Lobby.add_bot()
+	GameManager.go_to_lobby()
 
 func _wobble_title() -> void:
 	await get_tree().process_frame

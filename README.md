@@ -48,3 +48,13 @@ Documentación: [arquitectura](docs/architecture.md) · [red y modelos](docs/net
 ## Sonido
 
 Todo el audio (efectos y música) se genera por código al arrancar; no hay archivos de audio. **F10** silencia o activa el sonido (el ajuste se guarda en `user://settings.cfg`).
+
+## Versión web (demo contra bots)
+
+```bash
+godot --headless --path . --export-release "Web" build/web/index.html   # necesita las plantillas de exportación web
+python -m http.server 8765 --directory build/web                         # y abrir http://localhost:8765
+```
+
+En web no hay red ni sonido: el menú solo ofrece "JUGAR CONTRA BOTS" (tú + 3 bots). El preset `Web` de
+`export_presets.cfg` deja fuera Bomba de Palabras y el diccionario (`data/`), las pruebas y las herramientas.
