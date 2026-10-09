@@ -55,6 +55,7 @@ class RS:
 	var inv: float = 0.0
 	var hits: int = 0
 	var jump_buf: float = 0.0
+	var jump_pending: bool = false      # pulsación de salto aún sin aplicar (en pantallas rápidas hay fotogramas sin ningún paso de 60 Hz)
 	var coyote: float = 0.0
 	var done: bool = false              # ya no corre (meta o fin de la partida)
 	var finished: bool = false          # ha llegado a la meta
@@ -303,10 +304,10 @@ func _simulate(delta: float) -> void:
 		return
 	# Entrada de cada jugador (una lectura por fotograma).
 	var steer: Dictionary = {}
-	var jumped: Dictionary = {}
 	for p in players:
 		steer[p.id] = move_input(p).x
-		jumped[p.id] = action_presses(p) > 0
+		if action_presses(p) > 0:
+			(_rs[p.id] as RS).jump_pending = true
 	_accum += delta
 	var steps := 0
 	while _accum >= STEP and steps < 12:
@@ -316,8 +317,8 @@ func _simulate(delta: float) -> void:
 		var lz2 := _leader_z()
 		for p in players:
 			var s: RS = _rs[p.id]
-			_step_rs(s, STEP, float(steer[p.id]), bool(jumped[p.id]), lz2)
-			jumped[p.id] = false
+			_step_rs(s, STEP, float(steer[p.id]), s.jump_pending, lz2)
+			s.jump_pending = false
 			_collect_events(s)
 	# ¿Se acaba?
 	var all_done := true
