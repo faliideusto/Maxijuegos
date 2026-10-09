@@ -1500,7 +1500,7 @@ func _build_runner(r: RS, pl: PlayerData) -> void:
 		_capsule(leg, 0.12, 0.5, Vector3(0, -0.2, 0), leg_mat)
 		_box(leg, Vector3(0.24, 0.13, 0.36), Vector3(0, -0.44, 0.06), shoe_mat)
 	# Nombre flotando encima (y una flecha sobre el jugador de este PC).
-	var is_me := pl != null and pl == local_player
+	var is_me := pl != null and (pl == local_player or (local_player == null and pl.is_local_human))
 	var tag := Label3D.new()
 	tag.text = ("▼ " if is_me else "") + (pl.display_name if pl != null else "")
 	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -1532,11 +1532,21 @@ func _build_runner(r: RS, pl: PlayerData) -> void:
 func _cam_runner() -> RS:
 	if local_player != null and _rs.has(local_player.id):
 		return _rs[local_player.id]
+	# Varias personas en un mismo PC (modo local): la cámara sigue a la que va primero de las humanas.
 	var best: RS = null
 	for id in _order:
+		var pl := _player_by_id(id)
+		if pl == null or not pl.is_local_human:
+			continue
 		var r: RS = _rs[id]
 		if best == null or r.arc > best.arc:
 			best = r
+	if best != null:
+		return best
+	for id in _order:
+		var r2: RS = _rs[id]
+		if best == null or r2.arc > best.arc:
+			best = r2
 	return best
 
 ## Altura de la superficie bajo (x, z) por debajo de `y` (para la sombra).
