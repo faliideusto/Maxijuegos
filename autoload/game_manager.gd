@@ -39,6 +39,8 @@ var last_ranking: Array[int] = []
 var last_points: Dictionary = {}
 ## Puntuaciones antes de repartir los puntos del último minijuego (para animar el marcador).
 var previous_scores: Dictionary = {}
+## Minijuegos elegidos a mano en los ajustes de la partida, en el orden en que se jugarán. Vacío = al azar.
+var chosen_ids: Array[StringName] = []
 ## Solo desarrollo: id de un minijuego a forzar en todas las rondas ("" = normal).
 var forced_minigame_id: String = ""
 ## Último aviso para el usuario; el menú lo muestra y lo limpia (take_notice).
@@ -76,6 +78,14 @@ func start_match(rng: RandomNumberGenerator = null) -> void:
 	if not NetworkManager.is_host():
 		return
 	playlist = MinigameRegistry.pick_random(minigame_count, Lobby.players.size(), rng)
+	# Elegidos a mano en los ajustes: se juegan esos, en ese orden (los que admitan a estos jugadores).
+	var chosen: Array[MinigameMeta] = []
+	for id in chosen_ids:
+		var m := MinigameRegistry.get_by_id(id)
+		if m != null and m.supports(Lobby.players.size()):
+			chosen.append(m)
+	if not chosen.is_empty():
+		playlist = chosen
 	# Solo desarrollo (DevCli --only=<id>): fuerza un minijuego concreto en toda la partida.
 	if not forced_minigame_id.is_empty():
 		var forced := MinigameRegistry.get_by_id(StringName(forced_minigame_id))
