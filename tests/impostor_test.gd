@@ -160,8 +160,8 @@ func _process(_delta: float) -> bool:
 	g.finished.connect(func(r: Array[int]) -> void: _ranking = r)
 	_run(g, 8.0)
 	_ck(f, _ranking.size() == 6 and _ranking[5] == imp, "el ranking incluye a los 6 y el impostor derrotado queda último")
-	var groups: Array = g.result_groups()
-	_ck(f, groups.size() == 2 and (groups[0] as Array).size() == 5 and groups[1] == [imp], "los 5 tripulantes ganadores forman un grupo empatado y el impostor, otro")
+	var fixed: Dictionary = g.result_points()
+	_ck(f, fixed.size() == 6 and fixed[imp] == 1 and fixed[b] == roundi(6 * 0.75), "gana la tripulación: cada tripulante 3/4 de los puntos de un ganador normal y el impostor 1")
 	# El reparto de puntos de la partida: todos los de un bando reciben lo mismo.
 	var gm = root.get_node("GameManager")
 	var lob = root.get_node("Lobby")
@@ -170,12 +170,12 @@ func _process(_delta: float) -> bool:
 	var typed: Array[int] = []
 	for id in _ranking:
 		typed.append(int(id))
-	gm.report_results(typed, groups)
+	gm.report_results(typed, [], fixed)
 	var crew_pts := {}
 	for p in lob.players:
 		if p.id != imp:
 			crew_pts[p.score] = true
-	_ck(f, crew_pts.size() == 1 and crew_pts.has(6) and lob.get_player(imp).score == 1, "en la partida, los 5 ganadores reciben los mismos puntos (6) y el impostor 1")
+	_ck(f, crew_pts.size() == 1 and crew_pts.has(5) and lob.get_player(imp).score == 1, "en la partida (6 jugadores), los 5 tripulantes ganadores suman 5 cada uno y el impostor 1")
 	for p in lob.players:
 		p.score = 0
 	_close(g)
@@ -221,12 +221,18 @@ func _process(_delta: float) -> bool:
 	info = g.debug_info()
 	_ck(f, info.phase == PH.END and info.winner == 1 and info.reason == 1, "si queda un tripulante por impostor, gana el impostor")
 	_ck(f, g.debug_player(imp).score == 4 * 2 + 10 + 2, "el impostor suma 2 por eliminación, 10 por ganar y 2 por sobrevivir")
+	var ip: Dictionary = g.result_points()
+	_ck(f, ip[imp] == roundi(6 * 1.75) and ip[a] == 1, "gana el impostor: él recibe 7/4 de los puntos de un ganador normal (%d con 6) y cada tripulante 1" % ip[imp])
 	_close(g)
 	g = _new_game(5, true, 3, 0)
 	g.debug_skip_intro()
 	g._time_left = 0.5
 	_run(g, 2.0, PH.END)
 	_ck(f, g.debug_info().winner == 1 and g.debug_info().reason == 3, "si se acaba el oxígeno gana el impostor")
+	g._order.resize(4)
+	_ck(f, g.result_points()[g.players[0].id] == 7, "con 4 jugadores el impostor ganador se lleva 7")
+	g._winner = 0
+	_ck(f, g.result_points()[g.players[1].id] == 3 and g.result_points()[g.players[0].id] == 1, "con 4 jugadores cada tripulante ganador se lleva 3 y el impostor 1")
 	_close(g)
 
 	# 8) Con 8 jugadores hay 2 impostores; el giro con ratón llega por el canal de texto.

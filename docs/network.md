@@ -604,9 +604,10 @@ acabarse el oxígeno (180 s de juego; las reuniones no lo gastan). Los eliminado
   texto (`submit_text("y<ángulo>", false)`, ~20 Hz). El giro total es `kyaw` (del host: teclas, IA, sitio en la reunión) + `myaw`
   (del ratón). Quien manda `y…` pasa a "modo ratón": izquierda/derecha es paso lateral; sin ratón (teclado 2, táctil, práctica)
   izquierda/derecha gira.
-- **Puntos por bandos**: `_result_groups()` devuelve [ganadores, perdedores] y `GameManager.report_results(ranking, groups)` da a
-  todo el grupo los puntos de su mejor puesto (con N jugadores: N a cada ganador y N − nº de ganadores a cada perdedor).
-  Es un mecanismo genérico de `Minigame` (por defecto, sin grupos, nada cambia).
+- **Puntos por bandos**: `_result_points()` devuelve {id: puntos} y `GameManager.report_results(ranking, groups, fixed)` los usa en vez
+  del reparto por posición. Con N jugadores (un ganador normal recibe N): gana la tripulación → round(0,75·N) a cada tripulante
+  y 1 al impostor; gana el impostor → round(1,75·N) para él y 1 a cada tripulante. Con 4 jugadores: 3/1 y 7/1.
+  Es un mecanismo genérico de `Minigame` (por defecto, vacío, nada cambia).
 - **Misiones de flechas**: mientras duran, el movimiento son las flechas (el jugador no anda) y el segundo botón cancela.
 - **Papeles, tareas y secuencias de flechas salen de la semilla común**: no se envían. Estado: 19 floats por jugador + cadáveres + fase/reunión.
 - **Limitación**: el estado y los eventos van a todos los PC (no hay mensajes privados), así que el secreto del impostor es de

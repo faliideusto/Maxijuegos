@@ -991,17 +991,16 @@ func _end_game(team: int, reason: int) -> void:
 	send_event("end", {"w": team})
 	DevCli.log_event("impostor over winner=%d reason=%d" % [team, reason])
 
-## Juego por bandos: todo el bando ganador comparte el primer puesto y todo el perdedor, el siguiente. Así todos los de
-## un mismo bando reciben los mismos puntos de partida (el orden de _ranking dentro del bando es solo para mostrarlos).
-func _result_groups() -> Array:
-	var win: Array = []
-	var lose: Array = []
+## Juego por bandos: los puntos de partida no van por posición. En los demás minijuegos el ganador se lleva N puntos (N =
+## nº de jugadores); aquí, si gana la tripulación, cada tripulante recibe 3/4 de eso (son muchos) y el impostor 1; si gana
+## el impostor, él recibe 7/4 (lo tenía más difícil) y cada tripulante 1. Con 4 jugadores: 3 y 1, o 7 y 1.
+func _result_points() -> Dictionary:
+	var n := _order.size()
+	var win_pts := maxi(1, roundi(n * (0.75 if _winner == CREW else 1.75)))
+	var out: Dictionary = {}
 	for id in _order:
-		if (_ps[id] as PS).role == _winner:
-			win.append(id)
-		else:
-			lose.append(id)
-	return [win, lose]
+		out[id] = win_pts if (_ps[id] as PS).role == _winner else 1
+	return out
 
 func _ranking() -> Array[int]:
 	var scores: Dictionary = {}
@@ -2325,7 +2324,7 @@ func _draw_end(v: PS) -> void:
 	_ctxt(Vector2(640, 96), "¡VICTORIA!" if won else "DERROTA", 86, col, 12)
 	_ctxt(Vector2(640, 166), "Gana la tripulación" if crew_won else "Gana el impostor", 32, Color.WHITE, 6)
 	_ctxt(Vector2(640, 204), REASONS[clampi(_reason, 0, REASONS.size() - 1)], 22, Color(1, 1, 1, 0.8), 4)
-	_ctxt(Vector2(640, 236), "Todo el bando ganador se lleva los mismos puntos", 18, Color(1.0, 0.9, 0.3), 4)
+	_ctxt(Vector2(640, 236), "Ganadores: +%d puntos  ·  Perdedores: +1" % maxi(1, roundi(_order.size() * (0.75 if crew_won else 1.75))), 18, Color(1.0, 0.9, 0.3), 4)
 	var rk := _ranking()
 	var y := 258.0
 	for i in rk.size():

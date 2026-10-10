@@ -127,10 +127,15 @@ func bot_result(player: PlayerData) -> Dictionary:
 func validate_result(score: float, tiebreak: float) -> bool:
 	return is_finite(score) and is_finite(tiebreak) and _validate_result(score, tiebreak)
 
-## (host) Empates del resultado: lista de grupos de ids que comparten puesto (p. ej. juegos por bandos: todo el bando
-## ganador puntúa igual). Vacío = sin empates, cada uno su puesto.
+## (host) Empates del resultado: lista de grupos de ids que comparten puesto (p. ej. varios eliminados a la vez).
+## Vacío = sin empates, cada uno su puesto.
 func result_groups() -> Array:
 	return _result_groups()
+
+## (host) Puntos de partida fijados por el minijuego: {id: puntos}. Para juegos por bandos, donde no hay puestos sino
+## ganadores y perdedores. Vacío = el reparto normal por posición (MatchRules).
+func result_points() -> Dictionary:
+	return _result_points()
 
 ## Clasificación (ids del 1º al último) a partir de los resultados {id: {"score","tiebreak"}}.
 func rank_results(results: Dictionary) -> Array[int]:
@@ -168,6 +173,10 @@ func _on_start() -> void:
 ## (opcional) Grupos de jugadores empatados en el resultado final (ver result_groups).
 func _result_groups() -> Array:
 	return []
+
+## (opcional) Puntos de partida de cada jugador, si el minijuego no reparte por posición (ver result_points).
+func _result_points() -> Dictionary:
+	return {}
 
 ## HOST_AUTHORITATIVE, solo host.
 func _simulate(_delta: float) -> void:

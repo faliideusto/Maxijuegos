@@ -120,7 +120,8 @@ func run_minigame() -> void:
 
 ## El minijuego terminó: el host reparte puntos según la posición y muestra el marcador.
 ## `groups` (opcional): grupos de ids empatados; todos los de un grupo reciben los puntos del mejor puesto del grupo.
-func report_results(ranking: Array[int], groups: Array = []) -> void:
+## `fixed` (opcional): {id: puntos} que fija el propio minijuego (juegos por bandos); quien no esté ahí puntúa por posición.
+func report_results(ranking: Array[int], groups: Array = [], fixed: Dictionary = {}) -> void:
 	if not NetworkManager.is_host():
 		return
 	last_ranking = ranking
@@ -152,6 +153,8 @@ func report_results(ranking: Array[int], groups: Array = []) -> void:
 	for rank in active_ranking.size():
 		var p := Lobby.get_player(active_ranking[rank])
 		var pts := MatchRules.points_for_rank(int(shared.get(p.id, rank)), active_ranking.size())
+		if fixed.has(p.id):
+			pts = maxi(int(fixed[p.id]), 0)
 		p.score += pts
 		last_points[p.id] = pts
 	_go(State.SCOREBOARD)
