@@ -13,7 +13,6 @@ extends Minigame
 
 const STEP := 1.0 / 60.0
 const TIME_LIMIT := 60.0
-const COUNTDOWN := 0.0                   # la cuenta atrás 3-2-1 ya la hace el runner
 const DONE_DELAY := 2.8
 # --- Patio ---
 const SPACING := 4.4                     # distancia entre cruces
@@ -99,8 +98,6 @@ var _coin_t: float = 0.0                 # tiempo de vida que le queda (o espera
 var _crng: RandomNumberGenerator
 var _elapsed: float = 0.0
 var _time_left: float = TIME_LIMIT
-var _cd: float = COUNTDOWN
-var _last_cd: int = 99
 var _accum: float = 0.0
 var _over: bool = false
 var _over_t: float = 0.0
@@ -347,15 +344,6 @@ func _simulate(delta: float) -> void:
 		if _over_t >= DONE_DELAY:
 			finish(_ranking())
 		return
-	if _cd > 0.0:
-		var c := ceili(_cd)
-		if c != _last_cd:
-			_last_cd = c
-			send_event("beep", null)
-		_cd -= delta
-		if _cd <= 0.0:
-			send_event("go", null)
-		return
 	var dirs: Dictionary = {}
 	for pl in players:
 		var r: RS = _rs[pl.id]
@@ -551,7 +539,7 @@ func _knock(r: RS, dir: Vector2, dist: float) -> void:
 	_update_pos(r)
 
 func _try_fire(r: RS) -> void:
-	if not r.alive or r.stun_t > 0.0 or r.fire_cd > 0.0 or _over or _cd > 0.0:
+	if not r.alive or r.stun_t > 0.0 or r.fire_cd > 0.0 or _over:
 		return
 	r.fire_cd = FIRE_CD
 	var p := r.pos + r.face * 1.0
@@ -704,14 +692,13 @@ func _serialize_state() -> Variant:
 		var p: Vector2 = b["p"]
 		var d: Vector2 = b["d"]
 		balls.append_array(PackedFloat32Array([p.x, p.y, d.x, d.y, float(int(b["o"]))]))
-	return {"r": arr, "b": balls, "t": _time_left, "cd": _cd, "o": _over, "c": _coin_on, "cx": _coin_pos.x, "cz": _coin_pos.y}
+	return {"r": arr, "b": balls, "t": _time_left, "o": _over, "c": _coin_on, "cx": _coin_pos.x, "cz": _coin_pos.y}
 
 func _apply_state(state: Variant) -> void:
 	if not state is Dictionary:
 		return
 	var st: Dictionary = state
 	_time_left = float(st.get("t", _time_left))
-	_cd = float(st.get("cd", _cd))
 	_over = bool(st.get("o", _over))
 	_coin_on = bool(st.get("c", _coin_on))
 	_coin_pos = Vector2(float(st.get("cx", _coin_pos.x)), float(st.get("cz", _coin_pos.y)))
@@ -737,10 +724,6 @@ func _apply_state(state: Variant) -> void:
 func _on_event(event_name: String, data: Variant) -> void:
 	var d: Dictionary = data if data is Dictionary else {}
 	match event_name:
-		"beep":
-			Audio.sfx(&"beep", -7.0)
-		"go":
-			Audio.sfx(&"beep_go", -5.0)
 		"fire":
 			_stats["fire"] = int(_stats["fire"]) + 1
 			var r: RS = _rs.get(int(d.get("p", -1)))
@@ -813,8 +796,6 @@ func _on_start() -> void:
 	_crng.seed = hash([seed_value, "coin"])
 	_accum = 0.0
 	_elapsed = 0.0
-	_cd = COUNTDOWN
-	_last_cd = 99
 	_time_left = TIME_LIMIT
 	_over = false
 	_over_t = 0.0
@@ -829,8 +810,7 @@ func _animate(delta: float) -> void:
 	_shake = maxf(0.0, _shake - delta * 2.5)
 	_toast_t = maxf(0.0, _toast_t - delta)
 	_anim += delta
-	if _cd <= 0.0:
-		_hint_t = maxf(0.0, _hint_t - delta)
+	_hint_t = maxf(0.0, _hint_t - delta)
 	_update_world(delta)
 
 # ----------------------------------------------------------------------------
@@ -879,7 +859,7 @@ func _bot_think(r: RS) -> Vector2:
 	r.want_fire = false
 	r.dodge_t = maxf(0.0, r.dodge_t - STEP)
 	r.wander_t = maxf(0.0, r.wander_t - STEP)
-	if _over or _cd > 0.0 or not r.alive or r.stun_t > 0.0:
+	if _over or not r.alive or r.stun_t > 0.0:
 		return Vector2.ZERO
 	# 2) Disparar si hay alguien delante, en línea y a tiro (sobre todo si no nos mira de frente). Mientras, seguir hacia él.
 	var aiming := false
@@ -1616,11 +1596,7 @@ func _draw_hud() -> void:
 			s.text_centered(rect.position + Vector2(pw * 0.5, -10), pl.display_name, 18, Color(1, 1, 1, 0.85 * dim + 0.15), 4)
 	if _toast_t > 0.0 and not _over:
 		s.text_centered(Vector2(640, 118), _toast, 40, Color(1, 1, 1, clampf(_toast_t * 2.0, 0.0, 1.0)), 9)
-	if _cd > 0.0:
-		var c := ceili(_cd)
-		var frac := _cd - floorf(_cd)
-		s.text_centered(Vector2(640, 330), str(c), int(130.0 + 60.0 * frac), Palette.YELLOW, 16)
-	if _hint_t > 0.0 and not _over and _cd <= 0.0:
+	if _hint_t > 0.0 and not _over:
 		s.text_centered(Vector2(640, 610), "Muévete por los raíles y dispara con la acción: ¡dale en la DIANA de su espalda!", 24, Color(1, 1, 1, clampf(_hint_t, 0.0, 1.0)), 7)
 	if _over:
 		s.text_centered(Vector2(640, 290), "¡FIN!", 110, Palette.YELLOW, 14)
