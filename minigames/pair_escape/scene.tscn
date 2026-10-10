@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://minigames/pair_escape/pair_escape.gd" id="1"]
+
+[node name="PairEscape" type="Node"]
+script = ExtResource("1")

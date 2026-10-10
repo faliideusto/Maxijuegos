@@ -12,6 +12,7 @@ var _lobby: Node
 var _expected_games: int = 3
 var _expected_players: int = 4
 var _visited: Dictionary = {}     # nombre de estado -> veces
+var _awarded: int = 0
 var _failures: Array[String] = []
 var _started_at: int = 0
 var _finished: bool = false
@@ -60,6 +61,9 @@ func _test_registry() -> void:
 func _on_state_changed(new_state: int) -> void:
 	var name_: String = _gm.State.keys()[new_state]
 	_visited[name_] = _visited.get(name_, 0) + 1
+	if name_ == "SCOREBOARD":
+		for v in _gm.last_points.values():
+			_awarded += int(v)
 	print("  [%5.1fs] estado → %s" % [(Time.get_ticks_msec() - _started_at) / 1000.0, name_])
 
 func _process(_delta: float) -> bool:
@@ -91,7 +95,9 @@ func _verify_match() -> void:
 	var per_game := 0
 	for r in n:
 		per_game += MatchRules.points_for_rank(r, n)
-	_check(total == per_game * g, "puntos totales %d == %d" % [total, per_game * g])
+	# Con puestos compartidos (parejas, empates) o puntos por bandos el total de un minijuego puede no ser el de la tabla:
+	# se comprueba contra lo repartido en cada marcador, y que haya al menos los puntos mínimos (1 por jugador y minijuego).
+	_check(total == _awarded and total >= n * g, "puntos totales %d == repartidos %d (tabla sin empates: %d)" % [total, _awarded, per_game * g])
 
 func _conclude() -> bool:
 	print("")

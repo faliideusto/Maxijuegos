@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="MinigameMeta" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://core/minigame_meta.gd" id="1"]
+[ext_resource type="PackedScene" path="res://minigames/pair_escape/scene.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Fuga en Pareja"
+description = "¡Escapad juntos del templo!"
+instructions = "Se juega POR PAREJAS. Cada pareja tiene su laberinto de piedra sobre el abismo, partido en dos por una gran columna: cada uno corre por SU mitad (que es el reflejo de la de su pareja) con WASD/flechas o el stick. Si te sales del camino, tropiezas y vuelves atrás. Las rejas solo se abren cuando LOS DOS pisáis a la vez vuestra baldosa roja. Gana la pareja que antes salga por la puerta del fondo; si no sale nadie en 60 s, la que más haya avanzado. Solo con número par de jugadores."
+min_players = 2
+max_players = 8
+even_players_only = true
+approx_duration = 65.0
+scene = ExtResource("2")
+accent_color = Color(0.95, 0.62, 0.25, 1)
+execution_mode = 0
+max_duration = 0.0
+music = &"run"
+short_text = "Por parejas: corre por tu mitad sin caerte y pisad a la vez la baldosa roja."

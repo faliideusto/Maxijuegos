@@ -25,6 +25,8 @@ var id: StringName = &""
 @export var short_text: String = ""
 @export_range(1, 8) var min_players: int = 2
 @export_range(1, 8) var max_players: int = 8
+## Solo con un número PAR de jugadores (minijuegos por parejas): con impares no entra en la partida.
+@export var even_players_only: bool = false
 ## Duración aproximada en segundos (informativa; para la UI y el equilibrado).
 @export var approx_duration: float = 30.0
 ## Escena raíz del minijuego (su script debe extender Minigame).
@@ -40,6 +42,8 @@ var id: StringName = &""
 @export var music: StringName = &""
 
 func supports(player_count: int) -> bool:
+	if even_players_only and player_count % 2 != 0:
+		return false
 	return player_count >= min_players and player_count <= max_players
 
 ## Texto corto para la pantalla de presentación.

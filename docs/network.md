@@ -641,3 +641,24 @@ con un cañón delante y una DIANA detrás, sobre una red de raíles entre setos
   disparan con un tiempo de reacción cuando lo tienen delante y sin mirarles de frente, a veces se dan la vuelta si les viene una
   bala por detrás y, en un cara a cara, se van por otro lado para rodear. Partidas de bots: ~48 s de media.
 - Pruebas: `tests/rail_cannons_test.gd` y `ONLY=rail_cannons tests/online_test.sh 3 1 0 normal` OK; captura: `tools/rail_shot.gd`.
+
+## Fuga en Pareja (`pair_escape`, HOST_AUTHORITATIVE, 3D, por parejas)
+
+Laberinto de piedra sobre un abismo, partido por una columna tumbada; cada pareja tiene el suyo (todos iguales, de la semilla) y
+cada miembro corre por su mitad, reflejo de la del compañero. Salirse del camino = tropezar (1,1 s en el suelo y vuelta a la
+última baldosa segura). Tres rejas cortan el paso a los dos; se abren solo cuando los DOS pisan a la vez su baldosa roja.
+Gana la pareja que antes salga (los dos); si no, la que más haya avanzado al acabar los 60 s.
+
+- **Solo con número par de jugadores**: `MinigameMeta.even_players_only = true` hace que `supports()` (y por tanto la rotación,
+  los ajustes y `pick_random`) lo descarte con 3, 5 o 7. Mecanismo genérico para futuros juegos por parejas.
+- **Parejas**: se sortean con la semilla común (no se envían). Cada pareja comparte puesto (`_result_groups()`), así que con 4
+  jugadores los ganadores reciben 4 y los otros 2. Con 2 jugadores (una sola pareja, sin rival) `_result_points()` da N si
+  escapan y 1 si no.
+- **Laberinto**: 5 columnas por mitad y 41 filas; filas pares = pasillos laterales con ramales sin salida, impares = pasos de
+  una baldosa (así una reja en un paso no se puede rodear). Estado: 8 floats por jugador + máscara de rejas y hora de escape
+  por pareja.
+- **Vista**: cada PC sigue a su pareja con una cámara por detrás. En modo local, si hay personas en parejas distintas, la
+  pantalla se parte (2 o 2x2 visores que comparten el mismo `World3D`).
+- **Bots**: camino más corto por baldosas (BFS), esperan en la baldosa roja a su pareja; los menos hábiles a veces se pasan de
+  largo en una curva y tropiezan.
+- Pruebas: `tests/pair_escape_test.gd`; captura: `tools/pair_shot.gd -- salida.png [seg] [jugadores] [humanos_locales]`.
