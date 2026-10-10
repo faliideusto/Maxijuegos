@@ -6,8 +6,8 @@
 [resource]
 script = ExtResource("1")
 display_name = "Disparos Diligentes"
-description = "¡Dispara rápido, pero no a las bombas!"
-instructions = "Todos disparáis a la misma fila de huecos de una caseta de feria. De vez en cuando salen dianas: el primero que acierta se la lleva, y cuanto antes dispares más puntos (+7 ¡EXCELENTE!, +5 ¡BIEN!, +2 ¡LENTO!). Pero a veces salen BOMBAS con la mecha encendida: si le das a una pierdes 5 puntos y te quedas aturdido un momento. Disparar a un hueco vacío quita 2. Apunta con izquierda/derecha (A/D, flechas o stick) y dispara con tu botón de acción; con el ratón, clic en un hueco para disparar ahí. Gana quien más puntos tenga al acabar el tiempo."
+description = "¡Rápido, pero no a las bombas!"
+instructions = "Cada uno tiene tres huecos delante: izquierda, centro y derecha, y solo puede disparar a los suyos. A / S / D (o izquierda / abajo / derecha) apuntan al momento a tu hueco de la izquierda, del centro o de la derecha, y tu botón de acción dispara (con el ratón: clic en tu hueco). Cuando salen dianas, cuanto antes aciertes más puntos (+7 ¡EXCELENTE!, +5 ¡BIEN!, +2 ¡LENTO!). Si salen BOMBAS con la mecha encendida, ni las toques: pierdes 5 puntos y te quedas aturdido. Disparar a un hueco vacío quita 2. Cada vez va más rápido. Gana quien más puntos tenga al acabar."
 min_players = 2
 max_players = 8
 approx_duration = 45.0
@@ -16,4 +16,4 @@ accent_color = Color(0.93, 0.36, 0.22, 1)
 execution_mode = 0
 max_duration = 0.0
 music = &"aim"
-short_text = "Dispara a las dianas antes que nadie, ¡pero ni se te ocurra tocar las bombas!"
+short_text = "A/S/D apuntan a tus dianas y la acción dispara. ¡Cada vez más rápido y ojo a las bombas!"

@@ -569,26 +569,27 @@ premio (+1, un +2 desde 4 puentes y un oro +3, barajados con la semilla común e
 
 ## Disparos Diligentes (`diligent_shots`, HOST_AUTHORITATIVE)
 
-Copia del "Disparos diligentes" de Pummel Party: una caseta de feria con una fila de huecos y todos los jugadores delante, cada uno
-con su escopeta láser apuntando a la fila.
-- **Se adapta al nº de jugadores**: cada jugador tiene su tramo de huecos con su color (4 con 2 jugadores, 3 hasta 5 y 2 a partir
-  de 6: de 8 a 16 huecos), pero cualquiera puede disparar a cualquier hueco. 45 s.
-- **Oleadas** (semilla común): pausa de 0,7-1,5 s y después, o bien dianas en varios huecos a la vez (del 35 % al 100 %), o bien
-  bombas con la mecha encendida durante 0,9-2 s que luego se cambian por dianas (la trampa para los que disparan sin mirar). Las
-  dianas duran de 2,6 s (al principio) a 1,9 s (al final) o hasta que no queda ninguna. Desde el 40 % de la partida, algunas oleadas
-  de dianas traen alguna bomba mezclada.
-- **Puntos**: el primero que acierta una diana se la lleva: +7 ¡EXCELENTE! (antes de 0,5 s), +5 ¡BIEN! (antes de 1 s), +2 ¡LENTO!.
-  Bomba: -5 ¡BANG! y aturdido 1,4 s (sin mira ni disparo). Hueco vacío o entre huecos: -2 ¡FALLASTE! y arma encasquillada 0,45 s.
-  0,22 s entre disparos. Los puntos no bajan de 0. Si varios disparan en el mismo frame, el orden se sortea. Gana quien más
-  puntos tiene; a igualdad, quien tocó menos bombas.
-- **Controles**: izquierda/derecha mueve la mira (760 px/s); la acción dispara. Ratón: clic en un hueco = apuntar ahí y disparar;
-  clic fuera de la fila = disparar donde se apunta. Táctil: joystick + botón DISPARAR.
-- **Red**: sin código propio. Snapshots a 30 Hz (fase, tiempo, contenido de los huecos, miras, puntos y aturdimiento) y eventos
-  fiables `shot` (jugador, hueco, resultado, puntos, x de la mira: popups, sonido y fogonazo) y `end`. El clic va al host por el
-  canal de texto del minijuego (`submit_text("s:<hueco>")`; en partida local llega sin dueño y es del jugador del ratón: teclado 1).
-- **Bots/autopiloto**: reaccionan a los 0,25-0,85 s de salir la oleada, van a la diana libre más cercana y disparan al tenerla en
-  la mira; en un 10 % de las oleadas de bombas "se les escapa el dedo" y disparan a una.
+Basado en el "Disparos diligentes" de Pummel Party: una caseta de feria y todos los jugadores delante, cada uno con su escopeta
+láser y SUS TRES huecos (izquierda, centro, derecha) con su color. Cada uno solo dispara a los suyos.
+- **Se adapta al nº de jugadores**: 3 huecos por jugador; el tramo de cada uno se estrecha cuantos más hay (todo cabe en 1180 px).
+- **Controles**: A / S / D (izquierda / abajo / derecha, o el stick) apuntan al instante a tu hueco izquierdo / central / derecho;
+  la acción dispara. Ratón: clic en uno de TUS huecos = apuntar ahí y disparar (clic en otro sitio = disparar donde apuntas).
+  Táctil: joystick + botón DISPARAR.
+- **Oleadas** (semilla común, el MISMO patrón en los huecos de todos para que sea justo): dianas en 1-3 huecos, o bien primero
+  bombas (la trampa) que al rato se cambian por dianas; desde el 30 % de la partida, algunas oleadas mezclan dianas y una bomba.
+  La oleada acaba cuando nadie tiene dianas o se agota su tiempo.
+- **Cada vez más rápido**: en los 45 s las dianas pasan de durar 2,4 s a 1,1 s, la pausa entre oleadas de 1-1,6 s a 0,35-0,7 s y
+  las bombas de 1,2-2 s a 0,6-1,2 s.
+- **Puntos**: +7 ¡EXCELENTE! (antes de 0,45 s), +5 ¡BIEN! (antes de 0,9 s), +2 ¡LENTO!. Bomba: -5 ¡BANG! y aturdido 1,2 s.
+  Hueco vacío: -2 ¡FALLASTE! y arma encasquillada 0,4 s. 0,18 s entre disparos. Mínimo 0 puntos. Gana quien más suma; a
+  igualdad, quien tocó menos bombas.
+- **Red**: sin código propio. Snapshots a 30 Hz (fase, tiempo, huecos, a qué hueco apunta cada uno, puntos, aturdimiento) y eventos
+  fiables `shot` (jugador, hueco 0-2, resultado, puntos) y `end`. El clic va al host por el canal de texto del minijuego
+  (`submit_text("s:<0-2>")`; en partida local llega sin dueño y es del jugador del ratón: teclado 1).
+- **Bots/autopiloto**: reaccionan a los 0,22-0,75 s de salir la oleada, apuntan a una de sus dianas y disparan; en un 10 % de las
+  oleadas de bombas "se les escapa el dedo".
 - Pruebas: `tests/diligent_shots_test.gd`; captura: `tools/shots_shot.gd`.
+
 ## Impostor a Bordo (`impostor`, HOST_AUTHORITATIVE, 3D en primera persona)
 
 Un "Among Us" en primera persona: nave de 8 salas sobre una rejilla de celdas (`ROOMS`, `HALLS`, `STATIONS` en el script), 4-8
