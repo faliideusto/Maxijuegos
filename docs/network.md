@@ -532,3 +532,19 @@ reinicia sola al acabar.
 - **3D**: `SubViewport` con mundo propio: suelo de paneles (textura procedural), franjas de peligro, vórtices azules que giran, consola con luces,
   gusanos decorativos, personajes con contorno y anillo de color, estrellas al estar aturdidos, letras que se hunden y brillan al pulsarse.
 - Pruebas: `tests/word_fight_test.gd`; captura: `tools/word_shot.gd`.
+
+## 28. Crono a Ciegas (`blind_timer`, HOST_AUTHORITATIVE)
+
+Un cronómetro en el centro y todos los jugadores sentados alrededor. Hay un tiempo objetivo al azar (entero, 5-15 s, de la semilla
+común) y el crono cuenta desde 0, pero al poco rato desaparece: hay que seguir contando de cabeza y pulsar la acción justo en el objetivo.
+- **Reglas**: cada jugador para UNA vez (las pulsaciones del primer segundo no cuentan, para evitar paradas por accidente). Se cierra
+  cuando han parado todos o 4 s después del objetivo. Gana quien queda más cerca, por arriba o por abajo; a igual error, quien pulsó
+  antes; quien no paró queda último.
+- **El crono desaparece** al 40 % del objetivo (mínimo 2 s, máximo 5 s) y se desvanece en 0,6 s; el objetivo sigue siempre a la vista.
+- **Destape**: nadie ve ningún tiempo (ni el suyo) hasta el final; entonces se destapan del último al primero con su diferencia (±).
+- **Red**: sin código propio. Snapshots a 30 Hz (fase, crono, objetivo y quién ha parado) y eventos fiables (`hide`, `stop`, `reveal`).
+  Los tiempos solo viajan en el evento `reveal`, así que un cliente no puede verlos antes. El cliente hace avanzar el crono entre snapshots.
+- **Bots/autopiloto**: paran en el objetivo con un error humano (σ ≈ 0,18 s + 4,5 % del objetivo).
+- **Sonido**: SIN música (un ritmo de fondo serviría para contar); tic por segundo mientras el crono se ve, `swoosh` al desaparecer,
+  `claim` al parar y redoble en el destape.
+- Pruebas: `tests/blind_timer_test.gd` y `ONLY=blind_timer tests/online_test.sh 4 2 0 normal` OK; captura: `tools/timer_shot.gd`.
