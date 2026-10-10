@@ -38,6 +38,7 @@ godot --headless --path . --script res://tests/knife_test.gd                    
 godot --headless --path . --script res://tests/target_test.gd                       # Puntería: dianas, puntuación y autopiloto
 godot --headless --path . --script res://tests/spotlight_test.gd                    # Caza del Foco: reglas y partidas con bots
 godot --headless --path . --script res://tests/blind_timer_test.gd                 # Crono a Ciegas: objetivo, crono que desaparece, ranking y partidas con bots
+godot --headless --path . --script res://tests/personal_bridge_test.gd             # Puente Personal: puentes según jugadores, clic/dirección, puentes que se rompen y partidas con bots
 godot --headless --path . --script res://tests/bomb_party_test.gd                  # Bomba de Palabras: diccionario, niveles y reglas
 godot --headless --path . --script res://tests/tongue_level_test.gd                # recorrido de Columpio de Lengua (se genera con tools/gen_tongue_level.gd)
 GODOT=/ruta/godot tests/online_test.sh 4 4 0 normal                  # 4 instancias reales por red

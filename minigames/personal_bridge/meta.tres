@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="MinigameMeta" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://core/minigame_meta.gd" id="1"]
+[ext_resource type="PackedScene" path="res://minigames/personal_bridge/scene.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Puente Personal"
+description = "¿Egoísta o no?"
+instructions = "Estáis todos en una plataforma rodeada de torres, cada una con su puente y su premio (+1, +2 o el oro +3). Tienes unos segundos para elegir puente en secreto: haz clic en él con el ratón (o apunta con WASD / flechas / stick). Puedes cambiar hasta que se acabe el tiempo. Luego todos cruzan a la vez: si más de uno eligió el mismo puente, se viene abajo y os quedáis sin nada. 3 rondas; gana quien más puntos sume."
+min_players = 2
+max_players = 8
+approx_duration = 40.0
+scene = ExtResource("2")
+accent_color = Color(0.73, 0.54, 0.35, 1)
+execution_mode = 0
+max_duration = 0.0
+music = &"log"
+short_text = "Elige puente con el ratón: si alguien elige el mismo, se cae."

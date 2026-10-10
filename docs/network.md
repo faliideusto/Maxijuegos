@@ -548,3 +548,19 @@ común) y el crono cuenta desde 0, pero al poco rato desaparece: hay que seguir 
 - **Sonido**: SIN música (un ritmo de fondo serviría para contar); tic por segundo mientras el crono se ve, `swoosh` al desaparecer,
   `claim` al parar y redoble en el destape.
 - Pruebas: `tests/blind_timer_test.gd` y `ONLY=blind_timer tests/online_test.sh 4 2 0 normal` OK; captura: `tools/timer_shot.gd`.
+
+## Puente Personal (`personal_bridge`, HOST_AUTHORITATIVE)
+
+Copia del "Puente personal" de Pummel Party. Todos en una plataforma central rodeada de torres; cada torre tiene su puente y un
+premio (+1, un +2 desde 4 puentes y un oro +3, barajados con la semilla común en cada ronda).
+- **Se adapta al nº de jugadores**: jugadores + 1 puentes (mínimo 3, máximo 9) en círculo. 3 rondas de 8 s para elegir.
+- **Elegir**: con el RATÓN (clic en el puente o su torre) o apuntando con la dirección (WASD / flechas / stick). Se puede cambiar
+  hasta que acaba el tiempo. Al acabar, todos cruzan: un puente con más de un jugador se rompe (nadie cobra, cuenta una caída);
+  quien cruza solo cobra su premio. Quien no eligió se queda en el centro. Gana quien más suma; a igualdad, menos caídas.
+- **Secreto**: durante la elección el estado solo dice QUIÉN ha elegido (marca coral → menta bajo cada jugador), no QUÉ. Las
+  elecciones viajan en el evento `reveal` y en el estado ya fuera de la fase de elegir. Cada PC pinta su propia elección al momento.
+- **Red**: sin código propio. El clic va al host por el canal de texto del minijuego (`submit_text("b:<n>")`; en partida local
+  llega sin dueño y es del jugador del ratón: teclado 1). La dirección llega con la entrada normal; el host solo la aplica cuando
+  cambia el puente señalado, para no pisar un clic. Eventos `pick` (sin el puente), `reveal`, `round`, `end`.
+- **Bots/autopiloto**: eligen en un momento al azar; el oro les tienta (≈30 % + algo más con pocos jugadores), luego el +2.
+- Pruebas: `tests/personal_bridge_test.gd` y `ONLY=personal_bridge tests/online_test.sh 3 1 1 normal` OK; captura: `tools/bridge_shot.gd`.
