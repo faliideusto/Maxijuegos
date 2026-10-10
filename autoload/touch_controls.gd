@@ -28,6 +28,7 @@ const STICK_GAMES := {
 	&"feather_catch": "AGARRAR",
 	&"impostor": "USAR",
 	&"sniper_town": "DISPARAR",
+	&"rail_cannons": "DISPARAR",
 }
 ## Minijuegos con segundo botón → su texto.
 const ACTION2_GAMES := {

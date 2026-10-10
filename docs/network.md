@@ -616,3 +616,28 @@ acabarse el oxígeno (180 s de juego; las reuniones no lo gastan). Los eliminado
   sospecha (testigo de la eliminación, andar cerca); impostor que finge, caza al aislado y solo elimina sin testigos (salvo
   desesperación). La recarga de eliminar depende del nº de jugadores (`KILL_CDS`, ajustada con 50 partidas de bots).
 - Pruebas: `tests/impostor_test.gd`; captura: `tools/impostor_shot.gd -- salida.png [seg] [jugadores] [escena]`.
+
+## Vagonetas Cañoneras (`rail_cannons`, HOST_AUTHORITATIVE, 3D)
+
+Basado en el minijuego de Wii Party de las vagonetas con cañón en el patio de un castillo. Cada jugador va en una vagoneta-taza
+con un cañón delante y una DIANA detrás, sobre una red de raíles entre setos.
+- **Raíles**: rejilla de cruces a 4,4 m. Todo el borde tiene vía; de los tramos interiores hasta un 40 % se convierte en seto,
+  en parejas simétricas izquierda-derecha, sin dejar cruces con menos de 2 vías, todo conectado y con setos de 1-2 celdas. Sale
+  de la semilla común (no viaja por la red). Las celdas sueltas a veces son parterres de flores.
+- **Se adapta al nº de jugadores**: 5×4 cruces con 2-4, 6×4 con 5-6 y 6×5 con 7-8; la cámara se aleja con el patio. Las salidas se
+  reparten por el borde y los vecinos empiezan cara a cara (sentidos alternos), para que nadie arranque dando la espalda.
+- **Conducción**: la dirección elige la vía en cada cruce; en mitad de un tramo, hacia delante o atrás (media vuelta al momento) y,
+  si la dirección es perpendicular, sigue hasta el cruce para girar allí (estilo Pac-Man). Parado en un cruce, hacia donde no hay
+  vía no se mueve. Las vagonetas no se atraviesan. El cañón mira siempre hacia donde se avanza.
+- **Balas**: la acción dispara (recarga 0,85 s), en línea recta a 12,5 m/s; un seto o el muro la paran (sale del pasillo de vía).
+  Si da de frente (contra el cañón) solo empuja 1,3 m por la vía y aturde 0,75 s; por detrás o de lado, ¡diana!: sale volando
+  con una columna de luz y queda eliminado.
+- **Moneda S**: aparece a los 6 s y luego cada ~8 s en mitad de un tramo, lejos de todos; da +55 % de velocidad 4,5 s.
+- **Fin**: queda uno solo (gana) o se acaban los 60 s: los que siguen en pie empatan en cabeza (`_result_groups`). El resto,
+  del último al primero en caer (empatan los que caen a la vez).
+- **Red**: sin código propio. Snapshots a 30 Hz (10 floats por vagoneta + balas + moneda + reloj) y eventos `fire`, `puff`,
+  `bump`, `out`, `coin`, `pick`, `over`, `beep`, `go`. Los clientes adelantan las balas entre snapshots.
+- **Bots/autopiloto**: BFS por los raíles hacia el cruce que queda detrás del rival más cercano (o a la moneda si está más a mano),
+  disparan con un tiempo de reacción cuando lo tienen delante y sin mirarles de frente, a veces se dan la vuelta si les viene una
+  bala por detrás y, en un cara a cara, se van por otro lado para rodear. Partidas de bots: ~48 s de media.
+- Pruebas: `tests/rail_cannons_test.gd` y `ONLY=rail_cannons tests/online_test.sh 3 1 0 normal` OK; captura: `tools/rail_shot.gd`.
