@@ -133,7 +133,7 @@ func _process(_delta: float) -> bool:
 	g.debug_secondary(imp)
 	var di: Dictionary = g.debug_player(imp)
 	_ck(f, not g.debug_player(a).alive and g.debug_info().bodies == 1, "E elimina al tripulante de delante y deja un cadáver")
-	_ck(f, di.kill_cd > 15.0 and di.score == 2 and (di.pos as Vector2).distance_to(spot) < 0.1, "el impostor recarga, suma 2 puntos y queda sobre la víctima")
+	_ck(f, di.kill_cd > 10.0 and di.score == 2 and (di.pos as Vector2).distance_to(spot) < 0.1, "el impostor recarga, suma 2 puntos y queda sobre la víctima")
 	g.debug_secondary(a)
 	g.debug_use(a)
 	_ck(f, g.debug_phase() == PH.PLAY, "un fantasma no puede denunciar")
@@ -160,6 +160,24 @@ func _process(_delta: float) -> bool:
 	g.finished.connect(func(r: Array[int]) -> void: _ranking = r)
 	_run(g, 8.0)
 	_ck(f, _ranking.size() == 6 and _ranking[5] == imp, "el ranking incluye a los 6 y el impostor derrotado queda último")
+	var groups: Array = g.result_groups()
+	_ck(f, groups.size() == 2 and (groups[0] as Array).size() == 5 and groups[1] == [imp], "los 5 tripulantes ganadores forman un grupo empatado y el impostor, otro")
+	# El reparto de puntos de la partida: todos los de un bando reciben lo mismo.
+	var gm = root.get_node("GameManager")
+	var lob = root.get_node("Lobby")
+	for p in lob.players:
+		p.score = 0
+	var typed: Array[int] = []
+	for id in _ranking:
+		typed.append(int(id))
+	gm.report_results(typed, groups)
+	var crew_pts := {}
+	for p in lob.players:
+		if p.id != imp:
+			crew_pts[p.score] = true
+	_ck(f, crew_pts.size() == 1 and crew_pts.has(6) and lob.get_player(imp).score == 1, "en la partida, los 5 ganadores reciben los mismos puntos (6) y el impostor 1")
+	for p in lob.players:
+		p.score = 0
 	_close(g)
 
 	# 6) Empate o saltar: nadie sale. Botón de emergencia: una vez por jugador y con recarga.
@@ -218,6 +236,17 @@ func _process(_delta: float) -> bool:
 		if g.debug_player(p.id).role == 1:
 			n_imp += 1
 	_ck(f, n_imp == 2, "con 8 jugadores hay 2 impostores")
+	_close(g)
+	g = _new_game(7, true, 4321)
+	n_imp = 0
+	for p in g.players:
+		if g.debug_player(p.id).role == 1:
+			n_imp += 1
+	_ck(f, n_imp == 1, "con 7 jugadores hay un solo impostor")
+	var kinds := {}
+	for st_def in g.STATIONS:
+		kinds[st_def["type"]] = true
+	_ck(f, kinds.size() == 5, "hay 5 tipos de misión distintos repartidos por las consolas")
 	g.debug_skip_intro()
 	var pid: int = g.players[0].id
 	var yaw0: float = g.debug_player(pid).yaw
@@ -261,6 +290,64 @@ func _process(_delta: float) -> bool:
 	Input.action_release("p%d_right" % hid)
 	moved = (g.debug_player(hid).pos as Vector2) - open_spot
 	_ck(f, moved.x > 1.0 and absf(g.debug_player(hid).yaw) < 0.001, "con ratón, derecha es paso lateral y no gira")
+	# Misiones de flechas y de memoria con las teclas de una persona.
+	var names := ["up", "right", "down", "left"]
+	for kind in [g.T_ARROWS, g.T_MEMORY]:
+		var sx: int = -1
+		for cand in g.STATIONS.size():
+			if g.STATIONS[cand]["type"] == kind:
+				sx = cand
+				break
+		g._ps[hid].tasks[0] = sx
+		g._ps[hid].done_mask = 0
+		g.debug_place(hid, g.debug_station_pos(sx), 0.0)
+		g.debug_use(hid)
+		var before: int = g.debug_player(hid).left
+		var here: Vector2 = g.debug_player(hid).pos
+		if kind == g.T_MEMORY:
+			Input.action_press("p%d_up" % hid)
+			_run(g, 0.3)
+			Input.action_release("p%d_up" % hid)
+			_run(g, 0.1)
+			_ck(f, g.debug_player(hid).hits == 0 and g.debug_player(hid).station == sx, "memoria: mientras se enseña la secuencia no se puede contestar")
+			_run(g, 2.4)
+		var wrong: int = (int(g.debug_seq(hid)[0]) + 2) % 4
+		Input.action_press("p%d_%s" % [hid, names[wrong]])
+		_run(g, 0.1)
+		Input.action_release("p%d_%s" % [hid, names[wrong]])
+		_ck(f, g.debug_player(hid).hits == 0, "una flecha equivocada no avanza")
+		_run(g, 0.7 if kind == g.T_ARROWS else 3.2)
+		for d in g.debug_seq(hid):
+			Input.action_press("p%d_%s" % [hid, names[int(d)]])
+			_run(g, 0.1)
+			Input.action_release("p%d_%s" % [hid, names[int(d)]])
+			_run(g, 0.3)
+		var dh: Dictionary = g.debug_player(hid)
+		_ck(f, dh.station == -1 and dh.left == before - 1, "%s: pulsar la secuencia correcta completa la misión" % ("flechas" if kind == g.T_ARROWS else "memoria"))
+		_ck(f, (dh.pos as Vector2).distance_to(here) < 0.05, "durante una misión de flechas el jugador no se mueve")
+	# Machacar y esperar.
+	for kind in [g.T_MASH, g.T_WAIT]:
+		var sy: int = -1
+		for cand in g.STATIONS.size():
+			if g.STATIONS[cand]["type"] == kind:
+				sy = cand
+				break
+		g._ps[hid].tasks[1] = sy
+		g._ps[hid].done_mask = 0
+		g.debug_place(hid, g.debug_station_pos(sy), 0.0)
+		g.debug_use(hid)
+		if kind == g.T_MASH:
+			_run(g, 0.4)
+			for i in 13:
+				g.debug_use(hid)
+			_ck(f, g.debug_player(hid).station == sy, "machacar: con 13 pulsaciones aún no está")
+			g.debug_use(hid)
+			_ck(f, g.debug_player(hid).station == -1, "machacar: 14 pulsaciones completan la misión")
+		else:
+			_run(g, 5.0)
+			_ck(f, g.debug_player(hid).station == sy, "esperar: a los 5 s aún no ha terminado")
+			_run(g, 1.3)
+			_ck(f, g.debug_player(hid).station == -1, "esperar: a los 6 s la misión se completa sola")
 	g._use_look = true
 	g._local_myaw = 0.8
 	g._animate(1.0 / 60.0)

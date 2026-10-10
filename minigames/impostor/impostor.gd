@@ -1,7 +1,7 @@
 extends Minigame
 ## Impostor a Bordo (id impostor; modelo HOST_AUTHORITATIVE, 3D en PRIMERA PERSONA): una nave de ocho salas y pasillos.
 ## Al empezar, cada jugador recibe en secreto su papel. La TRIPULACIÓN recorre la nave completando sus tareas (se va a la
-## consola, se pulsa ESPACIO/CLIC y se acierta tres veces el marcador en la zona verde); el IMPOSTOR finge tareas y elimina
+## consola, se pulsa ESPACIO/CLIC y se resuelve su misión: hay 5 tipos, ver T_MARK…T_MEMORY); el IMPOSTOR finge tareas y elimina
 ## tripulantes con E/CLIC DERECHO cuando nadie mira. Quien encuentra un cadáver lo denuncia (o se pulsa el botón de
 ## emergencia de la cafetería) y todos se reúnen a votar: el más votado sale por la esclusa. Gana la tripulación si termina
 ## todas las tareas o expulsa a los impostores; gana el impostor si iguala en número a la tripulación o se acaba el oxígeno.
@@ -48,17 +48,24 @@ const TASK_HITS := 3
 const TASK_SPEED := 0.85                 # recorridos del marcador por segundo
 const TASK_ZONE := 0.12                  # semiancho de la zona verde
 const TASK_LOCK := 0.55
+## Tipos de misión (campo "type" de cada consola).
+const T_MARK := 0                        # parar el marcador en la zona verde, 3 veces
+const T_MASH := 1                        # pulsar muy rápido
+const T_ARROWS := 2                      # pulsar las flechas que se muestran, en orden
+const T_WAIT := 3                        # esperar quieto a que termine (descargas, repostajes)
+const T_MEMORY := 4                      # memorizar una secuencia de flechas y repetirla
+const MEMORY_SHOW := 2.4                 # segundos que se ve la secuencia antes de ocultarse
 const USE_RANGE := 1.25
 const BUTTON_RANGE := 2.3
 const REPORT_RANGE := 2.6
 const KILL_RANGE := 2.1
 const KILL_CD := 20.0
 ## Recarga según el nº de jugadores (ajustada con partidas de bots: ver tests/impostor_test.gd).
-const KILL_CDS := {4: 42.0, 5: 22.0, 6: 16.0, 7: 56.0, 8: 54.0}
+const KILL_CDS := {4: 42.0, 5: 22.0, 6: 13.0, 7: 9.0, 8: 50.0}
 const KILL_CD_START := 10.0
 const KILL_CD_MEETING := 12.0
 const BUTTON_CD := 18.0
-const FLOATS := 18                       # por jugador en el estado enviado
+const FLOATS := 19                       # por jugador en el estado enviado
 # --- Puntos (de ellos sale la clasificación) ---
 const PTS_TASK := 1
 const PTS_KILL := 2
@@ -86,22 +93,22 @@ const TABLE_CELL := Vector2i(12, 3)
 const PROPS: Array = [Vector2i(12, 3), Vector2i(3, 12), Vector2i(3, 1), Vector2i(3, 5), Vector2i(14, 12)]
 ## Consolas de tareas: sala, celda donde te colocas y pared a la que está pegada.
 const STATIONS: Array = [
-	{"room": 0, "cell": Vector2i(15, 1), "dir": Vector2i(0, -1), "name": "Vaciar la basura"},
-	{"room": 0, "cell": Vector2i(9, 5), "dir": Vector2i(-1, 0), "name": "Arreglar la cafetera"},
-	{"room": 1, "cell": Vector2i(23, 1), "dir": Vector2i(1, 0), "name": "Despejar asteroides"},
-	{"room": 1, "cell": Vector2i(19, 4), "dir": Vector2i(0, 1), "name": "Recargar los cañones"},
-	{"room": 2, "cell": Vector2i(23, 8), "dir": Vector2i(1, 0), "name": "Trazar el rumbo"},
-	{"room": 2, "cell": Vector2i(22, 10), "dir": Vector2i(0, 1), "name": "Estabilizar la dirección"},
-	{"room": 3, "cell": Vector2i(23, 15), "dir": Vector2i(1, 0), "name": "Descargar datos"},
-	{"room": 3, "cell": Vector2i(19, 12), "dir": Vector2i(0, -1), "name": "Reiniciar la antena"},
-	{"room": 4, "cell": Vector2i(11, 15), "dir": Vector2i(0, 1), "name": "Repostar el bidón"},
-	{"room": 4, "cell": Vector2i(16, 11), "dir": Vector2i(1, 0), "name": "Clasificar cajas"},
-	{"room": 5, "cell": Vector2i(6, 8), "dir": Vector2i(-1, 0), "name": "Reparar los cables"},
-	{"room": 5, "cell": Vector2i(9, 10), "dir": Vector2i(1, 0), "name": "Calibrar el distribuidor"},
-	{"room": 6, "cell": Vector2i(1, 11), "dir": Vector2i(-1, 0), "name": "Desbloquear el reactor"},
-	{"room": 6, "cell": Vector2i(1, 14), "dir": Vector2i(0, 1), "name": "Arrancar el reactor"},
-	{"room": 7, "cell": Vector2i(1, 1), "dir": Vector2i(-1, 0), "name": "Alinear el motor"},
-	{"room": 7, "cell": Vector2i(1, 5), "dir": Vector2i(-1, 0), "name": "Repostar el motor"},
+	{"room": 0, "cell": Vector2i(15, 1), "dir": Vector2i(0, -1), "name": "Vaciar la basura", "type": 1},
+	{"room": 0, "cell": Vector2i(9, 5), "dir": Vector2i(-1, 0), "name": "Arreglar la cafetera", "type": 0},
+	{"room": 1, "cell": Vector2i(23, 1), "dir": Vector2i(1, 0), "name": "Despejar asteroides", "type": 0},
+	{"room": 1, "cell": Vector2i(19, 4), "dir": Vector2i(0, 1), "name": "Recargar los cañones", "type": 1},
+	{"room": 2, "cell": Vector2i(23, 8), "dir": Vector2i(1, 0), "name": "Trazar el rumbo", "type": 2},
+	{"room": 2, "cell": Vector2i(22, 10), "dir": Vector2i(0, 1), "name": "Estabilizar la dirección", "type": 0},
+	{"room": 3, "cell": Vector2i(23, 15), "dir": Vector2i(1, 0), "name": "Descargar datos", "type": 3},
+	{"room": 3, "cell": Vector2i(19, 12), "dir": Vector2i(0, -1), "name": "Reiniciar la antena", "type": 4},
+	{"room": 4, "cell": Vector2i(11, 15), "dir": Vector2i(0, 1), "name": "Repostar el bidón", "type": 3},
+	{"room": 4, "cell": Vector2i(16, 11), "dir": Vector2i(1, 0), "name": "Clasificar cajas", "type": 2},
+	{"room": 5, "cell": Vector2i(6, 8), "dir": Vector2i(-1, 0), "name": "Reparar los cables", "type": 4},
+	{"room": 5, "cell": Vector2i(9, 10), "dir": Vector2i(1, 0), "name": "Calibrar el distribuidor", "type": 0},
+	{"room": 6, "cell": Vector2i(1, 11), "dir": Vector2i(-1, 0), "name": "Desbloquear el reactor", "type": 4},
+	{"room": 6, "cell": Vector2i(1, 14), "dir": Vector2i(0, 1), "name": "Arrancar el reactor", "type": 1},
+	{"room": 7, "cell": Vector2i(1, 1), "dir": Vector2i(-1, 0), "name": "Alinear el motor", "type": 2},
+	{"room": 7, "cell": Vector2i(1, 5), "dir": Vector2i(-1, 0), "name": "Repostar el motor", "type": 3},
 ]
 const REASONS: Array[String] = ["Los impostores han sido expulsados", "La tripulación ha caído", "Todas las tareas completadas", "Se acabó el oxígeno"]
 
@@ -129,6 +136,8 @@ class PS:
 	var cursor: int = 0
 	var meetings_left: int = 1
 	var prev_y: float = 0.0
+	var prev_dir: int = -1
+	var hold: bool = false                   # acaba de salir de una misión de flechas: no anda hasta soltar la dirección
 	# IA
 	var bot_rng: RandomNumberGenerator = null
 	var think_t: float = 0.0
@@ -380,7 +389,7 @@ func _setup_round() -> void:
 	var r := RandomNumberGenerator.new()
 	r.seed = seed_value
 	var n := players.size()
-	var imp_count := 2 if n >= 7 else 1
+	var imp_count := 2 if n >= 8 else 1
 	var imps: Array = []
 	if not debug_force_impostors.is_empty():
 		imps = debug_force_impostors.duplicate()
@@ -485,6 +494,40 @@ func _zone(p: PS) -> float:
 
 func _marker(p: PS) -> float:
 	return pingpong(p.task_t * TASK_SPEED, 1.0)
+
+func _type(s: int) -> int:
+	return int(STATIONS[s]["type"]) if s >= 0 else T_MARK
+
+## Pasos que pide la misión de esa consola (en T_WAIT, segundos).
+func _needed(s: int) -> int:
+	match _type(s):
+		T_MASH: return 14
+		T_ARROWS: return 5
+		T_WAIT: return 6
+		T_MEMORY: return 4
+	return TASK_HITS
+
+func _uses_arrows(s: int) -> bool:
+	return s >= 0 and (_type(s) == T_ARROWS or _type(s) == T_MEMORY)
+
+## Secuencia de flechas de la misión en curso (0 arriba, 1 derecha, 2 abajo, 3 izquierda); igual en todos los PC.
+func _seq(p: PS) -> Array[int]:
+	var out: Array[int] = []
+	var h := (seed_value & 0xFFFF) * 31 + p.id * 7919 + (p.cur_station + 3) * 104729
+	for i in _needed(p.cur_station):
+		var d := posmod(((h + i * 1299709) * 2654435 + 12345) / 7, 4)
+		if i > 0 and d == out[i - 1]:
+			d = (d + 1) % 4
+		out.append(d)
+	return out
+
+## Flecha que marca una entrada de movimiento (-1: ninguna).
+func _dir_of(mv: Vector2) -> int:
+	if absf(mv.x) < 0.6 and absf(mv.y) < 0.6:
+		return -1
+	if absf(mv.y) >= absf(mv.x):
+		return 0 if mv.y < 0.0 else 2
+	return 1 if mv.x > 0.0 else 3
 
 ## Consola usable más cercana (para la tripulación, solo las de sus tareas pendientes).
 func _find_station(p: PS) -> int:
@@ -610,15 +653,30 @@ func _sim_play(delta: float) -> void:
 		else:
 			var mv := move_input(pl)
 			var f := _fwd(p)
-			if p.look:
-				dir = f * (-mv.y) + Vector2(-f.y, f.x) * mv.x
+			if _uses_arrows(p.cur_station):
+				# Misión de flechas: el movimiento son las flechas (no se anda); el segundo botón la cancela.
+				var d := _dir_of(mv)
+				if d >= 0 and d != p.prev_dir:
+					_task_arrow(p, d)
+				p.prev_dir = d
+				p.hold = true
+				if action2_presses(pl) > 0:
+					p.cur_station = -1
 			else:
-				p.kyaw = wrapf(p.kyaw - mv.x * TURN * delta, -PI, PI)
-				dir = _fwd(p) * (-mv.y)
-			if action_presses(pl) > 0:
-				_do_use(p)
-			if action2_presses(pl) > 0:
-				_do_secondary(p)
+				p.prev_dir = _dir_of(mv)
+				if p.hold:
+					if p.prev_dir < 0:
+						p.hold = false
+					mv = Vector2.ZERO
+				if p.look:
+					dir = f * (-mv.y) + Vector2(-f.y, f.x) * mv.x
+				else:
+					p.kyaw = wrapf(p.kyaw - mv.x * TURN * delta, -PI, PI)
+					dir = _fwd(p) * (-mv.y)
+				if action_presses(pl) > 0:
+					_do_use(p)
+				if action2_presses(pl) > 0:
+					_do_secondary(p)
 		if _phase != Phase.PLAY:
 			return                       # una acción abrió una reunión o terminó la partida
 		_move(p, dir, delta)
@@ -626,6 +684,8 @@ func _sim_play(delta: float) -> void:
 			p.task_t += delta
 			if p.pos.distance_to(_station_pos(p.cur_station)) > USE_RANGE + 0.35:
 				p.cur_station = -1
+			elif _type(p.cur_station) == T_WAIT and int(p.task_t) > p.task_hits:
+				_task_advance(p, 1)
 
 func _move(p: PS, dir: Vector2, delta: float) -> void:
 	if dir.length() > 1.0:
@@ -644,7 +704,12 @@ func _do_use(p: PS) -> void:
 	if _phase != Phase.PLAY:
 		return
 	if p.cur_station >= 0:
-		_task_hit(p, absf(_marker(p) - _zone(p)) <= TASK_ZONE)
+		match _type(p.cur_station):
+			T_MARK:
+				_task_hit(p, absf(_marker(p) - _zone(p)) <= TASK_ZONE)
+			T_MASH:
+				if p.task_lock <= 0.0:
+					_task_advance(p, 1)
 		return
 	var body := _find_body(p)
 	if body >= 0:
@@ -678,17 +743,45 @@ func _start_task(p: PS, s: int) -> void:
 	p.task_lock = 0.25
 	p.hit_t = p.bot_rng.randf_range(1.0, 1.8)
 
+## Un intento con resultado (marcador): acierto o fallo.
 func _task_hit(p: PS, ok: bool) -> void:
 	if p.cur_station < 0 or p.task_lock > 0.0:
 		return
-	if not ok:
-		p.task_lock = TASK_LOCK
-		send_event("hit", {"p": p.id, "ok": false})
+	if ok:
+		p.task_lock = 0.2
+		_task_advance(p, 1)
+	else:
+		_task_fail(p)
+
+## Una flecha pulsada en una misión de flechas o de memoria.
+func _task_arrow(p: PS, d: int) -> void:
+	if p.cur_station < 0 or p.task_lock > 0.0:
 		return
-	p.task_hits += 1
-	p.task_lock = 0.2
-	if p.task_hits < TASK_HITS:
-		send_event("hit", {"p": p.id, "ok": true})
+	if _type(p.cur_station) == T_MEMORY and p.task_t < MEMORY_SHOW:
+		return                           # aún se está mostrando la secuencia
+	if d == _seq(p)[mini(p.task_hits, _needed(p.cur_station) - 1)]:
+		_task_advance(p, 1)
+	else:
+		_task_fail(p)
+
+## Fallo: bloqueo breve; en la de memoria se vuelve a enseñar la secuencia desde el principio.
+func _task_fail(p: PS) -> void:
+	if p.cur_station < 0:
+		return
+	p.task_lock = TASK_LOCK
+	if _type(p.cur_station) == T_MEMORY:
+		p.task_hits = 0
+		p.task_t = 0.0
+	send_event("hit", {"p": p.id, "ok": false})
+
+## Avanza la misión en curso `n` pasos; al llegar a los que pide, queda hecha.
+func _task_advance(p: PS, n: int) -> void:
+	if p.cur_station < 0:
+		return
+	p.task_hits += n
+	if p.task_hits < _needed(p.cur_station):
+		if _type(p.cur_station) != T_MASH and _type(p.cur_station) != T_WAIT:
+			send_event("hit", {"p": p.id, "ok": true})
 		return
 	var s := p.cur_station
 	p.cur_station = -1
@@ -898,6 +991,18 @@ func _end_game(team: int, reason: int) -> void:
 	send_event("end", {"w": team})
 	DevCli.log_event("impostor over winner=%d reason=%d" % [team, reason])
 
+## Juego por bandos: todo el bando ganador comparte el primer puesto y todo el perdedor, el siguiente. Así todos los de
+## un mismo bando reciben los mismos puntos de partida (el orden de _ranking dentro del bando es solo para mostrarlos).
+func _result_groups() -> Array:
+	var win: Array = []
+	var lose: Array = []
+	for id in _order:
+		if (_ps[id] as PS).role == _winner:
+			win.append(id)
+		else:
+			lose.append(id)
+	return [win, lose]
+
 func _ranking() -> Array[int]:
 	var scores: Dictionary = {}
 	var ties: Dictionary = {}
@@ -923,7 +1028,9 @@ func _bot_step(p: PS, delta: float) -> Vector2:
 		p.hit_t -= delta
 		if p.hit_t <= 0.0:
 			p.hit_t = p.bot_rng.randf_range(1.0, 1.9)
-			_task_hit(p, p.bot_rng.randf() < 0.85)
+			p.task_lock = 0.0
+			if _type(p.cur_station) != T_WAIT and p.bot_rng.randf() < 0.85:
+				_task_advance(p, ceili(_needed(p.cur_station) / 3.0))
 		return Vector2.ZERO
 	if p.wait_t > 0.0:
 		p.wait_t -= delta
@@ -1108,7 +1215,7 @@ func _serialize_state() -> Variant:
 		var p: PS = _ps[id]
 		arr.append_array(PackedFloat32Array([p.pos.x, p.pos.y, p.vel.x, p.vel.y, p.kyaw, p.myaw, 1.0 if p.alive else 0.0,
 				float(p.done_mask), float(p.cur_station), float(p.task_hits), p.task_t, p.task_lock, p.kill_cd, float(p.score),
-				float(p.vote), float(p.cursor), float(p.meetings_left), 1.0 if p.look else 0.0]))
+				float(p.vote), float(p.cursor), float(p.meetings_left), 1.0 if p.look else 0.0, float(p.kills)]))
 	var bod := PackedFloat32Array()
 	for b in _bodies:
 		bod.append_array(PackedFloat32Array([float(b["id"]), (b["pos"] as Vector2).x, (b["pos"] as Vector2).y]))
@@ -1157,6 +1264,7 @@ func _apply_state(state: Variant) -> void:
 		p.cursor = int(arr[o + 15])
 		p.meetings_left = int(arr[o + 16])
 		p.look = arr[o + 17] > 0.5
+		p.kills = int(arr[o + 18])
 
 ## (host) Giro del ratón de un jugador remoto: "y<ángulo>".
 func _on_player_text(player: PlayerData, text: String, _final: bool) -> void:
@@ -1978,20 +2086,9 @@ func _draw_play_hud(v: PS) -> void:
 	s.draw_circle(Vector2(640, 360), 3.0, Color(1, 1, 1, 0.55))
 	if _phase != Phase.PLAY:
 		return
-	# Tarea en curso: marcador que va y viene; hay que pulsar con él dentro de la zona verde.
+	# Misión en curso: su panel (cada tipo de misión se juega distinto).
 	if v.cur_station >= 0:
-		var r := Rect2(390, 500, 500, 96)
-		s.rounded_rect(r, 14, Color(0.03, 0.05, 0.1, 0.9))
-		_ctxt(Vector2(640, 520), String(STATIONS[v.cur_station]["name"]).to_upper(), 20, Color.WHITE, 4)
-		var bar := Rect2(420, 544, 440, 22)
-		s.draw_rect(bar, Color(0.15, 0.18, 0.26))
-		var z := _zone(v)
-		s.draw_rect(Rect2(bar.position.x + (z - TASK_ZONE) * bar.size.x, bar.position.y, TASK_ZONE * 2.0 * bar.size.x, bar.size.y), Color(0.3, 0.9, 0.45))
-		var mx := bar.position.x + _marker(v) * bar.size.x
-		s.draw_rect(Rect2(mx - 4, bar.position.y - 6, 8, bar.size.y + 12), Color(1.0, 0.3, 0.25) if v.task_lock > 0.25 else Color.WHITE)
-		for h in TASK_HITS:
-			s.draw_circle(Vector2(610 + 30 * h, 582), 8.0, Color(0.3, 0.9, 0.45) if h < v.task_hits else Color(0.2, 0.24, 0.32))
-		_ctxt(Vector2(640, 618), "ESPACIO / CLIC con el marcador en la zona verde", 18, Color(1, 1, 1, 0.9), 4)
+		_draw_task(v)
 	else:
 		var prompt := ""
 		var body := _find_body(v)
@@ -2023,6 +2120,67 @@ func _draw_play_hud(v: PS) -> void:
 				_ctxt(kc + Vector2(0, -78), "a %s" % _name_of(target.id), 20, _color_of(target.id).lightened(0.3), 4)
 		else:
 			_ctxt(kc, str(ceili(v.kill_cd)), 40, Color.WHITE, 6)
+
+## Panel de la misión en curso, según su tipo.
+func _draw_task(v: PS) -> void:
+	var s := surface
+	var st := v.cur_station
+	var need := _needed(st)
+	var green := Color(0.3, 0.9, 0.45)
+	var dim := Color(0.2, 0.24, 0.32)
+	s.rounded_rect(Rect2(390, 486, 500, 112), 14, Color(0.03, 0.05, 0.1, 0.9))
+	_ctxt(Vector2(640, 506), String(STATIONS[st]["name"]).to_upper(), 20, Color.WHITE, 4)
+	var bar := Rect2(420, 536, 440, 24)
+	var hint := ""
+	match _type(st):
+		T_MARK:
+			s.draw_rect(bar, Color(0.15, 0.18, 0.26))
+			var z := _zone(v)
+			s.draw_rect(Rect2(bar.position.x + (z - TASK_ZONE) * bar.size.x, bar.position.y, TASK_ZONE * 2.0 * bar.size.x, bar.size.y), green)
+			var mx := bar.position.x + _marker(v) * bar.size.x
+			s.draw_rect(Rect2(mx - 4, bar.position.y - 6, 8, bar.size.y + 12), Color(1.0, 0.3, 0.25) if v.task_lock > 0.25 else Color.WHITE)
+			for h in need:
+				s.draw_circle(Vector2(610 + 30 * h, 580), 8.0, green if h < v.task_hits else dim)
+			hint = "ESPACIO / CLIC con el marcador en la zona verde"
+		T_MASH:
+			s.draw_rect(bar, Color(0.15, 0.18, 0.26))
+			s.draw_rect(Rect2(bar.position, Vector2(bar.size.x * clampf(float(v.task_hits) / float(need), 0.0, 1.0), bar.size.y)), Color(1.0, 0.75, 0.2))
+			_ctxt(Vector2(640, 580), "%d / %d" % [mini(v.task_hits, need), need], 20, Color.WHITE, 4)
+			hint = "¡Pulsa ESPACIO / CLIC muy rápido!"
+		T_WAIT:
+			s.draw_rect(bar, Color(0.15, 0.18, 0.26))
+			s.draw_rect(Rect2(bar.position, Vector2(bar.size.x * clampf(v.task_t / float(need), 0.0, 1.0), bar.size.y)), Color(0.4, 0.8, 1.0))
+			_ctxt(Vector2(640, 580), "%d %%" % int(clampf(v.task_t / float(need), 0.0, 1.0) * 100.0), 20, Color.WHITE, 4)
+			hint = "Espera sin alejarte de la consola…"
+		T_ARROWS, T_MEMORY:
+			var seq := _seq(v)
+			var showing := _type(st) == T_ARROWS or v.task_t < MEMORY_SHOW
+			var x0 := 640.0 - (need - 1) * 35.0
+			for i in need:
+				var c := Vector2(x0 + i * 70.0, 552)
+				var done := i < v.task_hits
+				s.rounded_rect(Rect2(c - Vector2(28, 28), Vector2(56, 56)), 10, Color(0.12, 0.3, 0.18) if done else Color(0.12, 0.15, 0.24))
+				if done or showing:
+					var col := green if done else Color.WHITE
+					if not done and _type(st) == T_ARROWS and i == v.task_hits:
+						col = Color(1.0, 0.3, 0.25) if v.task_lock > 0.25 else Color(1.0, 0.9, 0.3)
+					_arrow(c, seq[i], 17.0, col)
+				else:
+					_ctxt(c, "?", 30, Color(1.0, 0.3, 0.25) if v.task_lock > 0.25 else Color(1, 1, 1, 0.6), 4)
+			if _type(st) == T_ARROWS:
+				hint = "Pulsa las flechas (WASD) en orden  ·  E cancela"
+			elif showing:
+				hint = "Memoriza la secuencia…"
+			else:
+				hint = "Repítela con las flechas (WASD)  ·  E cancela"
+	_ctxt(Vector2(640, 620), hint, 18, Color(1, 1, 1, 0.9), 4)
+
+## Flecha (0 arriba, 1 derecha, 2 abajo, 3 izquierda).
+func _arrow(center: Vector2, dir: int, size: float, col: Color) -> void:
+	var f := [Vector2(0, -1), Vector2(1, 0), Vector2(0, 1), Vector2(-1, 0)][dir % 4] as Vector2
+	var side := Vector2(-f.y, f.x)
+	surface.draw_colored_polygon(PackedVector2Array([center + f * size, center + side * size * 0.9, center - side * size * 0.9]), col)
+	surface.draw_line(center - f * size * 0.95, center + f * size * 0.1, col, size * 0.55)
 
 func _draw_minimap(v: PS, origin: Vector2) -> void:
 	var s := surface
@@ -2167,8 +2325,9 @@ func _draw_end(v: PS) -> void:
 	_ctxt(Vector2(640, 96), "¡VICTORIA!" if won else "DERROTA", 86, col, 12)
 	_ctxt(Vector2(640, 166), "Gana la tripulación" if crew_won else "Gana el impostor", 32, Color.WHITE, 6)
 	_ctxt(Vector2(640, 204), REASONS[clampi(_reason, 0, REASONS.size() - 1)], 22, Color(1, 1, 1, 0.8), 4)
+	_ctxt(Vector2(640, 236), "Todo el bando ganador se lleva los mismos puntos", 18, Color(1.0, 0.9, 0.3), 4)
 	var rk := _ranking()
-	var y := 244.0
+	var y := 258.0
 	for i in rk.size():
 		var p: PS = _ps.get(rk[i])
 		if p == null:
@@ -2178,7 +2337,8 @@ func _draw_end(v: PS) -> void:
 		_bean2d(row.position + Vector2(26, 20), 0.5, _color_of(p.id), 0.0, not p.alive)
 		_txt(row.position + Vector2(54, 27), _name_of(p.id) + ("  (tú)" if p.id == v.id else ""), 21, Color.WHITE, 4)
 		_txt(row.position + Vector2(300, 27), "IMPOSTOR" if p.role == IMPOSTOR else "Tripulante", 17, Color(1.0, 0.55, 0.5) if p.role == IMPOSTOR else Color(0.7, 0.9, 1.0), 3)
-		_txt(row.position + Vector2(470, 28), "%d pts" % p.score, 21, Color(1.0, 0.9, 0.3), 4)
+		var detail := "%d eliminaciones" % p.kills if p.role == IMPOSTOR else "%d/%d tareas" % [TASKS_PER - _tasks_left(p), TASKS_PER]
+		_txt(row.position + Vector2(420, 27), detail, 17, Color(1, 1, 1, 0.85), 3)
 		y += 46.0
 
 # ----------------------------------------------------------------------------
@@ -2222,7 +2382,10 @@ func debug_secondary(id: int) -> void:
 func debug_task_hit(id: int, ok: bool) -> void:
 	var p: PS = _ps[id]
 	p.task_lock = 0.0
-	_task_hit(p, ok)
+	if ok:
+		_task_advance(p, ceili(_needed(p.cur_station) / 3.0))
+	else:
+		_task_fail(p)
 
 func debug_cast(id: int, target: int) -> void:
 	_cast(_ps[id], target)
@@ -2230,6 +2393,15 @@ func debug_cast(id: int, target: int) -> void:
 func debug_info() -> Dictionary:
 	return {"phase": _phase, "bodies": _bodies.size(), "done": _tasks_done, "total": _tasks_total, "ejected": _ejected,
 			"winner": _winner, "reason": _reason, "meetings": _meetings, "o2": _time_left, "by": _meet_by, "victim": _meet_victim}
+
+func debug_seq(id: int) -> Array:
+	return _seq(_ps[id])
+
+func debug_station_of_type(id: int, type: int) -> int:
+	for s in (_ps[id] as PS).tasks:
+		if _type(s) == type:
+			return s
+	return -1
 
 func debug_station_pos(s: int) -> Vector2:
 	return _station_pos(s)

@@ -127,6 +127,11 @@ func bot_result(player: PlayerData) -> Dictionary:
 func validate_result(score: float, tiebreak: float) -> bool:
 	return is_finite(score) and is_finite(tiebreak) and _validate_result(score, tiebreak)
 
+## (host) Empates del resultado: lista de grupos de ids que comparten puesto (p. ej. juegos por bandos: todo el bando
+## ganador puntúa igual). Vacío = sin empates, cada uno su puesto.
+func result_groups() -> Array:
+	return _result_groups()
+
 ## Clasificación (ids del 1º al último) a partir de los resultados {id: {"score","tiebreak"}}.
 func rank_results(results: Dictionary) -> Array[int]:
 	return _rank_results(results)
@@ -159,6 +164,10 @@ func _on_prepare() -> void:
 
 func _on_start() -> void:
 	pass
+
+## (opcional) Grupos de jugadores empatados en el resultado final (ver result_groups).
+func _result_groups() -> Array:
+	return []
 
 ## HOST_AUTHORITATIVE, solo host.
 func _simulate(_delta: float) -> void:

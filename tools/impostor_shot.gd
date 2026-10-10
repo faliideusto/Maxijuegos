@@ -1,7 +1,7 @@
 extends SceneTree
 ## Herramienta de desarrollo: captura Impostor a Bordo tras jugar la IA unos segundos (vista del primer jugador).
 ##   godot --path . --script res://tools/impostor_shot.gd -- <salida.png> [segundos] [jugadores] [escena] [semilla]
-## Escenas: play (por defecto), intro, task, body, splash, vote, reveal, eject, end, impostor
+## Escenas: play (por defecto), intro, task, mash, arrows, wait, memory, body, splash, vote, reveal, eject, end, impostor
 var _n: int = 0
 var _mg: Node = null
 var _out: String = "impostor.png"
@@ -39,12 +39,18 @@ func _process(_d: float) -> bool:
 			_mg.debug_skip_intro()
 			_step(secs)
 		match scene:
-			"task":
-				var st: int = _mg.debug_player(me.id).tasks[0]
+			"task", "mash", "arrows", "wait", "memory":
+				var kind: int = ["task", "mash", "arrows", "wait", "memory"].find(scene)
+				var st: int = 0
+				for cand in _mg.STATIONS.size():
+					if _mg.STATIONS[cand]["type"] == kind:
+						st = cand
+						break
+				_mg._ps[me.id].tasks[0] = st
 				_mg.debug_place(me.id, _mg.debug_station_pos(st), atan2(-float(_mg.STATIONS[st]["dir"].x), -float(_mg.STATIONS[st]["dir"].y)))
 				_mg.debug_use(me.id)
 				_mg.debug_task_hit(me.id, true)
-				_mg._ps[me.id].task_t = 0.4
+				_mg._ps[me.id].task_t = 0.4 if kind != 3 else 2.6
 			"body", "splash", "vote", "reveal", "eject":
 				var spot: Vector2 = _mg.debug_station_pos(9) + Vector2(-2.0, 0.0)
 				_mg.debug_place(ids[2], spot)

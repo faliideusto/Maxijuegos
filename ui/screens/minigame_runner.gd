@@ -197,8 +197,9 @@ func _on_ended() -> void:
 
 ## Solo host: tras el aviso, entrega el ranking (GameManager reparte puntos y avisa a los clientes).
 func _on_finished(results: Array[int]) -> void:
+	var groups: Array = _minigame.result_groups() if is_instance_valid(_minigame) else []
 	await get_tree().create_timer(1.4).timeout
-	GameManager.report_results(results)
+	GameManager.report_results(results, groups)
 
 func _show_big(text: String) -> void:
 	_show_big_text(text, 160)

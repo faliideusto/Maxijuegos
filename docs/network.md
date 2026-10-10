@@ -593,7 +593,8 @@ láser y SUS TRES huecos (izquierda, centro, derecha) con su color. Cada uno sol
 ## Impostor a Bordo (`impostor`, HOST_AUTHORITATIVE, 3D en primera persona)
 
 Un "Among Us" en primera persona: nave de 8 salas sobre una rejilla de celdas (`ROOMS`, `HALLS`, `STATIONS` en el script), 4-8
-jugadores, 1 impostor (2 con 7 u 8). Tripulación: 6 tareas por cabeza (consola + acertar 3 veces un marcador en la zona verde).
+jugadores, 1 impostor (2 solo con 8). Tripulación: 6 tareas por cabeza; cada consola tiene su tipo de misión (parar un marcador,
+pulsar muy rápido, seguir flechas, memorizar flechas o esperar una descarga).
 Impostor: finge tareas y elimina con el segundo botón. Cadáver denunciado o botón de emergencia → reunión en la cafetería, voto
 (arriba/abajo + acción) y expulsión. Gana la tripulación con todas las tareas o sin impostores; el impostor, por número o al
 acabarse el oxígeno (180 s de juego; las reuniones no lo gastan). Los eliminados siguen como fantasmas y pueden acabar tareas.
@@ -603,7 +604,11 @@ acabarse el oxígeno (180 s de juego; las reuniones no lo gastan). Los eliminado
   texto (`submit_text("y<ángulo>", false)`, ~20 Hz). El giro total es `kyaw` (del host: teclas, IA, sitio en la reunión) + `myaw`
   (del ratón). Quien manda `y…` pasa a "modo ratón": izquierda/derecha es paso lateral; sin ratón (teclado 2, táctil, práctica)
   izquierda/derecha gira.
-- **Papeles y tareas salen de la semilla común**: no se envían. Estado: 18 floats por jugador + cadáveres + fase/reunión.
+- **Puntos por bandos**: `_result_groups()` devuelve [ganadores, perdedores] y `GameManager.report_results(ranking, groups)` da a
+  todo el grupo los puntos de su mejor puesto (con N jugadores: N a cada ganador y N − nº de ganadores a cada perdedor).
+  Es un mecanismo genérico de `Minigame` (por defecto, sin grupos, nada cambia).
+- **Misiones de flechas**: mientras duran, el movimiento son las flechas (el jugador no anda) y el segundo botón cancela.
+- **Papeles, tareas y secuencias de flechas salen de la semilla común**: no se envían. Estado: 19 floats por jugador + cadáveres + fase/reunión.
 - **Limitación**: el estado y los eventos van a todos los PC (no hay mensajes privados), así que el secreto del impostor es de
   interfaz; un cliente modificado podría leerlo.
 - **Bots**: tripulantes que van a su tarea más cercana (BFS sobre la rejilla), denuncian cadáveres a la vista y votan por
