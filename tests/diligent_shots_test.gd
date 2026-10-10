@@ -52,7 +52,7 @@ func _process(_delta: float) -> bool:
 	# --- A / S / D apuntan a izquierda / centro / derecha ---
 	_check(DS.slot_from_dir(Vector2.LEFT) == DS.LEFT and DS.slot_from_dir(Vector2.DOWN) == DS.CENTER
 			and DS.slot_from_dir(Vector2.RIGHT) == DS.RIGHT and DS.slot_from_dir(Vector2.ZERO) == DS.NO_SLOT
-			and DS.slot_from_dir(Vector2.UP) == DS.NO_SLOT, "A = izquierda, S = centro, D = derecha (arriba o nada no cambia la mira)", failures)
+			and DS.slot_from_dir(Vector2.UP) == DS.CENTER, "A = izquierda, S o W = centro, D = derecha (sin pulsar nada no cambia la mira)", failures)
 
 	# --- Puntos por rapidez ---
 	_check(DS.result_for_age(0.2) == DS.Result.EXCELLENT and DS.result_for_age(0.7) == DS.Result.GOOD

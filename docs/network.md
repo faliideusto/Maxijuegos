@@ -572,7 +572,7 @@ premio (+1, un +2 desde 4 puentes y un oro +3, barajados con la semilla común e
 Basado en el "Disparos diligentes" de Pummel Party: una caseta de feria y todos los jugadores delante, cada uno con su escopeta
 láser y SUS TRES huecos (izquierda, centro, derecha) con su color. Cada uno solo dispara a los suyos.
 - **Se adapta al nº de jugadores**: 3 huecos por jugador; el tramo de cada uno se estrecha cuantos más hay (todo cabe en 1180 px).
-- **Controles**: A / S / D (izquierda / abajo / derecha, o el stick) apuntan al instante a tu hueco izquierdo / central / derecho;
+- **Controles**: A / S o W / D (izquierda / abajo o arriba / derecha, o el stick) apuntan al instante a tu hueco izquierdo / central / derecho;
   la acción dispara. Ratón: clic en uno de TUS huecos = apuntar ahí y disparar (clic en otro sitio = disparar donde apuntas).
   Táctil: joystick + botón DISPARAR.
 - **Oleadas** (semilla común, el MISMO patrón en los huecos de todos para que sea justo): dianas en 1-3 huecos, o bien primero

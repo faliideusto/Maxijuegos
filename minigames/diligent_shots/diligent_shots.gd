@@ -12,8 +12,8 @@ extends Minigame
 ## Cada vez más rápido: a lo largo de los 45 s las oleadas salen más seguidas y las dianas duran menos (de 2,4 s a
 ## 1,1 s), así que hay menos tiempo para reaccionar. Gana quien más puntos suma; a igualdad, quien tocó menos bombas.
 ##
-## Controles: A / S / D (o izquierda / abajo / derecha, o el stick) apuntan AUTOMÁTICAMENTE a tu hueco de la
-## izquierda / del centro / de la derecha; la acción dispara. Con el ratón: clic en uno de tus huecos = apuntar ahí y
+## Controles: A / S o W / D (o izquierda / abajo o arriba / derecha, o el stick) apuntan AUTOMÁTICAMENTE a tu hueco
+## de la izquierda / del centro / de la derecha; la acción dispara. Con el ratón: clic en uno de tus huecos = apuntar ahí y
 ## disparar (clic en otro sitio = disparar donde apuntas).
 ##
 ## Se adapta al nº de jugadores: cada jugador tiene su tramo de tres huecos, y el tramo se estrecha cuantos más hay.
@@ -163,13 +163,13 @@ func own_slot_at(i: int, pos: Vector2) -> int:
 			return k
 	return NO_SLOT
 
-## Hueco al que apunta una dirección: izquierda, abajo (centro) o derecha. NO_SLOT si no se pulsa nada claro.
+## Hueco al que apunta una dirección: izquierda, arriba o abajo (centro) o derecha. NO_SLOT si no se pulsa nada claro.
 static func slot_from_dir(v: Vector2) -> int:
 	if v.length() < DIR_DEADZONE:
 		return NO_SLOT
 	if absf(v.x) >= absf(v.y):
 		return LEFT if v.x < 0.0 else RIGHT
-	return CENTER if v.y > 0.0 else NO_SLOT
+	return CENTER
 
 ## Resultado de acertar en una diana que lleva `age` s fuera.
 static func result_for_age(age: float) -> Result:
@@ -738,7 +738,7 @@ func _draw_hud() -> void:
 		if w != null:
 			s.text_centered(Vector2(640, 52), "¡%s GANA!" % w.display_name.to_upper(), 44, Palette.YELLOW, 10)
 		return
-	var hint := "A / S / D apuntan · acción dispara"
+	var hint := "A / W o S / D apuntan · acción dispara"
 	var warn := false
 	if _kind.has(BOMB) and not _kind.has(TARGET):
 		hint = "¡BOMBAS! No dispares…"
