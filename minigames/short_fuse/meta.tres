@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="MinigameMeta" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://core/minigame_meta.gd" id="1"]
+[ext_resource type="PackedScene" path="res://minigames/short_fuse/scene.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Mecha Corta"
+description = "Petardos, cajas y último en pie."
+instructions = "Estáis en un laberinto lleno de cajas. Muévete con WASD / flechas / stick y planta un petardo con tu botón de acción: estalla en cruz a los 2 segundos y pico, revienta cajas y elimina a quien pille (¡a ti también!). Algunas cajas esconden mejoras: verde = un petardo más, amarilla = más alcance, azul = más velocidad. Si se acaba el tiempo, el tablero se va cerrando desde fuera. Gana el último en pie."
+min_players = 2
+max_players = 8
+approx_duration = 75.0
+scene = ExtResource("2")
+accent_color = Color(0.98, 0.45, 0.45, 1)
+execution_mode = 0
+max_duration = 0.0
+music = &"platform"
+short_text = "Planta petardos con tu botón, revienta cajas y sé el último en pie."
