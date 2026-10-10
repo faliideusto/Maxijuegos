@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://minigames/feather_catch/feather_catch.gd" id="1"]
+
+[node name="FeatherCatch" type="Node"]
+script = ExtResource("1")

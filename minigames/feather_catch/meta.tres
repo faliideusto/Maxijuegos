@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="MinigameMeta" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://core/minigame_meta.gd" id="1"]
+[ext_resource type="PackedScene" path="res://minigames/feather_catch/scene.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Plumas al Vuelo"
+description = "Atrapa plumas al vuelo, ¡pero no las marrones!"
+instructions = "Caen plumas meciéndose por el cielo. Mueve tu mano (stick, WASD o flechas; o el ratón) y pulsa tu botón de acción (o clic) para cerrarla y atrapar la pluma que tengas debajo. Rosa: +1. Dorada: +3 (son pocas y se mueven más rápido). Marrón: -3, ¡no la cojas! Cada cierre atrapa una sola pluma y la mano tarda un momento en volver a abrirse. Tienes 30 segundos: gana quien más puntos tenga."
+min_players = 2
+max_players = 8
+approx_duration = 35.0
+scene = ExtResource("2")
+accent_color = Color(1, 0.56, 0.72, 1)
+execution_mode = 0
+max_duration = 0.0
+music = &"coins"
+short_text = "Mueve tu mano y cierra con la acción: rosa +1, dorada +3, marrón -3."

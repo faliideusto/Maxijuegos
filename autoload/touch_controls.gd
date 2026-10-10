@@ -25,6 +25,7 @@ const STICK_GAMES := {
 	&"uphill_rush": "SALTAR",
 	&"word_fight": "PISAR",
 	&"diligent_shots": "DISPARAR",
+	&"feather_catch": "AGARRAR",
 	&"impostor": "USAR",
 	&"sniper_town": "DISPARAR",
 }
