@@ -25,10 +25,12 @@ const STICK_GAMES := {
 	&"uphill_rush": "SALTAR",
 	&"word_fight": "PISAR",
 	&"diligent_shots": "DISPARAR",
+	&"impostor": "USAR",
 }
 ## Minijuegos con segundo botón → su texto.
 const ACTION2_GAMES := {
 	&"word_fight": "GOLPEAR",
+	&"impostor": "ELIMINAR",
 }
 
 var active: bool = false

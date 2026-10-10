@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="MinigameMeta" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://core/minigame_meta.gd" id="1"]
+[ext_resource type="PackedScene" path="res://minigames/impostor/scene.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Impostor a Bordo"
+description = "¡Hay un impostor en la nave!"
+instructions = "En primera persona. La TRIPULACIÓN recorre la nave haciendo sus tareas: ve a la consola marcada con «!», pulsa ESPACIO o CLIC y acierta tres veces el marcador en la zona verde. El IMPOSTOR finge tareas y elimina tripulantes con E o CLIC DERECHO cuando nadie mira. Si encuentras un cadáver, denúncialo (o pulsa el botón de la cafetería) y votad a quién expulsar. Gana la tripulación si acaba las tareas o expulsa al impostor; gana el impostor si elimina a casi todos o se acaba el oxígeno."
+min_players = 4
+max_players = 8
+approx_duration = 200.0
+scene = ExtResource("2")
+accent_color = Color(1, 0.3, 0.28, 1)
+execution_mode = 0
+max_duration = 0.0
+music = &"bomb"
+short_text = "Tripulación: haz tus tareas y vota al impostor. Impostor: elimina sin que te vean."

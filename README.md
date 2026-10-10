@@ -33,6 +33,7 @@ godot --headless --path . --script res://tests/ninja_test.gd                    
 godot --headless --path . --script res://tests/obstacle_test.gd                     # Carrera de Ruinas 3D: recorrido, física, IA y resultado
 godot --headless --path . --script res://tests/uphill_test.gd                       # Cuesta Arriba 3D: tráfico, puntos, atropellos, saltos e IA
 godot --headless --path . --script res://tests/word_fight_test.gd                    # Pelea de Palabras 3D: casillas, golpes, segundo botón, IA y red
+godot --headless --path . --script res://tests/impostor_test.gd                     # Impostor a Bordo 3D: nave, tareas, eliminar, votar, victoria, IA y red
 godot --headless --path . --script res://tests/moon_test.gd                         # Salto Lunar: terreno, física y autopiloto
 godot --headless --path . --script res://tests/knife_test.gd                        # Tronco de Dagas: colisión, turnos y partidas con bots
 godot --headless --path . --script res://tests/target_test.gd                       # Puntería: dianas, puntuación y autopiloto

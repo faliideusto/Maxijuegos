@@ -161,6 +161,8 @@ func _controls(id: StringName) -> Array[String]:
 			return ["MOVERSE: WASD o flechas", "SALTAR: ESPACIO o CLIC"]
 		&"target_range":
 			return ["APUNTAR: ratón o WASD / flechas", "DISPARAR: clic o espacio"]
+		&"impostor":
+			return ["MOVERSE: WASD · MIRAR: ratón", "USAR / VOTAR: ESPACIO o CLIC", "ELIMINAR: E o CLIC DERECHO"]
 	return ["ESPACIO o CLIC"]
 
 func _process(delta: float) -> void:
