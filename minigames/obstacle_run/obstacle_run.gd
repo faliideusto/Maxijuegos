@@ -21,7 +21,6 @@ extends Minigame
 
 const STEP := 1.0 / 60.0
 const TIME_LIMIT := 90.0
-const COUNTDOWN := 3.0
 const DONE_DELAY := 2.2
 # --- Cuerpo ---
 const RADIUS := 0.42
@@ -141,8 +140,6 @@ var _rs: Dictionary = {}                # player id -> RS
 var _order: Array[int] = []             # ids en el orden del reparto (= orden del estado enviado)
 var _t: float = 0.0                     # segundos de carrera (iguales para todos: mueven las losas y la barra)
 var _t_vis: float = 0.0                 # lo mismo, suavizado en los clientes
-var _cd: float = COUNTDOWN
-var _last_cd: int = 99
 var _accum: float = 0.0
 var _over: bool = false
 var _over_t: float = 0.0
@@ -663,8 +660,6 @@ func _on_start() -> void:
 	_setup_runners()
 	_rebuild_runner_nodes()
 	_accum = 0.0
-	_cd = COUNTDOWN
-	_last_cd = 99
 	_over = false
 	_over_t = 0.0
 	_first_finish_t = -1.0
@@ -689,15 +684,6 @@ func _simulate(delta: float) -> void:
 			for id in _order:
 				_sim_step(_rs[id] as RS, delta, Vector3.ZERO, false, la)
 				_collect_events(_rs[id] as RS)
-		return
-	if _cd > 0.0:
-		var c := ceili(_cd)
-		if c != _last_cd:
-			_last_cd = c
-			send_event("beep", null)
-		_cd -= delta
-		if _cd <= 0.0:
-			send_event("go", null)
 		return
 	# Entrada de cada jugador (una lectura por fotograma). El movimiento es relativo a la cámara de cada uno.
 	var dirs: Dictionary = {}
@@ -809,14 +795,13 @@ func _serialize_state() -> Variant:
 				1.0 if r.grounded else 0.0, r.stun, 1.0 if r.respawn_t < 0.0 or r.respawn_t > RESPAWN_DELAY * 0.5 else 0.0,
 				1.0 if r.done else 0.0, r.ftime if r.finished else -1.0, float(r.falls), r.arc, float(r.cp_i), float(r.zone_i),
 				float(r.gs)]))
-	return {"r": arr, "t": _t, "cd": _cd, "o": _over, "w": _winner_id}
+	return {"r": arr, "t": _t, "o": _over, "w": _winner_id}
 
 func _apply_state(state: Variant) -> void:
 	if not state is Dictionary:
 		return
 	var st: Dictionary = state
 	_t = float(st.get("t", _t))
-	_cd = float(st.get("cd", _cd))
 	_over = bool(st.get("o", _over))
 	_winner_id = int(st.get("w", _winner_id))
 	var arr: Variant = st.get("r")
@@ -847,10 +832,6 @@ func _on_event(event_name: String, data: Variant) -> void:
 	var d: Dictionary = data if data is Dictionary else {}
 	var r: RS = _rs.get(int(d.get("p", -1)))
 	match event_name:
-		"beep":
-			Audio.sfx(&"beep", -7.0)
-		"go":
-			Audio.sfx(&"beep_go", -5.0)
 		"jump":
 			if r != null:
 				r.burst = true
@@ -890,13 +871,13 @@ func _animate(delta: float) -> void:
 	_shake = maxf(0.0, _shake - delta * 2.5)
 	_toast_t = maxf(0.0, _toast_t - delta)
 	_anim += delta
-	if _cd <= 0.0:
+	if is_running:
 		_hint_t = maxf(0.0, _hint_t - delta)
 	# Tiempo de carrera suavizado (en los clientes llega a ~30 Hz).
 	if is_authority:
 		_t_vis = _t
 	else:
-		_t_vis += delta if _cd <= 0.0 else 0.0
+		_t_vis += delta if is_running else 0.0
 		if absf(_t_vis - _t) > 0.25:
 			_t_vis = _t
 		else:
@@ -1752,13 +1733,7 @@ func _draw_hud() -> void:
 		s.text_centered(Vector2(120, 88), "Caídas: %d" % cs.falls, 22, Color(1, 1, 1, 0.8), 5)
 	if _toast_t > 0.0:
 		s.text_centered(Vector2(640, 220), _toast, 64, Color(1, 1, 1, clampf(_toast_t * 2.0, 0.0, 1.0)), 12)
-	if _cd > 0.0:
-		var n := ceili(_cd)
-		var frac_c := _cd - floorf(_cd)
-		s.text_centered(Vector2(640, 300), str(n), int(130.0 + 60.0 * frac_c), Palette.YELLOW, 16)
-	elif _t < 0.8:
-		s.text_centered(Vector2(640, 300), "¡YA!", 130, Palette.MINT, 16)
-	if _hint_t > 0.0 and not _over and _cd <= 0.0:
+	if _hint_t > 0.0 and not _over and is_running:
 		s.text_centered(Vector2(640, 670), "WASD / flechas para moverte  ·  ESPACIO o CLIC para saltar", 28, Color(1, 1, 1, clampf(_hint_t, 0.0, 1.0)), 7)
 	if cs != null and cs.finished and not _over:
 		var pos := _finish_order.find(cs.id) + 1

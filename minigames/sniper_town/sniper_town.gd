@@ -22,7 +22,6 @@ extends Minigame
 
 const STEP := 1.0 / 60.0
 const TIME_LIMIT := 120.0
-const COUNTDOWN := 3.0
 const DONE_DELAY := 3.0
 # --- Cuerpo ---
 const EYE := 1.6
@@ -130,8 +129,6 @@ const FLOATS := 16
 var _sp: Dictionary = {}                # player id -> SP
 var _order: Array[int] = []
 var _t: float = 0.0
-var _cd: float = COUNTDOWN
-var _last_cd: int = 99
 var _accum: float = 0.0
 var _over: bool = false
 var _over_t: float = 0.0
@@ -649,8 +646,6 @@ func _on_start() -> void:
 	_fire_rng.seed = hash([seed_value, "fire"])
 	_t = 0.0
 	_accum = 0.0
-	_cd = COUNTDOWN
-	_last_cd = 99
 	_over = false
 	_over_t = 0.0
 	_winner_id = -1
@@ -671,15 +666,6 @@ func _simulate(delta: float) -> void:
 		_over_t += delta
 		if _over_t >= DONE_DELAY:
 			finish(ranking_ids())
-		return
-	if _cd > 0.0:
-		var c := ceili(_cd)
-		if c != _last_cd:
-			_last_cd = c
-			send_event("beep", null)
-		_cd -= delta
-		if _cd <= 0.0:
-			send_event("go", null)
 		return
 	_accum += delta
 	var steps := 0
@@ -1001,7 +987,7 @@ func _local_controls(delta: float) -> void:
 		a.x = wrapf(a.x, -PI, PI)
 		a.y = clampf(a.y, -PITCH_MAX, PITCH_MAX)
 		var scoped := sc_toggle or (p == me and (_rmb_held or _pad_scope))
-		if not r.alive or _over or _cd > 0.0:
+		if not r.alive or _over or not is_running:
 			fire = false
 			jump = false
 		_aim[p.id] = a
@@ -1207,14 +1193,13 @@ func _serialize_state() -> Variant:
 		arr.append_array(PackedFloat32Array([r.x, r.z, r.h, r.yaw, r.pitch, 1.0 if r.alive else 0.0, r.inv_t,
 				float(r.kills), float(r.deaths), float(r.streak), 1.0 if r.scoped else 0.0, r.cd, r.dead_t,
 				float(r.killer), r.vx, r.vz]))
-	return {"r": arr, "t": _t, "cd": _cd, "o": _over, "w": _winner_id}
+	return {"r": arr, "t": _t, "o": _over, "w": _winner_id}
 
 func _apply_state(state: Variant) -> void:
 	if not state is Dictionary:
 		return
 	var st: Dictionary = state
 	_t = float(st.get("t", _t))
-	_cd = float(st.get("cd", _cd))
 	_over = bool(st.get("o", _over))
 	_winner_id = int(st.get("w", _winner_id))
 	var arr: Variant = st.get("r")
@@ -1244,10 +1229,6 @@ func _apply_state(state: Variant) -> void:
 func _on_event(event_name: String, data: Variant) -> void:
 	var d: Dictionary = data if data is Dictionary else {}
 	match event_name:
-		"beep":
-			Audio.sfx(&"beep", -7.0)
-		"go":
-			Audio.sfx(&"beep_go", -5.0)
 		"shot":
 			_on_shot(d)
 		"kill":
@@ -1357,7 +1338,7 @@ func _animate(delta: float) -> void:
 	_shake = maxf(0.0, _shake - delta * 2.0)
 	_recoil = maxf(0.0, _recoil - delta * 3.5)
 	_radar_sweep = fmod(_radar_sweep + delta * 2.2, TAU)
-	if _cd <= 0.0:
+	if is_running:
 		_hint_t = maxf(0.0, _hint_t - delta)
 	for f in _feed:
 		f["t"] = float(f["t"]) - delta
@@ -1372,7 +1353,7 @@ func _animate(delta: float) -> void:
 	if _view_id < 0 or not _sp.has(_view_id):
 		_view_id = _pick_view_id()
 	var vr: SP = _sp.get(_view_id)
-	var scoped_now := vr != null and vr.alive and vr.scoped and _cd <= 0.0
+	var scoped_now := vr != null and vr.alive and vr.scoped and is_running
 	_scope_blend = move_toward(_scope_blend, 1.0 if scoped_now else 0.0, delta / SCOPE_TIME)
 	_update_world(delta)
 
@@ -2142,7 +2123,7 @@ func _draw_hud() -> void:
 			s.draw_line(center + Vector2(-6, 40 * i), center + Vector2(6, 40 * i), ln, 2.0)
 		var ready := vr.scope_t >= SCOPE_TIME or not is_authority
 		s.draw_circle(center, 2.5, Color(1.0, 0.2, 0.2, a) if ready else Color(1, 1, 1, 0.5 * a))
-	elif vr != null and vr.alive and _cd <= 0.0 and not _over:
+	elif vr != null and vr.alive and is_running and not _over:
 		# Punto de mira sin mira: se abre (dispara impreciso).
 		var gap := 9.0 + 26.0 * (1.0 - _scope_blend)
 		var c := Color(1, 1, 1, 0.9)
@@ -2151,7 +2132,7 @@ func _draw_hud() -> void:
 			s.draw_line(center + d * gap, center + d * (gap + 10.0), c, 2.0)
 		s.draw_circle(center, 2.0, c)
 	# Recarga del cerrojo.
-	if vr != null and vr.alive and vr.cd > 0.0 and _cd <= 0.0:
+	if vr != null and vr.alive and vr.cd > 0.0 and is_running:
 		var f := 1.0 - vr.cd / FIRE_CD
 		s.draw_arc(center, 22.0, -PI * 0.5, -PI * 0.5 + TAU * f, 32, Color(1, 1, 1, 0.75), 3.0, true)
 	# Marca de impacto.
@@ -2187,14 +2168,11 @@ func _draw_hud() -> void:
 		var al := clampf(_toast_t * 2.0, 0.0, 1.0)
 		var sc := 1.0 + maxf(0.0, _toast_t - 1.1) * 1.2
 		_text(Vector2(640, 520), _toast, int(46 * sc), Color(_toast_col.r, _toast_col.g, _toast_col.b, al), 1, 9)
-	if _cd > 0.0:
-		var nn := ceili(_cd)
-		var frac_c := _cd - floorf(_cd)
-		s.text_centered(Vector2(640, 300), str(nn), int(130.0 + 60.0 * frac_c), Palette.YELLOW, 16)
-		s.text_centered(Vector2(640, 420), "Gana quien haga más bajas en 2 minutos", 30, Palette.WHITE, 7)
+	if not is_running and not _over:
+		s.text_centered(Vector2(640, 500), "Gana quien haga más bajas en 2 minutos", 30, Palette.WHITE, 7)   # durante la cuenta atrás del runner
 	elif _t < 0.9 and not _over:
 		s.text_centered(Vector2(640, 300), "¡A CAZAR!", 110, Palette.MINT, 16)
-	if _hint_t > 0.0 and not _over and _cd <= 0.0:
+	if _hint_t > 0.0 and not _over and is_running:
 		var me := _mouse_player()
 		var hint := "RATÓN apuntar · CLIC disparar · CLIC DERECHO mira · WASD moverse · ESPACIO saltar" if me != null \
 				else "Izquierda/derecha giran · ACCIÓN dispara · 2.º botón: mira"
@@ -2239,7 +2217,7 @@ func _draw_timer() -> void:
 	var s := surface
 	var left := clampf(TIME_LIMIT - _t, 0.0, TIME_LIMIT)
 	var r := Rect2(570, 12, 140, 54)
-	var low := left <= 10.0 and _cd <= 0.0
+	var low := left <= 10.0
 	s.rounded_rect(r.grow(3), 20, Palette.CORAL if low else Palette.YELLOW)
 	s.rounded_rect(r, 18, Color(0.05, 0.05, 0.14, 0.88))
 	var secs := ceili(left)
@@ -2365,9 +2343,6 @@ func debug_step(id: int, wish: Vector2, jump: bool = false) -> void:
 	if InputManager.is_simulated(id):
 		_sim_step(r, pl, STEP)
 	r.bot_wish = keep_sim
-
-func debug_skip_countdown() -> void:
-	_cd = 0.0
 
 func debug_over() -> bool:
 	return _over

@@ -11,7 +11,6 @@ extends Minigame
 
 const STEP := 1.0 / 60.0
 const TIME_LIMIT := 90.0
-const COUNTDOWN := 3.0
 const DONE_DELAY := 2.6
 # --- Arena ---
 const COLS := 6
@@ -92,8 +91,6 @@ var _words_done: int = 0
 var _last_word: String = ""
 var _wrng: RandomNumberGenerator
 var _time_left: float = TIME_LIMIT
-var _cd: float = COUNTDOWN
-var _last_cd: int = 99
 var _accum: float = 0.0
 var _over: bool = false
 var _over_t: float = 0.0
@@ -213,15 +210,6 @@ func _simulate(delta: float) -> void:
 			for id in _order:
 				_step_player(_rs[id] as RS, delta, Vector2.ZERO)
 		return
-	if _cd > 0.0:
-		var c := ceili(_cd)
-		if c != _last_cd:
-			_last_cd = c
-			send_event("beep", null)
-		_cd -= delta
-		if _cd <= 0.0:
-			send_event("go", null)
-		return
 	# Entrada (una lectura por fotograma) y reglas.
 	var dirs: Dictionary = {}
 	for pl in players:
@@ -281,7 +269,7 @@ func _separate_players() -> void:
 
 ## ESPACIO / clic izquierdo: pulsar la casilla que tienes bajo los pies.
 func _try_press(r: RS) -> void:
-	if r.stun_t > 0.0 or r.err_t > 0.0 or _over or _cd > 0.0:
+	if r.stun_t > 0.0 or r.err_t > 0.0 or _over or not is_running:
 		return
 	var k := _pad_under(r.pos)
 	if k < 0:
@@ -309,7 +297,7 @@ func _complete_word(r: RS) -> void:
 
 ## CLIC DERECHO / E: golpe al que tengas delante.
 func _try_punch(r: RS) -> void:
-	if r.stun_t > 0.0 or r.punch_cd > 0.0 or _over or _cd > 0.0:
+	if r.stun_t > 0.0 or r.punch_cd > 0.0 or _over or not is_running:
 		return
 	r.punch_cd = PUNCH_CD
 	r.punch_t = 0.28
@@ -351,7 +339,7 @@ func _serialize_state() -> Variant:
 		var r: RS = _rs[id]
 		arr.append_array(PackedFloat32Array([r.pos.x, r.pos.y, r.vel.x, r.vel.y, r.face, r.stun_t, r.punch_t,
 				float(r.progress), float(r.score), r.err_t, r.inv_t]))
-	return {"r": arr, "w": _word, "t": _time_left, "cd": _cd, "o": _over, "win": _winner_id}
+	return {"r": arr, "w": _word, "t": _time_left, "o": _over, "win": _winner_id}
 
 func _apply_state(state: Variant) -> void:
 	if not state is Dictionary:
@@ -359,7 +347,6 @@ func _apply_state(state: Variant) -> void:
 	var st: Dictionary = state
 	_word = String(st.get("w", _word))
 	_time_left = float(st.get("t", _time_left))
-	_cd = float(st.get("cd", _cd))
 	_over = bool(st.get("o", _over))
 	_winner_id = int(st.get("win", _winner_id))
 	var arr: Variant = st.get("r")
@@ -382,10 +369,6 @@ func _on_event(event_name: String, data: Variant) -> void:
 	var d: Dictionary = data if data is Dictionary else {}
 	var r: RS = _rs.get(int(d.get("p", int(d.get("a", -1)))))
 	match event_name:
-		"beep":
-			Audio.sfx(&"beep", -7.0)
-		"go":
-			Audio.sfx(&"beep_go", -5.0)
 		"ok":
 			var k := int(d.get("k", 0))
 			_flash[k] = {"t": 0.35, "ok": true}
@@ -433,8 +416,6 @@ func _on_start() -> void:
 	_setup_players()
 	_rebuild_player_nodes()
 	_accum = 0.0
-	_cd = COUNTDOWN
-	_last_cd = 99
 	_time_left = TIME_LIMIT
 	_over = false
 	_over_t = 0.0
@@ -448,7 +429,7 @@ func _animate(delta: float) -> void:
 	_shake = maxf(0.0, _shake - delta * 2.5)
 	_toast_t = maxf(0.0, _toast_t - delta)
 	_anim += delta
-	if _cd <= 0.0:
+	if is_running:
 		_hint_t = maxf(0.0, _hint_t - delta)
 	for p in _popups:
 		p.age += delta
@@ -462,7 +443,7 @@ func _animate(delta: float) -> void:
 func _bot_think(r: RS) -> Vector2:
 	r.want_press = false
 	r.want_punch = false
-	if _over or _cd > 0.0 or r.stun_t > 0.0:
+	if _over or not is_running or r.stun_t > 0.0:
 		return Vector2.ZERO
 	var sk := r.skill if debug_skill < 0.0 else debug_skill
 	# ¿Caza a alguien? (el que va mejor que él), con algo de azar cada cierto tiempo.
@@ -1048,7 +1029,7 @@ func _update_word_label(r: RS) -> void:
 				l.modulate = Color(0.72, 1.0, 0.2) if i < r.progress else Color(1, 1, 1)
 			else:
 				l.visible = false
-	var shown := not _over and _cd <= 1.0
+	var shown := is_running and not _over
 	for l2 in r.letters:
 		if not shown:
 			(l2 as Label3D).visible = false
@@ -1089,13 +1070,7 @@ func _draw_hud() -> void:
 				s.text_centered(rect.position + Vector2(pw - 34.0, -16.0 - 40.0 * kk), String(p.text), 30, Color(0.75, 1.0, 0.25, 1.0 - kk * kk), 6)
 	if _toast_t > 0.0:
 		s.text_centered(Vector2(640, 120), _toast, 56, Color(1, 1, 1, clampf(_toast_t * 2.0, 0.0, 1.0)), 10)
-	if _cd > 0.0:
-		var c := ceili(_cd)
-		var frac := _cd - floorf(_cd)
-		s.text_centered(Vector2(640, 330), str(c), int(130.0 + 60.0 * frac), Palette.YELLOW, 16)
-	elif _time_left > TIME_LIMIT - 0.8:
-		s.text_centered(Vector2(640, 330), "¡YA!", 130, Palette.MINT, 16)
-	if _hint_t > 0.0 and not _over and _cd <= 0.0:
+	if _hint_t > 0.0 and not _over and is_running:
 		s.text_centered(Vector2(640, 600), "Pisa la letra y pulsa ESPACIO / CLIC  ·  Golpea con E / CLIC DERECHO", 26, Color(1, 1, 1, clampf(_hint_t, 0.0, 1.0)), 7)
 	if _over:
 		var w := _player_by_id(_winner_id)
