@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="MinigameMeta" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://core/minigame_meta.gd" id="1"]
+[ext_resource type="PackedScene" path="res://minigames/sniper_town/scene.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Francotiradores"
+description = "¡Todos contra todos con francotirador en Villa Átomo!"
+instructions = "Shooter en primera persona en un barrio de los años 50: dos casas enfrentadas, coches, un autobús y vallas para cubrirte. Todos lleváis francotirador y un disparo es una baja. Apunta con el RATÓN, dispara con CLIC y mantén CLIC DERECHO (o pulsa E) para la mira: sin mira el tiro se abre mucho. Muévete con WASD y salta con ESPACIO. Al morir reapareces en un par de segundos. Arriba a la izquierda va la clasificación y arriba a la derecha el radar con los enemigos. La partida dura 2 minutos: gana quien haga más bajas."
+min_players = 2
+max_players = 8
+approx_duration = 125.0
+scene = ExtResource("2")
+accent_color = Color(1, 0.45, 0.3, 1)
+execution_mode = 0
+max_duration = 0.0
+music = &"run"
+short_text = "Ratón apunta, CLIC dispara, CLIC DERECHO mira. Más bajas en 2 min gana."

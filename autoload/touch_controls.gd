@@ -26,11 +26,13 @@ const STICK_GAMES := {
 	&"word_fight": "PISAR",
 	&"diligent_shots": "DISPARAR",
 	&"impostor": "USAR",
+	&"sniper_town": "DISPARAR",
 }
 ## Minijuegos con segundo botón → su texto.
 const ACTION2_GAMES := {
 	&"word_fight": "GOLPEAR",
 	&"impostor": "ELIMINAR",
+	&"sniper_town": "MIRA",
 }
 
 var active: bool = false
