@@ -619,6 +619,10 @@ func _make_sp(p: PlayerData, idx: int) -> SP:
 	return r
 
 func _setup_players() -> void:
+	# Los modelos de la tanda anterior (la preparación) se borran: si no, se quedarían quietos en su punto de salida.
+	for old in _sp.values():
+		if (old as SP).node != null and is_instance_valid((old as SP).node):
+			(old as SP).node.queue_free()
 	_sp.clear()
 	_order.clear()
 	_aim.clear()
