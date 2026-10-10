@@ -64,7 +64,6 @@ func _process(_delta: float) -> bool:
 	var a: int = g2.players[0].id
 	var b: int = g2.players[1].id
 	var c: int = g2.players[2].id
-	g2.debug_skip_countdown()
 	g2.debug_place(c, 0.0, 18.0, 0.0)
 	g2.debug_place(a, -9.0, -1.0, 0.0)
 	g2.debug_place(b, -9.0, -12.0, 0.0)              # 11 m delante, por la calle
@@ -136,7 +135,6 @@ func _process(_delta: float) -> bool:
 	var g3 = _new_game(4, 2, true, true)
 	var hu: int = g3.players[0].id
 	var bo: int = g3.players[1].id
-	g3.debug_skip_countdown()
 	g3.debug_place(hu, -9.0, -1.0, 0.0)
 	g3.debug_place(bo, -9.0, -12.0, 0.0)
 	var want_y: float = Sniper.yaw_to(0.0, -11.0)

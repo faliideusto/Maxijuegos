@@ -15,7 +15,6 @@ extends Minigame
 
 const STEP := 1.0 / 60.0
 const TIME_LIMIT := 60.0
-const COUNTDOWN := 3.0
 const DONE_DELAY := 2.4
 # --- Calle ---
 const SLOPE := 0.16                     # pendiente (≈ 9°)
@@ -120,8 +119,6 @@ var _wave_t: float = 6.0
 var _lane_last: Array[float] = []       # cuándo salió el último coche por cada carril
 var _car_rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _t: float = 0.0
-var _cd: float = COUNTDOWN
-var _last_cd: int = 99
 var _accum: float = 0.0
 var _over: bool = false
 var _over_t: float = 0.0
@@ -386,8 +383,6 @@ func _on_start() -> void:
 	_reset_traffic()
 	_rebuild_runner_nodes()
 	_accum = 0.0
-	_cd = COUNTDOWN
-	_last_cd = 99
 	_over = false
 	_over_t = 0.0
 	_winner_id = -1
@@ -408,15 +403,6 @@ func _simulate(delta: float) -> void:
 		_update_traffic(delta)
 		if _over_t >= DONE_DELAY:
 			finish(_ranking_ids())
-		return
-	if _cd > 0.0:
-		var c := ceili(_cd)
-		if c != _last_cd:
-			_last_cd = c
-			send_event("beep", null)
-		_cd -= delta
-		if _cd <= 0.0:
-			send_event("go", null)
 		return
 	var inputs: Dictionary = {}
 	for pl in players:
@@ -491,14 +477,13 @@ func _serialize_state() -> Variant:
 	var cars := PackedFloat32Array()
 	for c in _cars:
 		cars.append_array(PackedFloat32Array([float(c.id), float(c.kind), float(c.variant), c.x, c.z, c.vx, c.vz]))
-	return {"r": arr, "c": cars, "t": _t, "cd": _cd, "o": _over, "w": _winner_id}
+	return {"r": arr, "c": cars, "t": _t, "o": _over, "w": _winner_id}
 
 func _apply_state(state: Variant) -> void:
 	if not state is Dictionary:
 		return
 	var st: Dictionary = state
 	_t = float(st.get("t", _t))
-	_cd = float(st.get("cd", _cd))
 	_over = bool(st.get("o", _over))
 	_winner_id = int(st.get("w", _winner_id))
 	var arr: Variant = st.get("r")
@@ -551,10 +536,6 @@ func _on_event(event_name: String, data: Variant) -> void:
 	var d: Dictionary = data if data is Dictionary else {}
 	var r: RS = _rs.get(int(d.get("p", -1)))
 	match event_name:
-		"beep":
-			Audio.sfx(&"beep", -7.0)
-		"go":
-			Audio.sfx(&"beep_go", -5.0)
 		"jump":
 			if r != null:
 				r.burst = true
@@ -593,13 +574,13 @@ func _animate(delta: float) -> void:
 	_shake = maxf(0.0, _shake - delta * 2.5)
 	_toast_t = maxf(0.0, _toast_t - delta)
 	_anim += delta
-	if _cd <= 0.0:
+	if is_running:
 		_hint_t = maxf(0.0, _hint_t - delta)
 	for p in _pops:
 		p["t"] = float(p["t"]) - delta
 	_pops = _pops.filter(func(p: Dictionary) -> bool: return float(p["t"]) > 0.0)
 	# Los clientes adelantan los coches con su velocidad entre un estado y el siguiente.
-	if not is_authority and _cd <= 0.0:
+	if not is_authority and is_running:
 		for c in _cars:
 			c.z += c.vz * delta
 			c.x += c.vx * delta
@@ -630,7 +611,7 @@ func _danger(x: float, z: float, horizon: float) -> float:
 
 func _bot_decide(r: RS) -> Vector2:
 	r.bot_jump = false
-	if not r.alive or r.finished or _over or _cd > 0.0:
+	if not r.alive or r.finished or _over or not is_running:
 		return Vector2.ZERO
 	var sk := r.skill if debug_skill < 0.0 else debug_skill
 	if r.bot_lapse > 0.0:
@@ -1402,13 +1383,9 @@ func _draw_hud() -> void:
 		s.text_centered(Vector2(640, 220), _toast, 64, Color(1, 1, 1, clampf(_toast_t * 2.0, 0.0, 1.0)), 12)
 	if cs != null and not cs.alive and not _over:
 		s.text_centered(Vector2(640, 320), "Vuelves a la última línea...", 30, Color(1, 1, 1, 0.85), 6)
-	if _cd > 0.0:
-		var nn := ceili(_cd)
-		var frac_c := _cd - floorf(_cd)
-		s.text_centered(Vector2(640, 300), str(nn), int(130.0 + 60.0 * frac_c), Palette.YELLOW, 16)
-	elif _t < 0.8:
+	if is_running and _t < 0.8:
 		s.text_centered(Vector2(640, 300), "¡ARRIBA!", 120, Palette.MINT, 16)
-	if _hint_t > 0.0 and not _over and _cd <= 0.0:
+	if _hint_t > 0.0 and not _over and is_running:
 		s.text_centered(Vector2(640, 600), "WASD / flechas para moverte  ·  ESPACIO o CLIC para saltar", 26, Color(1, 1, 1, clampf(_hint_t, 0.0, 1.0)), 7)
 	if _over:
 		var w := _player_by_id(_winner_id)
@@ -1473,9 +1450,6 @@ func debug_step(id: int, inp: Vector2, jump: bool) -> void:
 		c.x += c.vx * STEP
 	_sim_step(r, STEP, inp, jump)
 	_collect_events(r)
-
-func debug_skip_countdown() -> void:
-	_cd = 0.0
 
 func debug_over() -> bool:
 	return _over

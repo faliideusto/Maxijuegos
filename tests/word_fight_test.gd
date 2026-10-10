@@ -23,10 +23,6 @@ func _new_game(bots: int = 3, authority: bool = true, seed_value: int = 99):
 	mg.start(lobby.players)
 	return mg
 
-func _skip_countdown(g) -> void:
-	for i in 100:
-		g._simulate(1.0 / 30.0)
-
 func _process(_delta: float) -> bool:
 	if _began:
 		return true
@@ -63,7 +59,6 @@ func _process(_delta: float) -> bool:
 		late += (words[32 + i] as String).length()
 	_ck(f, late > early, "las palabras se alargan con la partida (%.1f → %.1f)" % [early / 8.0, late / 8.0])
 	# 3) Pulsar letras: acierto suma 1 y avanza; error no suma y bloquea un momento; fuera de casilla no pasa nada.
-	_skip_countdown(g)
 	g.debug_set_word("SOL")
 	var k_s := "ABCDEFGHIJKLMNOPQRSTUVWXYZ".find("S")
 	g.debug_place(a, g.debug_pad_center(k_s))

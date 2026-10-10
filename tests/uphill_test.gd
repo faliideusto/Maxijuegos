@@ -42,7 +42,6 @@ func _process(_delta: float) -> bool:
 	# 2) Subir da puntos: metros, líneas y meta.
 	var g2 = _new_game(60, 2)
 	var id: int = g2.players[0].id
-	g2.debug_skip_countdown()
 	g2.debug_clear_cars()
 	for i in 60 * 6:
 		g2.debug_step(id, Vector2(0, -1), false)
