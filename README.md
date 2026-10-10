@@ -34,14 +34,14 @@ godot --headless --path . --script res://tests/obstacle_test.gd                 
 godot --headless --path . --script res://tests/uphill_test.gd                       # Cuesta Arriba 3D: tráfico, puntos, atropellos, saltos e IA
 godot --headless --path . --script res://tests/word_fight_test.gd                    # Pelea de Palabras 3D: casillas, golpes, segundo botón, IA y red
 godot --headless --path . --script res://tests/impostor_test.gd                     # Impostor a Bordo 3D: nave, tareas, eliminar, votar, victoria, IA y red
-godot --headless --path . --script res://tests/pair_escape_test.gd                  # Fuga en Pareja 3D: solo con nº par, laberinto, tropiezos, rejas a dúo, IA y red
+godot --headless --path . --script res://tests/pair_escape_test.gd                  # Fuga en Pareja 3D: solo con nº par, laberinto, tropiezos, rejas a dúo, relevos con botones, IA y red
 godot --headless --path . --script res://tests/moon_test.gd                         # Salto Lunar: terreno, física y autopiloto
 godot --headless --path . --script res://tests/knife_test.gd                        # Tronco de Dagas: colisión, turnos y partidas con bots
 godot --headless --path . --script res://tests/target_test.gd                       # Puntería: dianas, puntuación y autopiloto
 godot --headless --path . --script res://tests/spotlight_test.gd                    # Caza del Foco: reglas y partidas con bots
 godot --headless --path . --script res://tests/blind_timer_test.gd                 # Crono a Ciegas: objetivo, crono que desaparece, ranking y partidas con bots
 godot --headless --path . --script res://tests/personal_bridge_test.gd             # Puente Personal: puentes según jugadores, clic/dirección, puentes que se rompen y partidas con bots
-godot --headless --path . --script res://tests/diligent_shots_test.gd            # Disparos Diligentes: 3 dianas por jugador, A/S/D apuntan, ritmo creciente, bombas, clic y partidas con bots
+godot --headless --path . --script res://tests/diligent_shots_test.gd            # Disparos Diligentes: 3 dianas por jugador, A/W-S/D apuntan, ritmo creciente, bombas, clic y partidas con bots
 godot --headless --path . --script res://tests/sniper_test.gd                     # Francotiradores 3D: mapa según jugadores, tiros, paredes, protección, red y partidas con bots
 godot --headless --path . --script res://tests/feather_catch_test.gd            # Plumas al Vuelo: atrapar plumas (+1/+3/-3), una por cierre, ratón, red y partidas con bots
 godot --headless --path . --script res://tests/rail_cannons_test.gd              # Vagonetas Cañoneras: raíles según jugadores, conducción, balas (diana/empujón), setos, moneda S y partidas con bots

@@ -13,7 +13,6 @@ extends Minigame
 
 const STEP := 1.0 / 60.0
 const TIME_LIMIT := 60.0
-const COUNTDOWN := 3.0
 const DONE_DELAY := 2.8
 # --- Patio ---
 const SPACING := 4.4                     # distancia entre cruces
@@ -99,8 +98,6 @@ var _coin_t: float = 0.0                 # tiempo de vida que le queda (o espera
 var _crng: RandomNumberGenerator
 var _elapsed: float = 0.0
 var _time_left: float = TIME_LIMIT
-var _cd: float = COUNTDOWN
-var _last_cd: int = 99
 var _accum: float = 0.0
 var _over: bool = false
 var _over_t: float = 0.0
@@ -347,15 +344,6 @@ func _simulate(delta: float) -> void:
 		if _over_t >= DONE_DELAY:
 			finish(_ranking())
 		return
-	if _cd > 0.0:
-		var c := ceili(_cd)
-		if c != _last_cd:
-			_last_cd = c
-			send_event("beep", null)
-		_cd -= delta
-		if _cd <= 0.0:
-			send_event("go", null)
-		return
 	var dirs: Dictionary = {}
 	for pl in players:
 		var r: RS = _rs[pl.id]
@@ -409,13 +397,9 @@ func _drive(r: RS, want: Vector2, dist: float) -> void:
 		var a: Vector2 = _nodes[r.n]
 		var b: Vector2 = _nodes[r.m]
 		var dir := (b - a).normalized()
-		var d := want.dot(dir)
-		if d < -0.35 or (absf(d) <= 0.35 and r.face.dot(dir) < 0.0):
-			var tmp := r.n
-			r.n = r.m
-			r.m = tmp
-			r.t = a.distance_to(b) - r.t
-			dir = -dir
+		# En el carril no se puede dar la vuelta: hacia atrás frena; perpendicular, sigue hasta el cruce para girar allí.
+		if want.dot(dir) < -0.35:
+			break
 		r.face = dir
 		var room := _nodes[r.n].distance_to(_nodes[r.m]) - r.t
 		if dist < room:
@@ -427,7 +411,7 @@ func _drive(r: RS, want: Vector2, dist: float) -> void:
 			r.m = -1
 			r.t = 0.0
 	_update_pos(r)
-	# No se atraviesan: si hay otra vagoneta delante demasiado cerca, se queda donde estaba.
+	# Choque: no se atraviesan; vuelve a donde estaba y los dos se dan la vuelta (así nadie se queda atascado).
 	for id in _order:
 		var o: RS = _rs[id]
 		if o == r or not o.alive:
@@ -435,14 +419,34 @@ func _drive(r: RS, want: Vector2, dist: float) -> void:
 		var to := o.pos - r.pos
 		if to.length() < CART_GAP and to.dot(r.face) > 0.0 and to.length() < o.pos.distance_to(start) - 0.0001:
 			_snap_back(r, start)
+			_turn_around(r)
+			_turn_around(o)
 			r.moving = false
+			send_event("crash", {"a": r.id, "b": o.id, "x": (r.pos.x + o.pos.x) * 0.5, "z": (r.pos.y + o.pos.y) * 0.5})
 			return
 	r.moving = r.pos.distance_to(start) > 0.0001
+
+## Media vuelta (solo tras un choque): el cañón mira al otro lado y sigue por el mismo tramo en sentido contrario.
+func _turn_around(r: RS) -> void:
+	if r.m >= 0:
+		var L := _nodes[r.n].distance_to(_nodes[r.m])
+		var tmp := r.n
+		r.n = r.m
+		r.m = tmp
+		r.t = L - r.t
+	r.face = -r.face
+	_update_pos(r)
+
+## Vías que puede tomar en un cruce: todas menos la de vuelta (la contraria a donde mira).
+func _can_take(node: int, o: int, face: Vector2) -> bool:
+	return (_nodes[o] - _nodes[node]).normalized().dot(face) > -0.9
 
 func _pick_edge(node: int, want: Vector2, face: Vector2, cruise: bool) -> int:
 	var best := -1
 	var bd := 0.5
 	for o in _adj[node]:
+		if not _can_take(node, o, face):
+			continue
 		var dd := want.dot((_nodes[o] - _nodes[node]).normalized())
 		if dd > bd:
 			bd = dd
@@ -499,7 +503,10 @@ func _knock(r: RS, dir: Vector2, dist: float) -> void:
 	var face := r.face
 	var was_m := r.m
 	if r.m < 0:
-		var e := _pick_edge(r.n, dir, face, false)
+		var e := -1
+		for o2 in _adj[r.n]:
+			if dir.dot((_nodes[o2] - _nodes[r.n]).normalized()) > 0.9:
+				e = o2
 		if e < 0:
 			return
 		r.m = e
@@ -521,11 +528,18 @@ func _knock(r: RS, dir: Vector2, dist: float) -> void:
 	elif r.t <= 0.0001:
 		r.m = -1
 		r.t = 0.0
-	_update_pos(r)
 	r.face = face
+	# El tramo va siempre en el sentido del cañón (de n hacia m).
+	if r.m >= 0 and (_nodes[r.m] - _nodes[r.n]).dot(face) < 0.0:
+		var L2 := _nodes[r.n].distance_to(_nodes[r.m])
+		var tmp := r.n
+		r.n = r.m
+		r.m = tmp
+		r.t = L2 - r.t
+	_update_pos(r)
 
 func _try_fire(r: RS) -> void:
-	if not r.alive or r.stun_t > 0.0 or r.fire_cd > 0.0 or _over or _cd > 0.0:
+	if not r.alive or r.stun_t > 0.0 or r.fire_cd > 0.0 or _over:
 		return
 	r.fire_cd = FIRE_CD
 	var p := r.pos + r.face * 1.0
@@ -678,14 +692,13 @@ func _serialize_state() -> Variant:
 		var p: Vector2 = b["p"]
 		var d: Vector2 = b["d"]
 		balls.append_array(PackedFloat32Array([p.x, p.y, d.x, d.y, float(int(b["o"]))]))
-	return {"r": arr, "b": balls, "t": _time_left, "cd": _cd, "o": _over, "c": _coin_on, "cx": _coin_pos.x, "cz": _coin_pos.y}
+	return {"r": arr, "b": balls, "t": _time_left, "o": _over, "c": _coin_on, "cx": _coin_pos.x, "cz": _coin_pos.y}
 
 func _apply_state(state: Variant) -> void:
 	if not state is Dictionary:
 		return
 	var st: Dictionary = state
 	_time_left = float(st.get("t", _time_left))
-	_cd = float(st.get("cd", _cd))
 	_over = bool(st.get("o", _over))
 	_coin_on = bool(st.get("c", _coin_on))
 	_coin_pos = Vector2(float(st.get("cx", _coin_pos.x)), float(st.get("cz", _coin_pos.y)))
@@ -711,10 +724,6 @@ func _apply_state(state: Variant) -> void:
 func _on_event(event_name: String, data: Variant) -> void:
 	var d: Dictionary = data if data is Dictionary else {}
 	match event_name:
-		"beep":
-			Audio.sfx(&"beep", -7.0)
-		"go":
-			Audio.sfx(&"beep_go", -5.0)
 		"fire":
 			_stats["fire"] = int(_stats["fire"]) + 1
 			var r: RS = _rs.get(int(d.get("p", -1)))
@@ -732,6 +741,11 @@ func _on_event(event_name: String, data: Variant) -> void:
 			_spawn_puff(Vector3(float(d.get("x", 0.0)), 0.7, float(d.get("z", 0.0))), 0.6, Color(1, 1, 1, 0.9))
 			_shake = maxf(_shake, 0.15)
 			Audio.sfx(&"thud", -6.0 if v != null and _mine(v) else -12.0)
+		"crash":
+			_spawn_puff(Vector3(float(d.get("x", 0.0)), 0.6, float(d.get("z", 0.0))), 0.4, Color(1, 1, 1, 0.85))
+			var ca: RS = _rs.get(int(d.get("a", -1)))
+			var cb: RS = _rs.get(int(d.get("b", -1)))
+			Audio.sfx(&"clang", -8.0 if (ca != null and _mine(ca)) or (cb != null and _mine(cb)) else -16.0)
 		"out":
 			_stats["out"] = int(_stats["out"]) + 1
 			var v2: RS = _rs.get(int(d.get("v", -1)))
@@ -782,8 +796,6 @@ func _on_start() -> void:
 	_crng.seed = hash([seed_value, "coin"])
 	_accum = 0.0
 	_elapsed = 0.0
-	_cd = COUNTDOWN
-	_last_cd = 99
 	_time_left = TIME_LIMIT
 	_over = false
 	_over_t = 0.0
@@ -798,8 +810,7 @@ func _animate(delta: float) -> void:
 	_shake = maxf(0.0, _shake - delta * 2.5)
 	_toast_t = maxf(0.0, _toast_t - delta)
 	_anim += delta
-	if _cd <= 0.0:
-		_hint_t = maxf(0.0, _hint_t - delta)
+	_hint_t = maxf(0.0, _hint_t - delta)
 	_update_world(delta)
 
 # ----------------------------------------------------------------------------
@@ -848,24 +859,8 @@ func _bot_think(r: RS) -> Vector2:
 	r.want_fire = false
 	r.dodge_t = maxf(0.0, r.dodge_t - STEP)
 	r.wander_t = maxf(0.0, r.wander_t - STEP)
-	if _over or _cd > 0.0 or not r.alive or r.stun_t > 0.0:
+	if _over or not r.alive or r.stun_t > 0.0:
 		return Vector2.ZERO
-	# 1) ¿Bala que me viene por detrás? Dar media vuelta (por delante solo empuja).
-	for b in _balls:
-		if int(b["o"]) == r.id:
-			continue
-		var bp: Vector2 = b["p"]
-		var bd: Vector2 = b["d"]
-		var to_me := r.pos - bp
-		var along := to_me.dot(bd)
-		if along > 0.0 and along < 5.5 and absf(to_me.cross(bd)) < 0.5 and bd.dot(r.face) > 0.0:
-			var bid := int(b.get("id", 0))
-			if bid != r.seen_ball:
-				r.seen_ball = bid
-				if r.bot_rng.randf() < 0.1 + 0.25 * r.skill:
-					r.dodge_t = 0.4
-			if r.dodge_t > 0.0:
-				return -r.face
 	# 2) Disparar si hay alguien delante, en línea y a tiro (sobre todo si no nos mira de frente). Mientras, seguir hacia él.
 	var aiming := false
 	if true:
@@ -887,7 +882,7 @@ func _bot_think(r: RS) -> Vector2:
 					r.goal = r.bot_rng.randi_range(0, _nodes.size() - 1)
 					r.think_t = r.wander_t
 				if r.fire_cd <= 0.0 and (exposed or r.bot_rng.randf() < 0.04):
-					if r.bot_rng.randf() < 0.04 + 0.08 * r.skill:
+					if r.bot_rng.randf() < 0.1 + 0.15 * r.skill:
 						r.want_fire = true
 				break
 	if aiming and r.bot_rng.randf() < 0.9:
@@ -904,7 +899,10 @@ func _bot_think(r: RS) -> Vector2:
 			if v2 == r or not v2.alive:
 				continue
 			# Ir al cruce que queda detrás de él.
+			# Ir al cruce que queda detrás de él (o, a veces, atajar hacia donde está para cortarle el paso).
 			var behind := _nearest_node(v2.pos - v2.face * SPACING * 0.9)
+			if r.bot_rng.randf() < 0.45:
+				behind = _ahead_node(v2)
 			var res := _bfs_next(here, behind)
 			var sc := float(res[1]) + r.bot_rng.randf() * 1.5
 			if sc < bscore:
@@ -924,6 +922,20 @@ func _bot_think(r: RS) -> Vector2:
 		r.goal = -1
 		return r.face
 	var nxt: int = _bfs_next(here2, r.goal)[0]
+	# No se puede volver por donde vino: si el camino más corto pide dar la vuelta en el cruce, tomar otra vía
+	# (la que deje más cerca del objetivo).
+	var from_face := r.face if r.m < 0 else (_nodes[r.m] - _nodes[r.n]).normalized()
+	if not _can_take(here2, nxt, from_face):
+		var best_o := -1
+		var best_d := 1e9
+		for o in _adj[here2]:
+			if _can_take(here2, o, from_face):
+				var dd := float(_bfs_next(o, r.goal)[1]) + r.bot_rng.randf() * 0.5
+				if dd < best_d:
+					best_d = dd
+					best_o = o
+		if best_o >= 0:
+			nxt = best_o
 	if r.m >= 0 and nxt != r.m:
 		# Aún en el tramo: seguir hasta el cruce y allí girar.
 		var dir_to: Vector2 = (_nodes[r.m] - r.pos)
@@ -1584,13 +1596,7 @@ func _draw_hud() -> void:
 			s.text_centered(rect.position + Vector2(pw * 0.5, -10), pl.display_name, 18, Color(1, 1, 1, 0.85 * dim + 0.15), 4)
 	if _toast_t > 0.0 and not _over:
 		s.text_centered(Vector2(640, 118), _toast, 40, Color(1, 1, 1, clampf(_toast_t * 2.0, 0.0, 1.0)), 9)
-	if _cd > 0.0:
-		var c := ceili(_cd)
-		var frac := _cd - floorf(_cd)
-		s.text_centered(Vector2(640, 330), str(c), int(130.0 + 60.0 * frac), Palette.YELLOW, 16)
-	elif _time_left > TIME_LIMIT - 0.8:
-		s.text_centered(Vector2(640, 330), "¡YA!", 130, Palette.MINT, 16)
-	if _hint_t > 0.0 and not _over and _cd <= 0.0:
+	if _hint_t > 0.0 and not _over:
 		s.text_centered(Vector2(640, 610), "Muévete por los raíles y dispara con la acción: ¡dale en la DIANA de su espalda!", 24, Color(1, 1, 1, clampf(_hint_t, 0.0, 1.0)), 7)
 	if _over:
 		s.text_centered(Vector2(640, 290), "¡FIN!", 110, Palette.YELLOW, 14)

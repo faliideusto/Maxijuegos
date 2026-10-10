@@ -27,7 +27,7 @@ func _process(_d: float) -> bool:
 		_mg.prepare(lobby.players)
 		_mg.start(lobby.players)
 		var t := 0.0
-		while t < secs + 3.0:
+		while t < secs:
 			_mg._simulate(1.0 / 60.0)
 			_mg._animate(1.0 / 60.0)
 			t += 1.0 / 60.0

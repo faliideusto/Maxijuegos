@@ -572,7 +572,7 @@ premio (+1, un +2 desde 4 puentes y un oro +3, barajados con la semilla común e
 Basado en el "Disparos diligentes" de Pummel Party: una caseta de feria y todos los jugadores delante, cada uno con su escopeta
 láser y SUS TRES huecos (izquierda, centro, derecha) con su color. Cada uno solo dispara a los suyos.
 - **Se adapta al nº de jugadores**: 3 huecos por jugador; el tramo de cada uno se estrecha cuantos más hay (todo cabe en 1180 px).
-- **Controles**: A / S / D (izquierda / abajo / derecha, o el stick) apuntan al instante a tu hueco izquierdo / central / derecho;
+- **Controles**: A / S o W / D (izquierda / abajo o arriba / derecha, o el stick) apuntan al instante a tu hueco izquierdo / central / derecho;
   la acción dispara. Ratón: clic en uno de TUS huecos = apuntar ahí y disparar (clic en otro sitio = disparar donde apuntas).
   Táctil: joystick + botón DISPARAR.
 - **Oleadas** (semilla común, el MISMO patrón en los huecos de todos para que sea justo): dianas en 1-3 huecos, o bien primero
@@ -626,9 +626,10 @@ con un cañón delante y una DIANA detrás, sobre una red de raíles entre setos
   de la semilla común (no viaja por la red). Las celdas sueltas a veces son parterres de flores.
 - **Se adapta al nº de jugadores**: 5×4 cruces con 2-4, 6×4 con 5-6 y 6×5 con 7-8; la cámara se aleja con el patio. Las salidas se
   reparten por el borde y los vecinos empiezan cara a cara (sentidos alternos), para que nadie arranque dando la espalda.
-- **Conducción**: la dirección elige la vía en cada cruce; en mitad de un tramo, hacia delante o atrás (media vuelta al momento) y,
-  si la dirección es perpendicular, sigue hasta el cruce para girar allí (estilo Pac-Man). Parado en un cruce, hacia donde no hay
-  vía no se mueve. Las vagonetas no se atraviesan. El cañón mira siempre hacia donde se avanza.
+- **Conducción**: la dirección elige la vía en cada cruce (cualquiera menos la de vuelta); en el carril NO se puede dar la vuelta:
+  hacia atrás frena y, si la dirección es perpendicular, sigue hasta el cruce para girar allí (estilo Pac-Man). Parado en un cruce,
+  hacia donde no hay vía no se mueve. Las vagonetas no se atraviesan: si chocan, las dos se dan la vuelta (evento `crash`), así
+  nadie se queda atascado. El cañón mira siempre hacia donde se avanza. Sin cuenta atrás propia (la hace el runner).
 - **Balas**: la acción dispara (recarga 0,85 s), en línea recta a 12,5 m/s; un seto o el muro la paran (sale del pasillo de vía).
   Si da de frente (contra el cañón) solo empuja 1,3 m por la vía y aturde 0,75 s; por detrás o de lado, ¡diana!: sale volando
   con una columna de luz y queda eliminado.
@@ -636,18 +637,21 @@ con un cañón delante y una DIANA detrás, sobre una red de raíles entre setos
 - **Fin**: queda uno solo (gana) o se acaban los 60 s: los que siguen en pie empatan en cabeza (`_result_groups`). El resto,
   del último al primero en caer (empatan los que caen a la vez).
 - **Red**: sin código propio. Snapshots a 30 Hz (10 floats por vagoneta + balas + moneda + reloj) y eventos `fire`, `puff`,
-  `bump`, `out`, `coin`, `pick`, `over`, `beep`, `go`. Los clientes adelantan las balas entre snapshots.
+  `bump`, `crash`, `out`, `coin`, `pick`, `over`, `beep`, `go`. Los clientes adelantan las balas entre snapshots.
 - **Bots/autopiloto**: BFS por los raíles hacia el cruce que queda detrás del rival más cercano (o a la moneda si está más a mano),
-  disparan con un tiempo de reacción cuando lo tienen delante y sin mirarles de frente, a veces se dan la vuelta si les viene una
-  bala por detrás y, en un cara a cara, se van por otro lado para rodear. Partidas de bots: ~48 s de media.
+  o, a veces, hacia donde está para cortarle el paso; sin volver nunca por donde vienen. Disparan con un tiempo de reacción cuando
+  lo tienen delante y sin mirarles de frente y, en un cara a cara, se van por otro lado para rodear. Partidas de bots: ~35 s de media.
 - Pruebas: `tests/rail_cannons_test.gd` y `ONLY=rail_cannons tests/online_test.sh 3 1 0 normal` OK; captura: `tools/rail_shot.gd`.
 
 ## Fuga en Pareja (`pair_escape`, HOST_AUTHORITATIVE, 3D, por parejas)
 
 Laberinto de piedra sobre un abismo, partido por una columna tumbada; cada pareja tiene el suyo (todos iguales, de la semilla) y
 cada miembro corre por su mitad, reflejo de la del compañero. Salirse del camino = tropezar (1,1 s en el suelo y vuelta a la
-última baldosa segura). Tres rejas cortan el paso a los dos; se abren solo cuando los DOS pisan a la vez su baldosa roja.
-Gana la pareja que antes salga (los dos); si no, la que más haya avanzado al acabar los 60 s.
+última baldosa segura). Dos rejas cortan el paso a los dos; se abren solo cuando los DOS pisan a la vez su baldosa roja.
+Dos RELEVOS: una puerta de color corta el paso a uno solo y la abre el botón del mismo color, que está en la mitad del
+compañero, en la punta de un ramal sin salida. El que espera pulsa en el pasillo de atrás y abre la puerta del otro (paso de
+delante); el otro, ya pasado, pulsa en el pasillo siguiente y abre la del que esperaba. En cada relevo se adelanta un lado.
+Gana la pareja que antes salga (los dos); si no, la que más haya avanzado al acabar los 75 s.
 
 - **Solo con número par de jugadores**: `MinigameMeta.even_players_only = true` hace que `supports()` (y por tanto la rotación,
   los ajustes y `pick_random`) lo descarte con 3, 5 o 7. Mecanismo genérico para futuros juegos por parejas.
@@ -655,10 +659,12 @@ Gana la pareja que antes salga (los dos); si no, la que más haya avanzado al ac
   jugadores los ganadores reciben 4 y los otros 2. Con 2 jugadores (una sola pareja, sin rival) `_result_points()` da N si
   escapan y 1 si no.
 - **Laberinto**: 5 columnas por mitad y 41 filas; filas pares = pasillos laterales con ramales sin salida, impares = pasos de
-  una baldosa (así una reja en un paso no se puede rodear). Estado: 8 floats por jugador + máscara de rejas y hora de escape
-  por pareja.
+  una baldosa (así una reja o puerta en un paso no se puede rodear). Las puertas y botones son de un solo lado
+  (`_door_tiles`/`_button_tiles`: fila, columna, lado); `_walkable()` recibe el lado. Estado: 8 floats por jugador + máscaras
+  de rejas y puertas y hora de escape por pareja. Sin compañero (reparto impar en una práctica) las puertas empiezan abiertas.
 - **Vista**: cada PC sigue a su pareja con una cámara por detrás. En modo local, si hay personas en parejas distintas, la
   pantalla se parte (2 o 2x2 visores que comparten el mismo `World3D`).
-- **Bots**: camino más corto por baldosas (BFS), esperan en la baldosa roja a su pareja; los menos hábiles a veces se pasan de
+- **Bots**: camino más corto por baldosas (BFS) a lo más cercano entre un botón suyo que abra una puerta cerrada, la baldosa
+  roja de la reja siguiente o la salida; si su puerta sigue cerrada, esperan delante. Los menos hábiles a veces se pasan de
   largo en una curva y tropiezan.
 - Pruebas: `tests/pair_escape_test.gd`; captura: `tools/pair_shot.gd -- salida.png [seg] [jugadores] [humanos_locales]`.

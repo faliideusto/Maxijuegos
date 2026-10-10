@@ -7,7 +7,7 @@
 script = ExtResource("1")
 display_name = "Vagonetas Cañoneras"
 description = "¡Dale en la diana de su espalda!"
-instructions = "Cada uno va en una vagoneta con un cañón delante y una DIANA detrás, y solo puede ir por los raíles. Con la dirección eliges por qué vía seguir en cada cruce (y puedes dar media vuelta cuando quieras). Tu botón de acción dispara una bala hacia delante por la vía; los setos la paran. Si le das a alguien en la diana de su espalda, sale volando y queda eliminado; si le das por delante solo le empujas y le aturdes un momento. Coge la moneda S para ir más rápido. Gana el último que quede; si se acaba el tiempo, empatan los que sigan en pie."
+instructions = "Cada uno va en una vagoneta con un cañón delante y una DIANA detrás, y solo puede ir por los raíles. Con la dirección eliges por qué vía seguir en cada cruce; en el carril no puedes darte la vuelta (si chocas con otra vagoneta, las dos se dan la vuelta). Tu botón de acción dispara una bala hacia delante por la vía; los setos la paran. Si le das a alguien en la diana de su espalda, sale volando y queda eliminado; si le das por delante solo le empujas y le aturdes un momento. Coge la moneda S para ir más rápido. Gana el último que quede; si se acaba el tiempo, empatan los que sigan en pie."
 min_players = 2
 max_players = 8
 approx_duration = 60.0
