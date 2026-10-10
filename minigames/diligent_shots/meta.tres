@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="MinigameMeta" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://core/minigame_meta.gd" id="1"]
+[ext_resource type="PackedScene" path="res://minigames/diligent_shots/scene.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Disparos Diligentes"
+description = "¡Dispara rápido, pero no a las bombas!"
+instructions = "Todos disparáis a la misma fila de huecos de una caseta de feria. De vez en cuando salen dianas: el primero que acierta se la lleva, y cuanto antes dispares más puntos (+7 ¡EXCELENTE!, +5 ¡BIEN!, +2 ¡LENTO!). Pero a veces salen BOMBAS con la mecha encendida: si le das a una pierdes 5 puntos y te quedas aturdido un momento. Disparar a un hueco vacío quita 2. Apunta con izquierda/derecha (A/D, flechas o stick) y dispara con tu botón de acción; con el ratón, clic en un hueco para disparar ahí. Gana quien más puntos tenga al acabar el tiempo."
+min_players = 2
+max_players = 8
+approx_duration = 45.0
+scene = ExtResource("2")
+accent_color = Color(0.93, 0.36, 0.22, 1)
+execution_mode = 0
+max_duration = 0.0
+music = &"aim"
+short_text = "Dispara a las dianas antes que nadie, ¡pero ni se te ocurra tocar las bombas!"

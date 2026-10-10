@@ -566,3 +566,26 @@ premio (+1, un +2 desde 4 puentes y un oro +3, barajados con la semilla común e
   cambia el puente señalado, para no pisar un clic. Eventos `pick` (sin el puente), `reveal`, `round`, `end`.
 - **Bots/autopiloto**: eligen en un momento al azar; el oro les tienta (≈30 % + algo más con pocos jugadores), luego el +2.
 - Pruebas: `tests/personal_bridge_test.gd` y `ONLY=personal_bridge tests/online_test.sh 3 1 1 normal` OK; captura: `tools/bridge_shot.gd`.
+
+## Disparos Diligentes (`diligent_shots`, HOST_AUTHORITATIVE)
+
+Copia del "Disparos diligentes" de Pummel Party: una caseta de feria con una fila de huecos y todos los jugadores delante, cada uno
+con su escopeta láser apuntando a la fila.
+- **Se adapta al nº de jugadores**: cada jugador tiene su tramo de huecos con su color (4 con 2 jugadores, 3 hasta 5 y 2 a partir
+  de 6: de 8 a 16 huecos), pero cualquiera puede disparar a cualquier hueco. 45 s.
+- **Oleadas** (semilla común): pausa de 0,7-1,5 s y después, o bien dianas en varios huecos a la vez (del 35 % al 100 %), o bien
+  bombas con la mecha encendida durante 0,9-2 s que luego se cambian por dianas (la trampa para los que disparan sin mirar). Las
+  dianas duran de 2,6 s (al principio) a 1,9 s (al final) o hasta que no queda ninguna. Desde el 40 % de la partida, algunas oleadas
+  de dianas traen alguna bomba mezclada.
+- **Puntos**: el primero que acierta una diana se la lleva: +7 ¡EXCELENTE! (antes de 0,5 s), +5 ¡BIEN! (antes de 1 s), +2 ¡LENTO!.
+  Bomba: -5 ¡BANG! y aturdido 1,4 s (sin mira ni disparo). Hueco vacío o entre huecos: -2 ¡FALLASTE! y arma encasquillada 0,45 s.
+  0,22 s entre disparos. Los puntos no bajan de 0. Si varios disparan en el mismo frame, el orden se sortea. Gana quien más
+  puntos tiene; a igualdad, quien tocó menos bombas.
+- **Controles**: izquierda/derecha mueve la mira (760 px/s); la acción dispara. Ratón: clic en un hueco = apuntar ahí y disparar;
+  clic fuera de la fila = disparar donde se apunta. Táctil: joystick + botón DISPARAR.
+- **Red**: sin código propio. Snapshots a 30 Hz (fase, tiempo, contenido de los huecos, miras, puntos y aturdimiento) y eventos
+  fiables `shot` (jugador, hueco, resultado, puntos, x de la mira: popups, sonido y fogonazo) y `end`. El clic va al host por el
+  canal de texto del minijuego (`submit_text("s:<hueco>")`; en partida local llega sin dueño y es del jugador del ratón: teclado 1).
+- **Bots/autopiloto**: reaccionan a los 0,25-0,85 s de salir la oleada, van a la diana libre más cercana y disparan al tenerla en
+  la mira; en un 10 % de las oleadas de bombas "se les escapa el dedo" y disparan a una.
+- Pruebas: `tests/diligent_shots_test.gd`; captura: `tools/shots_shot.gd`.

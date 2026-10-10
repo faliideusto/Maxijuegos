@@ -24,6 +24,7 @@ const STICK_GAMES := {
 	&"obstacle_run": "SALTAR",
 	&"uphill_rush": "SALTAR",
 	&"word_fight": "PISAR",
+	&"diligent_shots": "DISPARAR",
 }
 ## Minijuegos con segundo botón → su texto.
 const ACTION2_GAMES := {
