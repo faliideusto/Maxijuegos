@@ -160,6 +160,7 @@ var debug_skill: float = -1.0           # >= 0: fuerza la habilidad de todas las
 
 # --- Escena 3D ---
 var _vp: SubViewport
+var _cont: SubViewportContainer
 var _root3: Node3D
 var _cam: Camera3D
 var _built: bool = false
@@ -1171,7 +1172,9 @@ func _build_world() -> void:
 	_built = true
 	var cont := SubViewportContainer.new()
 	cont.stretch = true
-	cont.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cont.top_level = true                          # toda la ventana, aunque el minijuego esté en una capa centrada
+	cont.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_cont = cont
 	cont.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(cont)
 	move_child(cont, surface.get_index())          # el 3D va detrás del dibujo 2D (HUD)
@@ -1563,7 +1566,18 @@ func _floor_under(x: float, z: float, y: float) -> float:
 				best = top
 	return best
 
+func _fit_view() -> void:
+	if _cont == null:
+		return
+	var off := Vector2.ZERO
+	var par := get_parent()
+	if par is CanvasLayer:
+		off = -(par as CanvasLayer).offset
+	_cont.position = off
+	_cont.size = get_viewport().get_visible_rect().size
+
 func _update_world(delta: float) -> void:
+	_fit_view()
 	if not _built or _cam == null:
 		return
 	# Losas móviles y barra giratoria (con el tiempo de carrera suavizado).

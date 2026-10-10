@@ -41,7 +41,7 @@ func _process(delta: float) -> void:
 		_rain_time_left -= delta
 		var n := int(_rain_rate * delta) + (1 if _rng.randf() < fmod(_rain_rate * delta, 1.0) else 0)
 		for i in n:
-			_add_piece(Vector2(_rng.randf() * Palette.VIEWPORT_SIZE.x, -20.0),
+			_add_piece(Vector2(_rng.randf() * get_viewport_rect().size.x, -20.0),
 					Vector2(_rng.randf_range(-60.0, 60.0), _rng.randf_range(40.0, 200.0)))
 	for p in _pieces:
 		p.vel.y += GRAVITY * delta
@@ -49,7 +49,7 @@ func _process(delta: float) -> void:
 		p.vel *= 1.0 - minf(delta * 0.8, 1.0)
 		p.pos += p.vel * delta
 		p.rot += p.spin * delta
-	_pieces = _pieces.filter(func(p: Dictionary) -> bool: return p.pos.y < Palette.VIEWPORT_SIZE.y + 40.0)
+	_pieces = _pieces.filter(func(p: Dictionary) -> bool: return p.pos.y < get_viewport_rect().size.y + 40.0)
 	queue_redraw()
 
 func _draw() -> void:

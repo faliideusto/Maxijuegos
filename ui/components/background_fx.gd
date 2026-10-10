@@ -26,8 +26,11 @@ func _ready() -> void:
 			"kind": rng.randi() % 3,
 		})
 
+func _real_size() -> Vector2:
+	return size if size.x > 8.0 and size.y > 8.0 else Palette.VIEWPORT_SIZE
+
 func _process(delta: float) -> void:
-	var size_px := Palette.VIEWPORT_SIZE
+	var size_px := _real_size()
 	for s in _shapes:
 		s.pos += s.vel * delta
 		s.rot += s.spin * delta
@@ -38,7 +41,7 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 func _draw() -> void:
-	var r := Rect2(Vector2.ZERO, Palette.VIEWPORT_SIZE)
+	var r := Rect2(Vector2.ZERO, _real_size())
 	# Degradado vertical.
 	draw_polygon(PackedVector2Array([r.position, Vector2(r.end.x, 0), r.end, Vector2(0, r.end.y)]),
 			PackedColorArray([Palette.BG_TOP, Palette.BG_TOP, Palette.BG_BOTTOM, Palette.BG_BOTTOM]))

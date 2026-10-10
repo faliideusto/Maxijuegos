@@ -29,7 +29,10 @@ func change_scene(path: String) -> void:
 		return
 	_busy = true
 	Audio.sfx(&"swoosh", -6.0)
-	var w := Palette.VIEWPORT_SIZE.x
+	var vs := get_viewport().get_visible_rect().size
+	var w := vs.x
+	for rect: ColorRect in [_stripe, _curtain]:
+		rect.size = vs + Vector2(40, 0)
 	_curtain.visible = true
 	_stripe.visible = true
 	_curtain.position.x = -w - 40

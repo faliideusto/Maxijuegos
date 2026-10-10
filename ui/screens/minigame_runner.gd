@@ -21,17 +21,29 @@ var _meta: MinigameMeta
 var _minigame: Minigame
 var _session: MinigameSession
 var _overlay: CanvasLayer
+var _frame: CanvasLayer      # capa desplazada: deja el 1280x720 del minijuego centrado cuando la ventana es más ancha
 var _label: Label
 var _wait_label: Label
 
 func _ready() -> void:
 	_meta = GameManager.current_minigame()
+	add_child(BackgroundFX.new())
+	_frame = CanvasLayer.new()
+	_frame.layer = 1
+	add_child(_frame)
+	_center_frame()
+	get_viewport().size_changed.connect(_center_frame)
 	_build_overlay()
 	var parallel := _meta.execution_mode == MinigameMeta.ExecutionMode.LOCAL_PARALLEL
 	if parallel and not NetworkManager.is_online:
 		await _run_offline_parallel()
 	else:
 		await _run_shared()
+
+## Los minijuegos 2D se diseñan en 1280x720: si la ventana es más ancha, se centran (el fondo cubre toda la ventana).
+func _center_frame() -> void:
+	var vr := get_viewport().get_visible_rect().size
+	_frame.offset = Vector2(maxf((vr.x - Palette.VIEWPORT_SIZE.x) * 0.5, 0.0), maxf((vr.y - Palette.VIEWPORT_SIZE.y) * 0.5, 0.0))
 
 # ----------------------------------------------------------------------------
 # Ejecución común (online en ambos modelos; local en HOST_AUTHORITATIVE)
@@ -42,7 +54,7 @@ func _run_shared() -> void:
 	_minigame = _instantiate(is_host)
 	if _minigame == null:
 		return
-	add_child(_minigame)
+	_frame.add_child(_minigame)
 
 	# Sincronización de arranque (solo online): todos listos → semilla común → todos empiezan.
 	var seed_value := randi()
@@ -107,7 +119,7 @@ func _play_turn(p: PlayerData, seed_value: int, results: ParallelResults, helper
 	if mg == null:
 		return
 	_minigame = mg
-	add_child(mg)
+	_frame.add_child(mg)
 	mg.configure(_meta.execution_mode, seed_value, p)
 	mg.prepare(Lobby.players)
 	var done := {"v": false}
