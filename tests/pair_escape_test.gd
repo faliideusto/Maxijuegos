@@ -2,7 +2,7 @@ extends SceneTree
 ## Prueba de Fuga en Pareja (HOST_AUTHORITATIVE, 3D, por parejas): solo entra con número par de jugadores, el laberinto
 ## (superable, rejas que de verdad cortan el paso, igual para la misma semilla), tropezar al salirse, rejas que solo abren
 ## los dos a la vez, la columna y las rejas como paredes, escapar, el reparto en parejas, partidas enteras con bots
-## (2, 4 y 8 jugadores), los puestos compartidos de cada pareja y el estado enviado a un "cliente".
+## (2, 4 y 8 jugadores), los relevos (botón en el lado del compañero que abre su puerta), los puestos compartidos de cada pareja y el estado enviado a un "cliente".
 ## Ejecutar:  godot --headless --path . --script res://tests/pair_escape_test.gd
 
 var _began: bool = false
@@ -23,10 +23,6 @@ func _new_game(count: int, authority: bool = true, seed_value: int = 77):
 	mg.prepare(lobby.players)
 	mg.start(lobby.players)
 	return mg
-
-func _skip_countdown(g) -> void:
-	for i in 100:
-		g._simulate(1.0 / 30.0)
 
 ## Partida entera con bots; devuelve el ranking (o vacío si no acaba).
 func _play_out(g, max_seconds: float = 75.0) -> Array:
@@ -62,10 +58,11 @@ func _process(_delta: float) -> bool:
 	var bad_seeds := 0
 	for sd in 40:
 		var gg = _new_game(2, true, 1000 + sd)
-		if gg.debug_shortest(true) <= 0 or gg.debug_shortest(false) > 0:
-			bad_seeds += 1
+		for sd2 in 2:
+			if gg.debug_shortest(true, true, sd2) <= 0 or gg.debug_shortest(false, true, sd2) > 0 or gg.debug_shortest(true, false, sd2) > 0:
+				bad_seeds += 1
 		gg.free()
-	_ck(f, bad_seeds == 0, "40 laberintos: todos superables con las rejas abiertas y cerrados sin abrirlas (fallos: %d)" % bad_seeds)
+	_ck(f, bad_seeds == 0, "40 laberintos, por los dos lados: superables con todo abierto y cerrados si queda una reja o una puerta sin abrir (fallos: %d)" % bad_seeds)
 	var g1 = _new_game(4, true, 5)
 	var g2 = _new_game(4, true, 5)
 	var same := true
@@ -75,7 +72,35 @@ func _process(_delta: float) -> bool:
 				same = false
 	_ck(f, same, "misma semilla → mismo laberinto (todos los PC ven lo mismo)")
 	g2.free()
-	_ck(f, g1.debug_gate_rows().size() == 3, "3 rejas en el recorrido")
+	_ck(f, g1.debug_gate_rows().size() == 2, "2 rejas de baldosa roja en el recorrido")
+	var doors: Array = g1.debug_doors()
+	var relay_ok := doors.size() == 4
+	for j in doors.size() / 2:
+		var run_door: Vector3i = doors[j * 2].door
+		var help_btn: Vector3i = doors[j * 2].button
+		var help_door: Vector3i = doors[j * 2 + 1].door
+		var run_btn: Vector3i = doors[j * 2 + 1].button
+		if run_door.z == help_btn.z or help_door.z != help_btn.z or run_btn.z != run_door.z:
+			relay_ok = false                           # cada botón abre la puerta del OTRO lado
+		if not (help_btn.x < help_door.x and help_door.x < run_door.x and run_door.x < run_btn.x):
+			relay_ok = false                           # el que espera pulsa atrás; el otro, ya pasado, pulsa delante
+	# Los botones están en la punta de un ramal sin salida: fuera del camino, hay que desviarse a pulsarlos.
+	var off_path := true
+	for dd in doors:
+		var bt: Vector3i = dd.button
+		var row_tiles := 0
+		for c in 5:
+			if g1.debug_kind(bt.x, c) != 0:
+				row_tiles += 1
+		var nb := 0
+		for c2 in [bt.y - 1, bt.y + 1]:
+			if g1.debug_kind(bt.x, c2) != 0:
+				nb += 1
+		if nb != 1 or g1.debug_kind(bt.x - 1, bt.y) != 0 or g1.debug_kind(bt.x + 1, bt.y) != 0:
+			off_path = false
+	_ck(f, relay_ok, "2 relevos: el botón de atrás abre la puerta del compañero y el de delante, la del que espera")
+	_ck(f, off_path, "cada botón está en la punta de un ramal sin salida (no se pisa sin querer)")
+	_ck(f, doors.size() == 4 and doors[0].door.z != doors[2].door.z, "en cada relevo se adelanta un lado distinto")
 	# 3) Parejas: 4 jugadores → 2 parejas de 2, cada uno a un lado de la columna.
 	var pairs: Array = g1.debug_pairs()
 	var all_ids := {}
@@ -89,7 +114,6 @@ func _process(_delta: float) -> bool:
 			ok_pairs = false
 	_ck(f, ok_pairs and all_ids.size() == 4, "4 jugadores → 2 parejas, cada miembro a un lado de la columna")
 	# 4) Tropezar al salirse del camino y volver a la baldosa segura.
-	_skip_countdown(g1)
 	var a: int = pairs[0].members[0]
 	var b: int = pairs[0].members[1]
 	g1.debug_place(a, Vector2i(0, 4))
@@ -112,11 +136,43 @@ func _process(_delta: float) -> bool:
 	_ck(f, not g1.debug_pairs()[1].open[0], "la reja de la otra pareja sigue cerrada")
 	g1.debug_step(a, Vector2(0, 1), 0.7)
 	_ck(f, g1.debug_player(a).tile.x >= gr, "con la reja abierta se pasa")
+	# 5b) Relevo: la puerta de color para a uno solo; la abre el botón que pisa su pareja (en su lado, más atrás), y luego
+	# ese, ya por delante, abre la del que esperaba.
+	var run_d: Vector3i = doors[0].door
+	var hb: Vector3i = doors[0].button
+	var hd: Vector3i = doors[1].door
+	var rb: Vector3i = doors[1].button
+	var runner: int = a if g1.debug_player(a).sidx == run_d.z else b
+	var helper: int = b if runner == a else a
+	g1.debug_place(runner, Vector2i(run_d.x - 1, run_d.y))
+	g1.debug_step(runner, Vector2(0, 1), 0.8)
+	_ck(f, g1.debug_player(runner).tile.x == run_d.x - 1 and g1.debug_player(runner).stun <= 0.0, "la puerta de color cerrada para el paso (sin tropezar)")
+	g1.debug_place(helper, Vector2i(rb.x, rb.y))
+	g1.debug_step(helper, Vector2.ZERO, 0.05)
+	_ck(f, not g1.debug_pairs()[0].doors[1], "pisar desde tu lado la casilla del botón de tu pareja no abre nada")
+	g1.debug_place(helper, Vector2i(hb.x, hb.y))
+	g1.debug_step(helper, Vector2.ZERO, 0.05)
+	_ck(f, g1.debug_pairs()[0].doors[0] and not g1.debug_pairs()[0].doors[1], "el que se queda atrás pisa su botón → se abre la puerta del compañero (la suya, no)")
+	_ck(f, not g1.debug_pairs()[1].doors[0], "la puerta de la otra pareja sigue cerrada")
+	g1.debug_step(runner, Vector2(0, 1), 0.8)
+	_ck(f, g1.debug_player(runner).tile.x >= run_d.x, "con su puerta abierta, el compañero pasa")
+	g1.debug_place(helper, Vector2i(hd.x - 1, hd.y))
+	g1.debug_step(helper, Vector2(0, 1), 0.8)
+	_ck(f, g1.debug_player(helper).tile.x == hd.x - 1, "el que pulsó sigue encerrado tras su propia puerta")
+	g1.debug_place(runner, Vector2i(rb.x, rb.y))
+	g1.debug_step(runner, Vector2.ZERO, 0.05)
+	_ck(f, g1.debug_pairs()[0].doors[1], "el de delante pisa su botón → se abre la puerta del que esperaba")
+	g1.debug_step(helper, Vector2(0, 1), 0.8)
+	_ck(f, g1.debug_player(helper).tile.x >= hd.x, "y el que esperaba pasa")
 	# 6) Escapar: los dos en la salida → la pareja escapa.
-	g1.debug_place(a, Vector2i(39, 2))
+	var ec := 0
+	for c in 5:
+		if g1.debug_kind(39, c) != 0:
+			ec = c
+	g1.debug_place(a, Vector2i(39, ec))
 	g1.debug_step(a, Vector2(0, 1), 0.5)
 	_ck(f, g1.debug_player(a).escaped and not g1.debug_pairs()[0].escaped, "uno en la salida: escapa él, la pareja aún no")
-	g1.debug_place(b, Vector2i(39, 2))
+	g1.debug_place(b, Vector2i(39, ec))
 	g1.debug_step(b, Vector2(0, 1), 0.5)
 	_ck(f, g1.debug_pairs()[0].escaped, "los dos fuera → la pareja escapa")
 	g1.free()
@@ -149,7 +205,6 @@ func _process(_delta: float) -> bool:
 	# 8) Estado al "cliente": posiciones, rejas y escapes.
 	var host = _new_game(4, true, 9)
 	var client = _new_game(4, false, 9)
-	_skip_countdown(host)
 	for i in 600:
 		host._simulate(1.0 / 60.0)
 	client.apply_state(host.serialize_state())
@@ -159,9 +214,9 @@ func _process(_delta: float) -> bool:
 			if client.debug_player(m).pos.distance_to(host.debug_player(m).pos) > 0.001:
 				match_ok = false
 	for i in host.debug_pairs().size():
-		if host.debug_pairs()[i].open != client.debug_pairs()[i].open:
+		if host.debug_pairs()[i].open != client.debug_pairs()[i].open or host.debug_pairs()[i].doors != client.debug_pairs()[i].doors:
 			match_ok = false
-	_ck(f, match_ok, "el cliente recibe posiciones y rejas igual que el host")
+	_ck(f, match_ok, "el cliente recibe posiciones, rejas y puertas igual que el host")
 	host.free()
 	client.free()
 	if f.is_empty():

@@ -647,8 +647,11 @@ con un cañón delante y una DIANA detrás, sobre una red de raíles entre setos
 
 Laberinto de piedra sobre un abismo, partido por una columna tumbada; cada pareja tiene el suyo (todos iguales, de la semilla) y
 cada miembro corre por su mitad, reflejo de la del compañero. Salirse del camino = tropezar (1,1 s en el suelo y vuelta a la
-última baldosa segura). Tres rejas cortan el paso a los dos; se abren solo cuando los DOS pisan a la vez su baldosa roja.
-Gana la pareja que antes salga (los dos); si no, la que más haya avanzado al acabar los 60 s.
+última baldosa segura). Dos rejas cortan el paso a los dos; se abren solo cuando los DOS pisan a la vez su baldosa roja.
+Dos RELEVOS: una puerta de color corta el paso a uno solo y la abre el botón del mismo color, que está en la mitad del
+compañero, en la punta de un ramal sin salida. El que espera pulsa en el pasillo de atrás y abre la puerta del otro (paso de
+delante); el otro, ya pasado, pulsa en el pasillo siguiente y abre la del que esperaba. En cada relevo se adelanta un lado.
+Gana la pareja que antes salga (los dos); si no, la que más haya avanzado al acabar los 75 s.
 
 - **Solo con número par de jugadores**: `MinigameMeta.even_players_only = true` hace que `supports()` (y por tanto la rotación,
   los ajustes y `pick_random`) lo descarte con 3, 5 o 7. Mecanismo genérico para futuros juegos por parejas.
@@ -656,10 +659,12 @@ Gana la pareja que antes salga (los dos); si no, la que más haya avanzado al ac
   jugadores los ganadores reciben 4 y los otros 2. Con 2 jugadores (una sola pareja, sin rival) `_result_points()` da N si
   escapan y 1 si no.
 - **Laberinto**: 5 columnas por mitad y 41 filas; filas pares = pasillos laterales con ramales sin salida, impares = pasos de
-  una baldosa (así una reja en un paso no se puede rodear). Estado: 8 floats por jugador + máscara de rejas y hora de escape
-  por pareja.
+  una baldosa (así una reja o puerta en un paso no se puede rodear). Las puertas y botones son de un solo lado
+  (`_door_tiles`/`_button_tiles`: fila, columna, lado); `_walkable()` recibe el lado. Estado: 8 floats por jugador + máscaras
+  de rejas y puertas y hora de escape por pareja. Sin compañero (reparto impar en una práctica) las puertas empiezan abiertas.
 - **Vista**: cada PC sigue a su pareja con una cámara por detrás. En modo local, si hay personas en parejas distintas, la
   pantalla se parte (2 o 2x2 visores que comparten el mismo `World3D`).
-- **Bots**: camino más corto por baldosas (BFS), esperan en la baldosa roja a su pareja; los menos hábiles a veces se pasan de
+- **Bots**: camino más corto por baldosas (BFS) a lo más cercano entre un botón suyo que abra una puerta cerrada, la baldosa
+  roja de la reja siguiente o la salida; si su puerta sigue cerrada, esperan delante. Los menos hábiles a veces se pasan de
   largo en una curva y tropiezan.
 - Pruebas: `tests/pair_escape_test.gd`; captura: `tools/pair_shot.gd -- salida.png [seg] [jugadores] [humanos_locales]`.

@@ -4,6 +4,9 @@ extends Minigame
 ## mitad, que es el reflejo exacto de la del compañero. Hay que llegar a la salida del fondo antes de que acabe el tiempo.
 ##   - Si te sales del camino, TROPIEZAS: caes al suelo un momento y vuelves a la última baldosa segura.
 ##   - Las rejas cortan el paso a los dos a la vez: solo se abren si los DOS pisáis a la vez vuestra baldosa roja.
+##   - RELEVOS: una puerta de colores corta el paso a uno solo; la abre el botón del mismo color, que está en la mitad del
+##     compañero y MÁS ATRÁS. Quien se queda atrás pulsa y abre al otro; luego ese, ya por delante, pisa otro botón y le
+##     abre la puerta al que esperaba. En cada relevo cambia quién se adelanta.
 ##   - La pareja escapa cuando han salido los dos. Gana la que antes escape; si no, la que más haya avanzado.
 ## Solo se juega con un número PAR de jugadores (meta.tres: even_players_only); las parejas se sortean con la semilla.
 ##
@@ -12,15 +15,17 @@ extends Minigame
 ## personas de este PC en parejas distintas, la pantalla se parte (un visor por pareja, mismo mundo 3D).
 
 const STEP := 1.0 / 60.0
-const TIME_LIMIT := 60.0
-const COUNTDOWN := 3.0
+const TIME_LIMIT := 75.0
 const DONE_DELAY := 2.8
 # --- Laberinto ---
 const COLS := 5                          # baldosas por mitad (0 = junto a la columna)
 const T := 2.0                           # lado de una baldosa
 const LANES := 20                        # pasillos laterales (filas pares); las impares son pasos de una baldosa
 const ROWS := LANES * 2 + 1              # la última fila es la salida
-const GATE_LANES: Array[int] = [5, 10, 15]
+const GATE_LANES: Array[int] = [4, 12]
+const RELAY_LANES: Array[int] = [8, 16]  # relevo: puertas en los pasos antes y después de este pasillo
+## Color de cada puerta de relevo (y de su botón): relevo j → puertas 2j (la del que se adelanta) y 2j+1 (la del que espera).
+const DOOR_COLORS: Array[Color] = [Color(0.25, 0.85, 1.0), Color(1.0, 0.4, 0.85), Color(0.55, 1.0, 0.3), Color(1.0, 0.65, 0.2)]
 const PILLAR_HALF := 0.9                 # media anchura del hueco de la columna
 const PAIR_DX := 30.0                    # separación entre laberintos de parejas
 const VOID := 0
@@ -42,6 +47,7 @@ class RS:
 	var id: int = 0
 	var pair: int = 0
 	var side: float = -1.0                   # -1 izquierda de la columna, +1 derecha
+	var sidx: int = 0                        # 0 izquierda, 1 derecha
 	var pos: Vector2 = Vector2.ZERO          # (u, v) en el laberinto
 	var vel: Vector2 = Vector2.ZERO
 	var face: float = PI
@@ -76,22 +82,28 @@ class RS:
 class Pair:
 	var members: Array[int] = []
 	var open: Array[bool] = []
+	var door_open: Array[bool] = []          # puertas de relevo (ver _door_tiles)
 	var escaped: bool = false
 	var esc_t: float = 0.0
 	# Presentación
 	var gates: Array = []                    # por reja: [Node3D izq, Node3D der]
 	var gate_y: Array[float] = []
+	var doors: Array = []                    # por puerta: Node3D
+	var door_y: Array[float] = []
+	var buttons: Array = []                  # por puerta: Node3D del botón que la abre
 	var cam_z: float = 0.0
 
 var _grid: PackedByteArray = PackedByteArray()
 var _gate_rows: Array[int] = []
+var _door_tiles: Array[Vector3i] = []    # por puerta: (fila, columna, lado 0/1)
+var _button_tiles: Array[Vector3i] = []  # por puerta: dónde está el botón que la abre (fila, columna, lado)
+var _doors: Dictionary = {}              # Vector3i → índice de puerta
+var _buttons: Dictionary = {}            # Vector3i → índice de la puerta que abre
 var _rs: Dictionary = {}                 # player id -> RS
 var _order: Array[int] = []
 var _pairs: Array = []                   # Array[Pair]
 var _time_left: float = TIME_LIMIT
 var _elapsed: float = 0.0
-var _cd: float = COUNTDOWN
-var _last_cd: int = 99
 var _accum: float = 0.0
 var _over: bool = false
 var _over_t: float = 0.0
@@ -130,15 +142,28 @@ func _gen_maze() -> void:
 	_grid.resize(ROWS * COLS)
 	_grid.fill(VOID)
 	_gate_rows.clear()
+	_door_tiles.clear()
+	_button_tiles.clear()
+	_doors.clear()
+	_buttons.clear()
 	for c in COLS:
 		_set_kind(0, c, START)
 	var cur := 2
 	var conn: Array[int] = []            # columna del paso de cada pasillo
+	var tips: Dictionary = {}            # pasillo con botón de relevo → columna de la punta de su ramal (ahí va el botón)
 	for lane in LANES:
 		var r := lane * 2
 		var gate := GATE_LANES.has(lane)
+		var btn_lane := RELAY_LANES.has(lane - 1) or RELAY_LANES.has(lane + 1)
 		var k := 0
-		if not gate:
+		if btn_lane:
+			# Pasillo corto (1-2 baldosas de recorrido) con un ramal obligatorio: el botón queda en la punta, fuera del camino.
+			var opts: Array[int] = []
+			for c in COLS:
+				if absi(c - cur) >= 1 and absi(c - cur) <= 2:
+					opts.append(c)
+			k = opts[mr.randi_range(0, opts.size() - 1)]
+		elif not gate:
 			k = mr.randi_range(0, COLS - 1)
 			var guard := 0
 			while (k == cur or (lane > 0 and absi(k - cur) < 2 and mr.randf() < 0.5)) and guard < 10:
@@ -148,7 +173,22 @@ func _gen_maze() -> void:
 			if _kind(r, c) == VOID:
 				_set_kind(r, c, PATH)
 		# Ramal sin salida a un lado del pasillo.
-		if lane > 0 and not gate and mr.randf() < 0.5:
+		if btn_lane:
+			var lo2 := mini(cur, k)
+			var hi2 := maxi(cur, k)
+			var right := hi2 < COLS - 1 and (lo2 == 0 or mr.randf() < 0.5)
+			var ext2 := mr.randi_range(1, 2)
+			if right:
+				var tip := mini(hi2 + ext2, COLS - 1)
+				for c in range(hi2 + 1, tip + 1):
+					_set_kind(r, c, PATH)
+				tips[lane] = tip
+			else:
+				var tip2 := maxi(lo2 - ext2, 0)
+				for c in range(tip2, lo2):
+					_set_kind(r, c, PATH)
+				tips[lane] = tip2
+		elif lane > 0 and not gate and mr.randf() < 0.5:
 			var lo := mini(cur, k)
 			var hi := maxi(cur, k)
 			var ext := mr.randi_range(1, 2)
@@ -168,13 +208,33 @@ func _gen_maze() -> void:
 		cur = k
 	for c in COLS:
 		_set_kind(ROWS - 1, c, EXIT)
-	# Entrantes sin salida hacia delante (nunca en las filas de reja ni antes de la salida).
+	# Relevos: el que espera (alterna de lado) pulsa en el pasillo de atrás y abre la puerta del otro (paso de delante);
+	# el otro, ya pasado, pulsa en el pasillo siguiente y abre la puerta del que esperaba (paso de atrás).
+	var no_stub: Array[int] = _gate_rows.duplicate()
+	for j in RELAY_LANES.size():
+		var lane := RELAY_LANES[j]
+		var helper := j % 2                  # lado que se queda atrás
+		var runner := 1 - helper
+		var back := (lane - 1) * 2
+		var front := (lane + 1) * 2
+		_door_tiles.append(Vector3i(lane * 2 + 1, conn[lane], runner))
+		_button_tiles.append(Vector3i(back, int(tips[lane - 1]), helper))
+		_door_tiles.append(Vector3i(lane * 2 - 1, conn[lane - 1], helper))
+		_button_tiles.append(Vector3i(front, int(tips[lane + 1]), runner))
+		no_stub.append(lane * 2 + 1)
+		no_stub.append(lane * 2 - 1)
+	for d in _door_tiles.size():
+		_doors[_door_tiles[d]] = d
+		_buttons[_button_tiles[d]] = d
+	# Entrantes sin salida hacia delante (nunca en las filas de reja o puerta ni antes de la salida).
 	for lane in range(1, LANES - 1):
 		var q := lane * 2 + 1
-		if _gate_rows.has(q):
+		if no_stub.has(q):
 			continue
 		for c in COLS:
 			if c == conn[lane] or _kind(q - 1, c) == VOID or _kind(q + 1, c) != VOID:
+				continue
+			if _buttons.has(Vector3i(q - 1, c, 0)) or _buttons.has(Vector3i(q - 1, c, 1)):
 				continue
 			if mr.randf() < 0.22:
 				_set_kind(q, c, PATH)
@@ -182,10 +242,14 @@ func _gen_maze() -> void:
 func _gate_index(row: int) -> int:
 	return _gate_rows.find(row)
 
-func _walkable(pair: Pair, row: int, col: int) -> bool:
+func _walkable(pair: Pair, sidx: int, row: int, col: int) -> bool:
 	var k := _kind(row, col)
 	if k == GATE:
 		return pair.open[_gate_index(row)]
+	if k != VOID and not _doors.is_empty():
+		var d: int = _doors.get(Vector3i(row, col, sidx), -1)
+		if d >= 0:
+			return pair.door_open[d]
 	return k != VOID
 
 func _tile_of(p: Vector2) -> Vector2i:
@@ -194,21 +258,25 @@ func _tile_of(p: Vector2) -> Vector2i:
 func _tile_center(t: Vector2i) -> Vector2:
 	return Vector2((t.y + 0.5) * T, t.x * T)
 
-func _ground_at(pair: Pair, p: Vector2) -> bool:
+func _ground_at(pair: Pair, sidx: int, p: Vector2) -> bool:
 	var t := _tile_of(p)
-	return _walkable(pair, t.x, t.y)
+	return _walkable(pair, sidx, t.x, t.y)
 
-func _on_ground(pair: Pair, p: Vector2) -> bool:
-	if _ground_at(pair, p):
+func _on_ground(pair: Pair, sidx: int, p: Vector2) -> bool:
+	if _ground_at(pair, sidx, p):
 		return true
 	for o in [Vector2(EDGE_GRACE, 0), Vector2(-EDGE_GRACE, 0), Vector2(0, EDGE_GRACE), Vector2(0, -EDGE_GRACE)]:
-		if _ground_at(pair, p + o):
+		if _ground_at(pair, sidx, p + o):
 			return true
 	return false
 
-func _closed_gate_at(pair: Pair, p: Vector2) -> bool:
+## Reja o puerta cerrada en ese punto: es pared (se choca, no se tropieza).
+func _blocked_at(pair: Pair, sidx: int, p: Vector2) -> bool:
 	var t := _tile_of(p)
-	return _kind(t.x, t.y) == GATE and not pair.open[_gate_index(t.x)]
+	if _kind(t.x, t.y) == GATE:
+		return not pair.open[_gate_index(t.x)]
+	var d: int = _doors.get(Vector3i(t.x, t.y, sidx), -1)
+	return d >= 0 and not pair.door_open[d]
 
 # ----------------------------------------------------------------------------
 # Simulación (solo el host)
@@ -242,6 +310,9 @@ func _setup_players() -> void:
 		for g in _gate_rows.size():
 			pa.open.append(false)
 			pa.gate_y.append(0.0)
+		for d in _door_tiles.size():
+			pa.door_open.append(pa.members.size() < 2)       # sin compañero (reparto impar) no hay relevos
+			pa.door_y.append(0.0)
 		_pairs.append(pa)
 		i += 2
 	for pi in _pairs.size():
@@ -251,6 +322,7 @@ func _setup_players() -> void:
 			r.id = pa.members[m]
 			r.pair = pi
 			r.side = -1.0 if m == 0 else 1.0
+			r.sidx = m
 			r.pos = _tile_center(Vector2i(0, 1))
 			r.safe = Vector2i(0, 1)
 			r.dpos = r.pos
@@ -276,15 +348,6 @@ func _simulate(delta: float) -> void:
 		_over_t += delta
 		if _over_t >= DONE_DELAY:
 			finish(_ranking())
-		return
-	if _cd > 0.0:
-		var c := ceili(_cd)
-		if c != _last_cd:
-			_last_cd = c
-			send_event("beep", null)
-		_cd -= delta
-		if _cd <= 0.0:
-			send_event("go", null)
 		return
 	var dirs: Dictionary = {}
 	for pl in players:
@@ -333,18 +396,18 @@ func _step_player(r: RS, dt: float, dir: Vector2) -> void:
 	np.x = maxf(np.x, RADIUS)
 	np.y = maxf(np.y, -T * 0.5 + RADIUS)
 	var ahead := Vector2(0, signf(r.vel.y) * RADIUS)
-	if _closed_gate_at(pa, Vector2(r.pos.x, np.y) + ahead):
+	if _blocked_at(pa, r.sidx, Vector2(r.pos.x, np.y) + ahead):
 		np.y = r.pos.y
 		r.vel.y = 0.0
-	if _closed_gate_at(pa, Vector2(np.x, np.y) + Vector2(signf(r.vel.x) * RADIUS, 0)):
+	if _blocked_at(pa, r.sidx, Vector2(np.x, np.y) + Vector2(signf(r.vel.x) * RADIUS, 0)):
 		np.x = r.pos.x
 		r.vel.x = 0.0
 	r.pos = np
-	if not _on_ground(pa, r.pos):
+	if not _on_ground(pa, r.sidx, r.pos):
 		_trip(r)
 		return
 	var t := _tile_of(r.pos)
-	if _walkable(pa, t.x, t.y):
+	if _walkable(pa, r.sidx, t.x, t.y):
 		r.safe = t
 		if t.x > r.best_row:
 			r.best_row = t.x
@@ -368,10 +431,20 @@ func _trip(r: RS) -> void:
 	send_event("trip", {"p": r.id, "u": r.pos.x, "v": r.pos.y})
 	r.pos = _tile_center(r.safe)
 
-## Una reja se abre cuando todos los de la pareja están a la vez sobre su baldosa roja.
+## Una reja se abre cuando todos los de la pareja están a la vez sobre su baldosa roja; una puerta de relevo, en cuanto
+## alguien pisa su botón (que está en la mitad del compañero). Las dos se quedan abiertas.
 func _check_plates() -> void:
 	for pi in _pairs.size():
 		var pa: Pair = _pairs[pi]
+		for m in pa.members:
+			var rb: RS = _rs[m]
+			if rb.stun_t > 0.0 or rb.escaped:
+				continue
+			var tb := _tile_of(rb.pos)
+			var d: int = _buttons.get(Vector3i(tb.x, tb.y, rb.sidx), -1)
+			if d >= 0 and not pa.door_open[d]:
+				pa.door_open[d] = true
+				send_event("door", {"k": pi, "d": d, "p": rb.id})
 		for g in _gate_rows.size():
 			if pa.open[g]:
 				continue
@@ -415,6 +488,9 @@ func _pair_progress(i: int) -> float:
 	for o in pa.open:
 		if o:
 			s += 0.5
+	for o2 in pa.door_open:
+		if o2:
+			s += 0.25
 	return s / maxf(pa.members.size(), 1.0)
 
 func _ranking() -> Array[int]:
@@ -461,6 +537,7 @@ func _serialize_state() -> Variant:
 		arr.append_array(PackedFloat32Array([r.pos.x, r.pos.y, r.vel.x, r.vel.y, r.face, r.stun_t,
 				1.0 if r.escaped else 0.0, float(r.best_row)]))
 	var gates := PackedInt32Array()
+	var doors := PackedInt32Array()
 	var esc := PackedFloat32Array()
 	for pa in _pairs:
 		var mask := 0
@@ -468,19 +545,29 @@ func _serialize_state() -> Variant:
 			if (pa as Pair).open[g]:
 				mask |= 1 << g
 		gates.append(mask)
+		var dmask := 0
+		for d in (pa as Pair).door_open.size():
+			if (pa as Pair).door_open[d]:
+				dmask |= 1 << d
+		doors.append(dmask)
 		esc.append((pa as Pair).esc_t if (pa as Pair).escaped else -1.0)
-	return {"r": arr, "g": gates, "e": esc, "t": _time_left, "cd": _cd, "o": _over, "w": _win_pair}
+	return {"r": arr, "g": gates, "d": doors, "e": esc, "t": _time_left, "o": _over, "w": _win_pair}
 
 func _apply_state(state: Variant) -> void:
 	if not state is Dictionary:
 		return
 	var st: Dictionary = state
 	_time_left = float(st.get("t", _time_left))
-	_cd = float(st.get("cd", _cd))
 	_over = bool(st.get("o", _over))
 	_win_pair = int(st.get("w", _win_pair))
 	var gates: Variant = st.get("g")
 	var esc: Variant = st.get("e")
+	var doors: Variant = st.get("d")
+	if doors is PackedInt32Array and doors.size() == _pairs.size():
+		for i in _pairs.size():
+			var pd: Pair = _pairs[i]
+			for d in pd.door_open.size():
+				pd.door_open[d] = (int(doors[i]) >> d) & 1 == 1
 	if gates is PackedInt32Array and esc is PackedFloat32Array and gates.size() == _pairs.size() and esc.size() == _pairs.size():
 		for i in _pairs.size():
 			var pa: Pair = _pairs[i]
@@ -505,10 +592,6 @@ func _on_event(event_name: String, data: Variant) -> void:
 	var d: Dictionary = data if data is Dictionary else {}
 	var r: RS = _rs.get(int(d.get("p", -1)))
 	match event_name:
-		"beep":
-			Audio.sfx(&"beep", -7.0)
-		"go":
-			Audio.sfx(&"beep_go", -5.0)
 		"trip":
 			if r != null:
 				r.stun_t = TRIP_TIME
@@ -524,6 +607,18 @@ func _on_event(event_name: String, data: Variant) -> void:
 					_toast_t = 1.3
 					Audio.sfx(&"clang", -5.0)
 					Audio.sfx(&"combo", -10.0)
+		"door":
+			var kd := int(d.get("k", -1))
+			var di := int(d.get("d", 0))
+			if kd >= 0 and kd < _pairs.size() and di < (_pairs[kd] as Pair).door_open.size():
+				(_pairs[kd] as Pair).door_open[di] = true
+				if r != null:
+					_spawn_floater(r, "¡Abierto!", true)
+				if _view_pairs.has(kd):
+					_toast = "¡PUERTA ABIERTA PARA TU PAREJA!" if r != null and _mine(r) else "¡PUERTA ABIERTA!"
+					_toast_t = 1.3
+					Audio.sfx(&"lock", -5.0)
+					Audio.sfx(&"combo", -11.0)
 		"esc":
 			if r != null:
 				r.escaped = true
@@ -563,8 +658,6 @@ func _on_start() -> void:
 	_setup_players()
 	_rebuild_dynamic()
 	_accum = 0.0
-	_cd = COUNTDOWN
-	_last_cd = 99
 	_time_left = TIME_LIMIT
 	_elapsed = 0.0
 	_over = false
@@ -577,16 +670,19 @@ func _on_start() -> void:
 func _animate(delta: float) -> void:
 	_toast_t = maxf(0.0, _toast_t - delta)
 	_anim += delta
-	if _cd <= 0.0:
+	if is_running:
 		_hint_t = maxf(0.0, _hint_t - delta)
 	_update_world(delta)
 
 # ----------------------------------------------------------------------------
-# IA (bots, autopiloto, práctica): camino más corto por baldosas (BFS); espera en la baldosa roja a su pareja.
+# IA (bots, autopiloto, práctica): camino más corto por baldosas (BFS); pisa los botones que abren a su pareja y espera en
+# la baldosa roja o delante de su puerta.
 # Los menos hábiles a veces se pasan de largo en las curvas… y tropiezan.
 # ----------------------------------------------------------------------------
 
-func _bfs(pa: Pair, from: Vector2i, goal: Callable) -> Array[Vector2i]:
+## Camino más corto por baldosas (sin contar `from`). Si ninguna baldosa cumple `goal`, va a la más avanzada que alcance
+## (delante de la puerta o reja que le corta el paso) cuando `fallback` es true; si no, devuelve vacío.
+func _bfs(pa: Pair, sidx: int, from: Vector2i, goal: Callable, fallback: bool = false) -> Array[Vector2i]:
 	var prev: Dictionary = {from: from}
 	var queue: Array[Vector2i] = [from]
 	var head := 0
@@ -599,11 +695,15 @@ func _bfs(pa: Pair, from: Vector2i, goal: Callable) -> Array[Vector2i]:
 			break
 		for dlt in [Vector2i(1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(-1, 0)]:
 			var n: Vector2i = c + dlt
-			if prev.has(n) or not _walkable(pa, n.x, n.y):
+			if prev.has(n) or not _walkable(pa, sidx, n.x, n.y):
 				continue
 			prev[n] = c
 			queue.append(n)
 	var out: Array[Vector2i] = []
+	if found.x < 0 and fallback:
+		for c2: Vector2i in queue:
+			if found.x < 0 or c2.x > found.x or (c2.x == found.x and _kind(c2.x + 1, c2.y) != VOID and _kind(found.x + 1, found.y) == VOID):
+				found = c2
 	if found.x < 0:
 		return out
 	var cur := found
@@ -613,13 +713,13 @@ func _bfs(pa: Pair, from: Vector2i, goal: Callable) -> Array[Vector2i]:
 	return out
 
 func _bot_think(r: RS) -> Vector2:
-	if _over or _cd > 0.0 or r.stun_t > 0.0 or r.escaped:
+	if _over or not is_running or r.stun_t > 0.0 or r.escaped:
 		r.path.clear()
 		return Vector2.ZERO
 	var pa: Pair = _pairs[r.pair]
 	var sk := r.skill if debug_skill < 0.0 else debug_skill
 	var here := _tile_of(r.pos)
-	if not _walkable(pa, here.x, here.y):
+	if not _walkable(pa, r.sidx, here.x, here.y):
 		here = r.safe
 	# Siguiente reja cerrada por delante: ir a su baldosa roja y esperar allí.
 	var plate := Vector2i(-1, -1)
@@ -630,16 +730,23 @@ func _bot_think(r: RS) -> Vector2:
 	r.think_t -= STEP
 	if r.think_t <= 0.0 or r.path.is_empty():
 		r.think_t = 0.12
-		if plate.x >= 0:
-			r.path = _bfs(pa, here, func(c: Vector2i) -> bool: return c == plate)
-		else:
-			r.path = _bfs(pa, here, func(c: Vector2i) -> bool: return _kind(c.x, c.y) == EXIT)
+		# Lo más cercano entre: un botón suyo que abra una puerta aún cerrada (la de la pareja), la baldosa roja de la
+		# reja siguiente o la salida. Si nada se alcanza (su puerta sigue cerrada), espera delante de ella.
+		var sd := r.sidx
+		var goal := func(c: Vector2i) -> bool:
+			var bd: int = _buttons.get(Vector3i(c.x, c.y, sd), -1)
+			if bd >= 0 and not pa.door_open[bd]:
+				return true
+			if plate.x >= 0:
+				return c == plate
+			return _kind(c.x, c.y) == EXIT
+		r.path = _bfs(pa, sd, here, goal, true)
 	var spd := lerpf(0.72, 0.95, sk)
 	if r.over_t > 0.0:
 		r.over_t -= STEP
 		return r.over_dir * spd
 	if r.path.is_empty():
-		# Ya en la baldosa roja: quieto en el centro hasta que llegue la pareja.
+		# Ya en la baldosa roja (o delante de su puerta): quieto en el centro hasta que la pareja haga lo suyo.
 		var to_c := _tile_center(here) - r.pos
 		return to_c.limit_length(1.0) * 0.6 if to_c.length() > 0.15 else Vector2.ZERO
 	var target := _tile_center(r.path[0])
@@ -674,7 +781,7 @@ func _bot_action(_player: PlayerData) -> int:
 	return 0
 
 # ----------------------------------------------------------------------------
-# Escena 3D: templo oscuro, baldosas de piedra sobre el abismo, columna central, antorchas y rejas
+# Escena 3D: templo oscuro, baldosas de piedra sobre el abismo, columna central, antorchas, rejas, puertas y botones
 # ----------------------------------------------------------------------------
 
 func _pair_x(k: int) -> float:
@@ -935,6 +1042,41 @@ func _rebuild_dynamic() -> void:
 				_box(gn, Vector3(T, 0.12, 0.16), Vector3(0, 0.9, 0), bar_mat)
 				pair_nodes.append(gn)
 			pa.gates.append(pair_nodes)
+		# Relevos: puerta de color (solo en un lado) y su botón del mismo color en el otro lado, más atrás o más adelante.
+		pa.doors.clear()
+		pa.buttons.clear()
+		for d in _door_tiles.size():
+			var dc: Color = DOOR_COLORS[d % DOOR_COLORS.size()]
+			var dt := _door_tiles[d]
+			var dside := -1.0 if dt.z == 0 else 1.0
+			var dn := Node3D.new()
+			dn.position = _tile_world(k, dside, dt.x, dt.y) + Vector3(0, 0, T * 0.5 - 0.2)
+			dyn.add_child(dn)
+			var slab := _mat(dc, 1.4, 0.4)
+			slab.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			slab.albedo_color = Color(dc.r, dc.g, dc.b, 0.75)
+			_box(dn, Vector3(T - 0.3, 2.1, 0.18), Vector3(0, 1.05, 0), slab).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			for sx: float in [-1.0, 1.0]:
+				_box(dn, Vector3(0.18, 2.3, 0.3), Vector3(sx * (T * 0.5 - 0.1), 1.15, 0), bar_mat)
+			_box(dn, Vector3(T, 0.2, 0.3), Vector3(0, 2.25, 0), bar_mat)
+			pa.doors.append(dn)
+			var bt := _button_tiles[d]
+			var bside := -1.0 if bt.z == 0 else 1.0
+			var bn := Node3D.new()
+			bn.position = _tile_world(k, bside, bt.x, bt.y)
+			dyn.add_child(bn)
+			var base := CylinderMesh.new()
+			base.top_radius = 0.6
+			base.bottom_radius = 0.66
+			base.height = 0.12
+			_mesh(bn, base, Vector3(0, 0.06, 0), bar_mat)
+			var cap := CylinderMesh.new()
+			cap.top_radius = 0.42
+			cap.bottom_radius = 0.46
+			cap.height = 0.22
+			var cap_mi := _mesh(bn, cap, Vector3(0, 0.2, 0), _mat(dc, 1.6, 0.35))
+			cap_mi.name = "cap"
+			pa.buttons.append(bn)
 	# Abismo: un suelo muy oscuro lejos, abajo.
 	var pit := PlaneMesh.new()
 	pit.size = Vector2(PAIR_DX * maxf(_pairs.size(), 1.0) + 40.0, length + 40.0)
@@ -1158,6 +1300,14 @@ func _update_world(delta: float) -> void:
 			pa.gate_y[g] = lerpf(pa.gate_y[g], target, 1.0 if delta <= 0.0 else 1.0 - exp(-5.0 * delta))
 			for gn in pa.gates[g]:
 				(gn as Node3D).position.y = pa.gate_y[g]
+		for d in pa.doors.size():
+			var dtarget := -2.6 if pa.door_open[d] else 0.0
+			pa.door_y[d] = lerpf(pa.door_y[d], dtarget, 1.0 if delta <= 0.0 else 1.0 - exp(-5.0 * delta))
+			var base_y := _tile_world(pk, -1.0, _door_tiles[d].x, 0).y
+			(pa.doors[d] as Node3D).position.y = base_y + pa.door_y[d]
+			var cap_n := (pa.buttons[d] as Node3D).get_node("cap") as MeshInstance3D
+			cap_n.position.y = 0.09 if pa.door_open[d] else 0.2 + 0.03 * sin(_anim * 5.0 + d)
+			(cap_n.material_override as StandardMaterial3D).emission_energy_multiplier = 0.25 if pa.door_open[d] else 1.4 + 0.6 * sin(_anim * 5.0 + d)
 	# Antorchas que titilan, salida que late, textos que suben.
 	for i in _torches.size():
 		_torches[i].light_energy = 1.5 + 0.35 * sin(_anim * 11.0 + i * 1.7) + 0.2 * sin(_anim * 23.0 + i)
@@ -1208,7 +1358,7 @@ func _draw_hud() -> void:
 		var pk: int = _views[i]["pair"] if i < _views.size() else 0
 		var small := rects.size() > 2
 		# «¡Escapa!» abajo / aviso de esperar a la pareja.
-		if pk < _pairs.size() and not _over and _cd <= 0.0:
+		if pk < _pairs.size() and not _over and is_running:
 			var msg := _view_message(pk)
 			var by := rc.end.y - (34.0 if small else 56.0)
 			var fs := 24 if small else 34
@@ -1233,14 +1383,10 @@ func _draw_hud() -> void:
 		_draw_progress(Rect2(18, 120, 34.0 * _pairs.size() + 16.0, 300))
 	if _toast_t > 0.0:
 		s.text_centered(Vector2(640, 150), _toast, 52, Color(1, 1, 1, clampf(_toast_t * 2.0, 0.0, 1.0)), 10)
-	if _cd > 0.0:
-		var c := ceili(_cd)
-		var frac := _cd - floorf(_cd)
-		s.text_centered(Vector2(640, 330), str(c), int(130.0 + 60.0 * frac), Palette.YELLOW, 16)
-	elif _elapsed < 0.8:
-		s.text_centered(Vector2(640, 330), "¡YA!", 130, Palette.MINT, 16)
-	if _hint_t > 0.0 and not _over and _cd <= 0.0:
-		s.text_centered(Vector2(640, 610), "Corre por tu mitad sin salirte · Las rejas se abren si los DOS pisáis la baldosa roja",
+	if _hint_t > 0.0 and not _over and is_running:
+		s.text_centered(Vector2(640, 590), "Corre por tu mitad sin salirte · Rejas: pisad LOS DOS la baldosa roja",
+				22, Color(1, 1, 1, clampf(_hint_t, 0.0, 1.0)), 6)
+		s.text_centered(Vector2(640, 620), "Puertas de color: las abre el botón del mismo color… ¡que está en el lado de tu pareja!",
 				22, Color(1, 1, 1, clampf(_hint_t, 0.0, 1.0)), 6)
 	if _over:
 		s.text_centered(Vector2(640, 280), "¡FIN!", 100, Palette.YELLOW, 14)
@@ -1256,13 +1402,24 @@ func _view_message(pk: int) -> String:
 	var pa: Pair = _pairs[pk]
 	if pa.escaped:
 		return "¡A salvo!"
-	var mine_out := false
+	var me: RS = null
 	for m in pa.members:
 		var pl := _player_by_id(m)
-		if pl != null and (pl == local_player or (local_player == null and pl.is_local_human)) and (_rs[m] as RS).escaped:
-			mine_out = true
-	if mine_out:
+		if pl != null and (pl == local_player or (local_player == null and pl.is_local_human)):
+			me = _rs[m]
+			break
+	if me != null and me.escaped:
 		return "¡Espera a tu pareja!"
+	if me != null:
+		var t := _tile_of(me.pos)
+		for d in _door_tiles.size():
+			var dt := _door_tiles[d]
+			if dt.z == me.sidx and not pa.door_open[d] and dt.x == t.x + 1:
+				return "¡Espera! Tu pareja te abre la puerta"
+		for d in _button_tiles.size():
+			var bt := _button_tiles[d]
+			if bt.z == me.sidx and not pa.door_open[d] and absi(bt.x - t.x) <= 2:
+				return "¡Pisa el botón y ábrele la puerta a tu pareja!"
 	# ¿Alguien de la pareja ya está en la baldosa roja esperando?
 	for g in _gate_rows.size():
 		if pa.open[g]:
@@ -1286,6 +1443,12 @@ func _draw_progress(box: Rect2) -> void:
 		for g in _gate_rows.size():
 			var gy := lerpf(bottom, top, float(_gate_rows[g]) / float(ROWS - 1))
 			s.draw_line(Vector2(x - 8, gy), Vector2(x + 8, gy), Color(0.3, 1.0, 0.5) if pa.open[g] else Color(0.85, 0.25, 0.15), 3.0)
+		for d in _door_tiles.size():
+			var dt := _door_tiles[d]
+			var dy := lerpf(bottom, top, float(dt.x) / float(ROWS - 1))
+			var dx := x + (-7.0 if dt.z == 0 else 1.0)
+			var dc: Color = DOOR_COLORS[d % DOOR_COLORS.size()]
+			s.draw_line(Vector2(dx, dy), Vector2(dx + 6.0, dy), dc if not pa.door_open[d] else Color(dc.r, dc.g, dc.b, 0.3), 3.0)
 		for mi in pa.members.size():
 			var r: RS = _rs[pa.members[mi]]
 			var pl := _player_by_id(r.id)
@@ -1309,14 +1472,15 @@ func debug_gate_rows() -> Array[int]:
 func debug_pairs() -> Array:
 	var out: Array = []
 	for pa in _pairs:
-		out.append({"members": (pa as Pair).members.duplicate(), "open": (pa as Pair).open.duplicate(), "escaped": (pa as Pair).escaped, "t": (pa as Pair).esc_t})
+		out.append({"members": (pa as Pair).members.duplicate(), "open": (pa as Pair).open.duplicate(), "doors": (pa as Pair).door_open.duplicate(),
+				"escaped": (pa as Pair).escaped, "t": (pa as Pair).esc_t})
 	return out
 
 func debug_player(id: int) -> Dictionary:
 	var r: RS = _rs.get(id)
 	if r == null:
 		return {}
-	return {"pos": r.pos, "pair": r.pair, "side": r.side, "stun": r.stun_t, "escaped": r.escaped, "best": r.best_row, "tile": _tile_of(r.pos)}
+	return {"pos": r.pos, "pair": r.pair, "side": r.side, "sidx": r.sidx, "stun": r.stun_t, "escaped": r.escaped, "best": r.best_row, "tile": _tile_of(r.pos)}
 
 func debug_place(id: int, tile: Vector2i) -> void:
 	var r: RS = _rs.get(id)
@@ -1333,11 +1497,21 @@ func debug_step(id: int, dir: Vector2, seconds: float) -> void:
 		_check_plates()
 		t += STEP
 
-func debug_shortest(open_all: bool) -> int:
+## Longitud del camino a la salida por un lado (0 = izquierda, 1 = derecha) con las rejas y puertas abiertas o cerradas.
+func debug_shortest(open_gates: bool, open_doors: bool = true, sidx: int = 0) -> int:
 	var pa := Pair.new()
 	for g in _gate_rows.size():
-		pa.open.append(open_all)
-	return _bfs(pa, Vector2i(0, 1), func(c: Vector2i) -> bool: return _kind(c.x, c.y) == EXIT).size()
+		pa.open.append(open_gates)
+	for d in _door_tiles.size():
+		pa.door_open.append(open_doors)
+	return _bfs(pa, sidx, Vector2i(0, 1), func(c: Vector2i) -> bool: return _kind(c.x, c.y) == EXIT).size()
+
+## Puertas de relevo: [{door: (fila, col, lado), button: (fila, col, lado)}].
+func debug_doors() -> Array:
+	var out: Array = []
+	for d in _door_tiles.size():
+		out.append({"door": _door_tiles[d], "button": _button_tiles[d]})
+	return out
 
 func debug_view_pairs() -> Array[int]:
 	return _view_pairs
