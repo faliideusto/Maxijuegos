@@ -540,9 +540,11 @@ común) y el crono cuenta desde 0, pero al poco rato desaparece: hay que seguir 
 - **Reglas**: cada jugador para UNA vez (las pulsaciones del primer segundo no cuentan, para evitar paradas por accidente). Se cierra
   cuando han parado todos o 4 s después del objetivo. Gana quien queda más cerca, por arriba o por abajo; a igual error, quien pulsó
   antes; quien no paró queda último.
+- **Anuncio**: al empezar, el objetivo sale en grande a pantalla completa («PÁRALO EN 13 SEGUNDOS») durante 2,6 s; el crono arranca
+  después (evento `go`) y hasta entonces no se puede parar ni se ve el objetivo en el reloj.
 - **El crono desaparece** al 40 % del objetivo (mínimo 2 s, máximo 5 s) y se desvanece en 0,6 s; el objetivo sigue siempre a la vista.
 - **Destape**: nadie ve ningún tiempo (ni el suyo) hasta el final; entonces se destapan del último al primero con su diferencia (±).
-- **Red**: sin código propio. Snapshots a 30 Hz (fase, crono, objetivo y quién ha parado) y eventos fiables (`hide`, `stop`, `reveal`).
+- **Red**: sin código propio. Snapshots a 30 Hz (fase, crono, objetivo y quién ha parado) y eventos fiables (`announce`, `go`, `hide`, `stop`, `reveal`).
   Los tiempos solo viajan en el evento `reveal`, así que un cliente no puede verlos antes. El cliente hace avanzar el crono entre snapshots.
 - **Bots/autopiloto**: paran en el objetivo con un error humano (σ ≈ 0,18 s + 4,5 % del objetivo).
 - **Sonido**: SIN música (un ritmo de fondo serviría para contar); tic por segundo mientras el crono se ve, `swoosh` al desaparecer,

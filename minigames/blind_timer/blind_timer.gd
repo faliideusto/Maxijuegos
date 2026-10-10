@@ -1,6 +1,7 @@
 extends Minigame
 ## Crono a Ciegas (modelo HOST_AUTHORITATIVE): un cronómetro en el centro y todos los jugadores sentados
-## alrededor. Hay un tiempo objetivo al azar (5-15 s, segundos enteros) y el crono empieza a contar desde 0, pero
+## alrededor. Hay un tiempo objetivo al azar (5-15 s, segundos enteros) que primero se ANUNCIA en grande (2,6 s);
+## después el crono empieza a contar desde 0, pero
 ## al poco rato DESAPARECE: hay que seguir contando de cabeza y pulsar el botón de acción justo en el objetivo.
 ## Cada jugador solo puede parar una vez. Nadie ve el tiempo de nadie (ni el suyo) hasta que han parado todos;
 ## entonces se destapan y gana quien se quedó más cerca, por arriba o por abajo.
@@ -10,10 +11,10 @@ extends Minigame
 ## fondo serviría para contar).
 ##
 ## Sin código de red propio: el host simula (_simulate) y los clientes dibujan el estado que reciben
-## (_apply_state) y los eventos (hide / stop / reveal). Los tiempos de cada jugador no viajan a los clientes hasta
+## (_apply_state) y los eventos (announce / go / hide / stop / reveal). Los tiempos de cada jugador no viajan a los clientes hasta
 ## el destape. Ver core/minigame.gd.
 
-enum Phase { RUN, REVEAL }
+enum Phase { ANNOUNCE, RUN, REVEAL }
 
 const CENTER := Vector2(640, 356)
 const CLOCK_R := 138.0
@@ -24,6 +25,7 @@ const HIDE_FRACTION := 0.4            # parte del objetivo durante la que se ve 
 const HIDE_MIN := 2.0
 const HIDE_MAX := 5.0
 const HIDE_FADE := 0.6
+const ANNOUNCE_TIME := 2.6           # s que se anuncia el objetivo en grande antes de que arranque el crono
 const GRACE := 1.0                    # las pulsaciones del primer segundo no cuentan (evita paradas por accidente)
 const OVERTIME := 4.0                 # s tras el objetivo en los que aún se puede parar
 const NO_STOP := -1.0
@@ -31,7 +33,8 @@ const REVEAL_LEAD := 0.9              # pausa antes de destapar el primer tiempo
 const REVEAL_STEP := 0.45             # s entre un tiempo destapado y el siguiente (del peor al mejor)
 const REVEAL_HOLD := 3.0              # s con todo destapado antes de terminar
 
-var _phase: Phase = Phase.RUN
+var _phase: Phase = Phase.ANNOUNCE
+var _announce_t: float = ANNOUNCE_TIME  # s que quedan de anuncio
 var _target: float = 8.0
 var _hide_at: float = 3.2
 var _elapsed: float = 0.0
@@ -63,9 +66,13 @@ func _on_prepare() -> void:
 	surface.draw_callback = _draw_game
 
 func _on_start() -> void:
-	_phase = Phase.RUN
 	_elapsed = 0.0
 	_last_sec = 0
+	if not is_authority:
+		return
+	_phase = Phase.ANNOUNCE
+	_announce_t = ANNOUNCE_TIME
+	send_event("announce")
 	DevCli.log_event("blind_timer start target=%d hide=%.1f" % [int(_target), _hide_at])
 
 ## Segundo en el que el crono empieza a desvanecerse para un objetivo dado.
@@ -81,6 +88,16 @@ func _simulate(delta: float) -> void:
 		_reveal_t += delta
 		if _reveal_t >= reveal_duration():
 			finish(_order)
+		return
+	if _phase == Phase.ANNOUNCE:
+		# Primero se anuncia el objetivo; el crono aún no corre y las pulsaciones no cuentan.
+		for p in players:
+			action_presses(p)
+		_announce_t -= delta
+		if _announce_t <= 0.0:
+			_phase = Phase.RUN
+			_elapsed = 0.0
+			send_event("go")
 		return
 	var before := _elapsed
 	_elapsed += delta
@@ -152,7 +169,7 @@ func _serialize_state() -> Variant:
 	var st := PackedByteArray()
 	for p in players:
 		st.append(1 if _stopped[p.id] else 0)
-	return {"ph": int(_phase), "t": _elapsed, "tg": _target, "st": st, "rv": _reveal_t}
+	return {"ph": int(_phase), "t": _elapsed, "tg": _target, "st": st, "rv": _reveal_t, "an": _announce_t}
 
 func _apply_state(state: Variant) -> void:
 	if not state is Dictionary:
@@ -162,6 +179,7 @@ func _apply_state(state: Variant) -> void:
 	_target = float(d.get("tg", _target))
 	_hide_at = hide_time_for(_target)
 	_reveal_t = float(d.get("rv", _reveal_t))
+	_announce_t = float(d.get("an", _announce_t))
 	# El crono avanza solo entre snapshots (_animate); solo se corrige si se ha desviado de verdad.
 	var t := float(d.get("t", _elapsed))
 	if absf(t - _elapsed) > 0.1:
@@ -173,6 +191,14 @@ func _apply_state(state: Variant) -> void:
 
 func _on_event(event_name: String, data: Variant) -> void:
 	match event_name:
+		"announce":
+			_phase = Phase.ANNOUNCE
+			_announce_t = ANNOUNCE_TIME
+			Audio.sfx(&"stinger", -4.0)
+		"go":
+			_phase = Phase.RUN
+			_elapsed = 0.0
+			Audio.sfx(&"beep_go", -3.0)
 		"hide":
 			Audio.sfx(&"swoosh", -6.0)
 		"stop":
@@ -217,13 +243,15 @@ func _animate(delta: float) -> void:
 	for p in players:
 		_pop[p.id] = maxf(0.0, float(_pop[p.id]) - delta * 3.5)
 	if not is_authority and is_running:
-		if _phase == Phase.RUN:
-			_elapsed += delta
-		else:
-			_reveal_t += delta
+		match _phase:
+			Phase.ANNOUNCE: _announce_t = maxf(0.0, _announce_t - delta)
+			Phase.RUN: _elapsed += delta
+			Phase.REVEAL: _reveal_t += delta
 	if not is_running:
 		return
-	if _phase == Phase.RUN:
+	if _phase == Phase.ANNOUNCE:
+		pass
+	elif _phase == Phase.RUN:
 		# Tic por segundo mientras el crono se ve: ayuda a coger el ritmo antes de que desaparezca.
 		var sec := floori(_elapsed)
 		if sec != _last_sec and sec >= 1 and _elapsed < _hide_at:
@@ -261,6 +289,21 @@ func _draw_game() -> void:
 	for i in players.size():
 		_draw_player(i)
 	_draw_hud()
+	if is_running and _phase == Phase.ANNOUNCE:
+		_draw_announce()
+
+## Anuncio del objetivo a pantalla completa, antes de que arranque el crono.
+func _draw_announce() -> void:
+	var s := surface
+	var k := clampf((ANNOUNCE_TIME - _announce_t) / 0.35, 0.0, 1.0)      # entrada con rebote
+	var out := clampf(_announce_t / 0.25, 0.0, 1.0)                     # salida rápida
+	var scale := (1.0 + 0.35 * sin(k * PI) * (1.0 - k) + 0.03 * sin(_time * 7.0)) * lerpf(0.4, 1.0, k)
+	s.draw_rect(Rect2(-2000, -2000, 5280, 4720), Color(Palette.PURPLE_DARK, 0.82 * k * out))
+	s.draw_set_transform(Vector2(640, 350), 0.0, Vector2.ONE * scale)
+	s.text_centered(Vector2(0, -150), "PÁRALO EN", 64, Color(1, 1, 1, out), 12)
+	s.text_centered(Vector2(0, 0), "%d" % int(_target), 260, Color(Palette.YELLOW, out), 26)
+	s.text_centered(Vector2(0, 150), "SEGUNDOS", 64, Color(1, 1, 1, out), 12)
+	s.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 func _draw_clock() -> void:
 	var s := surface
@@ -274,7 +317,7 @@ func _draw_clock() -> void:
 		s.draw_line(CENTER + dir * (CLOCK_R - 16.0), CENTER + dir * (CLOCK_R - 6.0), Color(1, 1, 1, 0.3), 4.0)
 	# Objetivo, siempre a la vista.
 	s.text_centered(CENTER + Vector2(0, -78), "OBJETIVO", 22, Color(1, 1, 1, 0.8), 5)
-	s.text_centered(CENTER + Vector2(0, -40), "%d s" % int(_target), 50, Palette.YELLOW, 10)
+	s.text_centered(CENTER + Vector2(0, -40), "%d s" % int(_target) if is_running or _phase != Phase.ANNOUNCE else "?", 50, Palette.YELLOW, 10)
 	if reveal:
 		s.draw_arc(CENTER, CLOCK_R - 3.0, 0.0, TAU, 64, Palette.YELLOW, 7.0, true)
 		s.text_centered(CENTER + Vector2(0, 36), "¡TIEMPO!", 46, Palette.WHITE, 10)
@@ -343,6 +386,8 @@ func _draw_hud() -> void:
 			var w := _player_by_id(_order[0])
 			if w != null:
 				s.text_centered(Vector2(640, 40), "¡%s GANA!" % w.display_name.to_upper(), 44, Palette.YELLOW, 10)
+		return
+	if _phase == Phase.ANNOUNCE:
 		return
 	var me := _hud_player()
 	var hint := "Cuenta de cabeza y pulsa en el objetivo"

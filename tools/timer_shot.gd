@@ -1,6 +1,6 @@
 extends SceneTree
 ## Herramienta de desarrollo: captura Crono a Ciegas.
-##   godot --path . --script res://tools/timer_shot.gd -- <salida.png> [run|hidden|reveal] [jugadores]
+##   godot --path . --script res://tools/timer_shot.gd -- <salida.png> [announce|run|hidden|reveal] [jugadores]
 var _n: int = 0
 var _mg: Node = null
 var _out: String = "timer.png"
@@ -25,7 +25,10 @@ func _process(_d: float) -> bool:
 			until = _mg._target - 0.3
 		var steps := 0
 		while steps < 60 * 60:
-			if what == "reveal":
+			if what == "announce":
+				if _mg._announce_t <= 1.3:
+					break
+			elif what == "reveal":
 				if _mg.revealed_count() >= lobby.players.size():
 					break
 			elif _mg._elapsed >= until:

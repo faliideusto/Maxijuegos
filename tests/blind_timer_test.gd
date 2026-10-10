@@ -70,13 +70,24 @@ func _process(_delta: float) -> bool:
 	_check(g.build_ranking().find(ids[1]) < g.build_ranking().find(ids[0]), "a igual error, gana quien pulsó antes", failures)
 	g.free()
 
+	# --- Primero se anuncia el objetivo: el crono no corre y pulsar no cuenta ---
+	g = _new_game(2)
+	for id in g._bot_stop:
+		g._bot_stop[id] = 0.0
+	var t_ann := 0.0
+	while g._phase == BT.Phase.ANNOUNCE and t_ann < 30.0:
+		g._simulate(1.0 / 60.0)
+		t_ann += 1.0 / 60.0
+	_check(absf(t_ann - BT.ANNOUNCE_TIME) < 0.05 and g._elapsed == 0.0 and not g._stopped[g.players[0].id], "el objetivo se anuncia %.1f s antes de que arranque el crono y ahí no se puede parar" % BT.ANNOUNCE_TIME, failures)
+	g.free()
+
 	# --- Una sola parada por jugador y el primer segundo no cuenta ---
 	g = _new_game(3)
 	var pid: int = g.players[0].id
 	for id in g._bot_stop:
 		g._bot_stop[id] = 999.0
 	g._bot_stop[pid] = 0.2
-	while g._elapsed < BT.GRACE - 0.1:
+	while g._phase == BT.Phase.ANNOUNCE or g._elapsed < BT.GRACE - 0.1:
 		g._simulate(1.0 / 60.0)
 	_check(not g._stopped[pid], "una pulsación en el primer segundo no para el crono", failures)
 	while g._elapsed < 3.0:
@@ -88,9 +99,9 @@ func _process(_delta: float) -> bool:
 	_check(g._stops[pid] == first, "pulsar otra vez no cambia el tiempo", failures)
 	# Los tiempos no viajan en el estado mientras se juega (nadie puede verlos antes del destape).
 	var st: Dictionary = g._serialize_state()
-	_check(st.keys() == ["ph", "t", "tg", "st", "rv"], "el estado que va a los clientes no lleva los tiempos de nadie", failures)
+	_check(st.keys() == ["ph", "t", "tg", "st", "rv", "an"], "el estado que va a los clientes no lleva los tiempos de nadie", failures)
 	# Nadie más pulsa: se cierra al pasar objetivo + margen.
-	while g._phase == BT.Phase.RUN and g._elapsed < 60.0:
+	while g._phase != BT.Phase.REVEAL and g._elapsed < 60.0:
 		g._simulate(1.0 / 60.0)
 	_check(g._phase == BT.Phase.REVEAL and absf(g._elapsed - (g._target + BT.OVERTIME)) < 0.05, "si alguien no pulsa, se cierra %.0f s después del objetivo" % BT.OVERTIME, failures)
 	while _ranking.is_empty() and g._reveal_t < 60.0:
@@ -111,7 +122,7 @@ func _process(_delta: float) -> bool:
 	fake.events = _events
 	root.add_child(fake)
 	g.set_session(fake)
-	while g._phase == BT.Phase.RUN and g._elapsed < 60.0:
+	while g._phase != BT.Phase.REVEAL and g._elapsed < 60.0:
 		g._simulate(1.0 / 60.0)
 		cl.apply_state(g.serialize_state())
 	for e in _events:
@@ -120,7 +131,7 @@ func _process(_delta: float) -> bool:
 	for p in g.players:
 		if absf(float(cl._stops[p.id]) - float(g._stops[p.id])) > 0.001 or not cl._stopped[p.id]:
 			same = false
-	_check(same and _events.size() == 6, "un cliente ve el mismo objetivo, tiempos y orden que el host (%d eventos: hide + 4 stop + reveal)" % _events.size(), failures)
+	_check(same and _events.size() == 7, "un cliente ve el mismo objetivo, tiempos y orden que el host (%d eventos: go + hide + 4 stop + reveal)" % _events.size(), failures)
 	g.set_session(null)
 	fake.free()
 	cl.free()
