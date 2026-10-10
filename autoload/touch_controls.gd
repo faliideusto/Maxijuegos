@@ -22,6 +22,7 @@ const STICK_GAMES := {
 	&"shrinking_platform": "EMBESTIR",
 	&"spotlight": "EMPUJAR",
 	&"obstacle_run": "SALTAR",
+	&"uphill_rush": "SALTAR",
 	&"word_fight": "PISAR",
 }
 ## Minijuegos con segundo botón → su texto.

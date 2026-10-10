@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="MinigameMeta" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://core/minigame_meta.gd" id="1"]
+[ext_resource type="PackedScene" path="res://minigames/uphill_rush/scene.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Cuesta Arriba"
+description = "¡Sube la cuesta sin que te atropellen!"
+instructions = "Una calle empinada de noche y, arriba, un portal del que no paran de bajar coches. Sube con WASD o las flechas y esquívalos; con ESPACIO o CLIC saltas (puedes saltar un coche en el último momento, pero no una furgoneta). Ganas 1 punto por cada metro nuevo, 10 al cruzar cada línea de neón y 30 si llegas al portal. Si te atropellan vuelves a la última línea que cruzaste, sin perder puntos. Dura 60 segundos: gana quien tenga más puntos."
+min_players = 2
+max_players = 8
+approx_duration = 65.0
+scene = ExtResource("2")
+accent_color = Color(0.25, 0.95, 1, 1)
+execution_mode = 0
+max_duration = 0.0
+music = &"cube"
+short_text = "Sube esquivando los coches; ESPACIO salta. Cada línea de neón da +10."
