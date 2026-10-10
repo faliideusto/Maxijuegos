@@ -1,7 +1,7 @@
 extends SceneTree
 ## Prueba de Vagonetas Cañoneras (HOST_AUTHORITATIVE, 3D): el trazado de raíles (tamaño según jugadores, simétrico, sin
 ## callejones sin salida, conectado y con setos pequeños), la conducción por los raíles (seguir, girar en el cruce, dar media
-## vuelta, no atravesar a otra vagoneta), las balas (los setos las paran, por detrás eliminan, por delante empujan y aturden),
+## vuelta solo al chocar, no atravesar a otra vagoneta), las balas (los setos las paran, por detrás eliminan, por delante empujan y aturden),
 ## la moneda de velocidad, el final (último en pie / empate al acabar el tiempo), el estado enviado a un "cliente" y partidas
 ## completas con bots.
 ## Ejecutar:  godot --headless --path . --script res://tests/rail_cannons_test.gd
@@ -25,9 +25,9 @@ func _new_game(bots: int = 4, authority: bool = true, seed_value: int = 99):
 	mg.start(pls)
 	return mg
 
+## (La cuenta atrás la hace el runner: el minijuego arranca ya en juego.) Un paso sin tiempo, para que nadie se mueva ni dispare.
 func _skip_countdown(g) -> void:
-	for i in 100:
-		g._simulate(1.0 / 30.0)
+	g._simulate(0.0)
 
 func _node_at(g, c: int, r: int) -> int:
 	return r * g.debug_grid().x + c
@@ -94,9 +94,10 @@ func _process(_delta: float) -> bool:
 	g.debug_drive(a, Vector2(0, 1), 0.5)
 	pa = g.debug_player(a)
 	_ck(f, (pa.pos as Vector2).y == n0.y and (pa.face as Vector2).x > 0.9, "dirección perpendicular a mitad de tramo: sigue hasta el cruce")
+	var before: Vector2 = pa.pos
 	g.debug_drive(a, Vector2(-1, 0), 0.3)
 	pa = g.debug_player(a)
-	_ck(f, (pa.face as Vector2).x < -0.9, "se puede dar media vuelta en mitad del tramo")
+	_ck(f, (pa.face as Vector2).x > 0.9 and (pa.pos as Vector2) == before, "en el carril no se puede dar la vuelta (hacia atrás frena)")
 	g.debug_place(a, _node_at(g, 0, 0), _node_at(g, 1, 0))
 	g.debug_drive(a, Vector2(0, -1), 0.5)
 	pa = g.debug_player(a)
@@ -112,6 +113,7 @@ func _process(_delta: float) -> bool:
 	g.debug_drive(a, Vector2(1, 0), 2.0)
 	var gap: float = (g.debug_player(b).pos as Vector2).distance_to(g.debug_player(a).pos)
 	_ck(f, gap >= 1.45, "una vagoneta no atraviesa a la de delante (distancia %.2f)" % gap)
+	_ck(f, (g.debug_player(a).face as Vector2).x < -0.9 and (g.debug_player(b).face as Vector2).x < -0.9, "al chocar, las dos se dan la vuelta")
 	# 4) Balas. a dispara a la ESPALDA de b (los dos mirando a la derecha): b eliminado, a suma una.
 	g.debug_place(a, _node_at(g, 0, 0), _node_at(g, 1, 0))
 	g.debug_place(b, _node_at(g, 1, 0), _node_at(g, 2, 0))

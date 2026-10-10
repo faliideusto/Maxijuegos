@@ -626,9 +626,10 @@ con un cañón delante y una DIANA detrás, sobre una red de raíles entre setos
   de la semilla común (no viaja por la red). Las celdas sueltas a veces son parterres de flores.
 - **Se adapta al nº de jugadores**: 5×4 cruces con 2-4, 6×4 con 5-6 y 6×5 con 7-8; la cámara se aleja con el patio. Las salidas se
   reparten por el borde y los vecinos empiezan cara a cara (sentidos alternos), para que nadie arranque dando la espalda.
-- **Conducción**: la dirección elige la vía en cada cruce; en mitad de un tramo, hacia delante o atrás (media vuelta al momento) y,
-  si la dirección es perpendicular, sigue hasta el cruce para girar allí (estilo Pac-Man). Parado en un cruce, hacia donde no hay
-  vía no se mueve. Las vagonetas no se atraviesan. El cañón mira siempre hacia donde se avanza.
+- **Conducción**: la dirección elige la vía en cada cruce (cualquiera menos la de vuelta); en el carril NO se puede dar la vuelta:
+  hacia atrás frena y, si la dirección es perpendicular, sigue hasta el cruce para girar allí (estilo Pac-Man). Parado en un cruce,
+  hacia donde no hay vía no se mueve. Las vagonetas no se atraviesan: si chocan, las dos se dan la vuelta (evento `crash`), así
+  nadie se queda atascado. El cañón mira siempre hacia donde se avanza. Sin cuenta atrás propia (la hace el runner).
 - **Balas**: la acción dispara (recarga 0,85 s), en línea recta a 12,5 m/s; un seto o el muro la paran (sale del pasillo de vía).
   Si da de frente (contra el cañón) solo empuja 1,3 m por la vía y aturde 0,75 s; por detrás o de lado, ¡diana!: sale volando
   con una columna de luz y queda eliminado.
@@ -636,10 +637,10 @@ con un cañón delante y una DIANA detrás, sobre una red de raíles entre setos
 - **Fin**: queda uno solo (gana) o se acaban los 60 s: los que siguen en pie empatan en cabeza (`_result_groups`). El resto,
   del último al primero en caer (empatan los que caen a la vez).
 - **Red**: sin código propio. Snapshots a 30 Hz (10 floats por vagoneta + balas + moneda + reloj) y eventos `fire`, `puff`,
-  `bump`, `out`, `coin`, `pick`, `over`, `beep`, `go`. Los clientes adelantan las balas entre snapshots.
+  `bump`, `crash`, `out`, `coin`, `pick`, `over`, `beep`, `go`. Los clientes adelantan las balas entre snapshots.
 - **Bots/autopiloto**: BFS por los raíles hacia el cruce que queda detrás del rival más cercano (o a la moneda si está más a mano),
-  disparan con un tiempo de reacción cuando lo tienen delante y sin mirarles de frente, a veces se dan la vuelta si les viene una
-  bala por detrás y, en un cara a cara, se van por otro lado para rodear. Partidas de bots: ~48 s de media.
+  o, a veces, hacia donde está para cortarle el paso; sin volver nunca por donde vienen. Disparan con un tiempo de reacción cuando
+  lo tienen delante y sin mirarles de frente y, en un cara a cara, se van por otro lado para rodear. Partidas de bots: ~35 s de media.
 - Pruebas: `tests/rail_cannons_test.gd` y `ONLY=rail_cannons tests/online_test.sh 3 1 0 normal` OK; captura: `tools/rail_shot.gd`.
 
 ## Fuga en Pareja (`pair_escape`, HOST_AUTHORITATIVE, 3D, por parejas)
