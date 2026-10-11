@@ -523,7 +523,7 @@ reinicia sola al acabar.
   (A-F abajo … Y-Z arriba, centradas). Sobre cada cabeza flota la palabra del momento (la misma para todos; en verde lo que llevas). Se deletrea
   PISANDO la casilla y pulsando ESPACIO o CLIC IZQUIERDO: +1 por letra acertada (el fallo bloquea 0,35 s); quien completa la palabra gana +3 y la palabra
   cambia para todos (el progreso de todos vuelve a 0). Con E o CLIC DERECHO se golpea al que tengas delante: aturde 1,7 s, empuja, le quita una letra
-  de lo que llevaba y le da inmunidad un momento (no se encadena). Dura 90 s; gana quien más puntos tenga. Las palabras se alargan con la partida.
+  de lo que llevaba y le da inmunidad un momento (no se encadena). Dura 60 s; gana quien más puntos tenga. Las palabras se alargan con la partida.
 - **Segundo botón** (nuevo en la capa de entrada): acción "action2" por jugador (teclado 1: E y clic derecho; teclado 2: 0 del teclado numérico o ".";
   online: E / 0 numérico / clic derecho; mando: X/Y). `InputManager.action2_presses`, `Minigame.action2_presses/_bot_action2`, y por la red el
   contador monótono "c2" en el mensaje de entrada (`{"op":"in","m":..,"c":..,"c2":..}`), igual que "c". En el mando, acción = A/B y action2 = X/Y.

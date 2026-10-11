@@ -143,8 +143,8 @@ func _process(_delta: float) -> bool:
 		if int(hd.score) != int(cd.score) or (hd.pos as Vector2).distance_to(cd.pos as Vector2) > 0.5:
 			mirror_ok = false
 	print("  partida con 5 IAs: terminó a los %.1f s, ranking %s, puntos totales %d" % [t, _ranking, total_score])
-	_ck(f, _ranking.size() == 5, "la partida acaba a los ~93 s y devuelve el ranking de los 5 (%.1f s)" % t)
-	_ck(f, t > 85.0 and t < 100.0, "dura lo previsto (90 s + cuenta atrás + final)")
+	_ck(f, _ranking.size() == 5, "la partida acaba a los ~63 s y devuelve el ranking de los 5 (%.1f s)" % t)
+	_ck(f, t > 55.0 and t < 70.0, "dura lo previsto (60 s + cuenta atrás + final)")
 	_ck(f, total_score >= 40, "las IAs juegan: reparten puntos (%d)" % total_score)
 	_ck(f, mirror_ok, "el cliente refleja los mismos puntos y posiciones que el host")
 	var best_id: int = -1

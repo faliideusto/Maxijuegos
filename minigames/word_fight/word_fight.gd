@@ -3,14 +3,14 @@ extends Minigame
 ## Sobre la cabeza de cada jugador flota la palabra del momento (la misma para todos). Se deletrea PISANDO la casilla de la
 ## letra que toca y pulsando ESPACIO o CLIC IZQUIERDO; cada letra acertada da 1 punto y quien completa la palabra se lleva
 ## 3 más y estrena palabra nueva para todos. Con CLIC DERECHO (o E) se GOLPEA al que tengas delante: queda aturdido un rato
-## y pierde una letra de lo que llevaba. Gana quien más puntos tenga al acabar los 90 s.
+## y pierde una letra de lo que llevaba. Gana quien más puntos tenga al acabar los 60 s.
 ##
 ## El host simula todo (60 Hz): movimiento, casillas, golpes, palabras y puntos; el estado se envía a ~30 Hz y los clientes
 ## interpolan. Lleva un segundo botón (golpear) por la red: ver InputManager.action2_presses / "c2" en MinigameSession.
 ## El 3D (SubViewport con su propio mundo) es solo presentación.
 
 const STEP := 1.0 / 60.0
-const TIME_LIMIT := 90.0
+const TIME_LIMIT := 60.0
 const DONE_DELAY := 2.6
 # --- Arena ---
 const COLS := 6
