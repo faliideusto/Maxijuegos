@@ -114,6 +114,7 @@ var debug_release_now: bool = false
 
 func _on_prepare() -> void:
 	_load_level()
+	_reset_state()   # la rana ya colgada del primer gancho durante la cuenta atrás
 	surface.draw_callback = _draw_game
 
 func _on_start() -> void:

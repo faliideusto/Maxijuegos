@@ -263,6 +263,7 @@ func trajectory(from: Vector2, side: int, deg: float, step: float = 0.03) -> Dic
 
 func _on_prepare() -> void:
 	_ensure_course()
+	_reset_state()   # el ninja ya en su pared durante la cuenta atrás
 	surface.draw_callback = _draw_game
 
 func _on_start() -> void:

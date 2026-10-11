@@ -227,10 +227,14 @@ func _step(s: PState, dt: float, hold: bool) -> void:
 
 func _on_prepare() -> void:
 	_ensure_terrain()
+	_reset_run()   # la bola ya sobre el terreno y la cámara encuadrada durante la cuenta atrás
 	surface.draw_callback = _draw_game
 
 func _on_start() -> void:
 	_ensure_terrain()
+	_reset_run()
+
+func _reset_run() -> void:
 	_reset_state()
 	_time = 0.0
 	_accum = 0.0

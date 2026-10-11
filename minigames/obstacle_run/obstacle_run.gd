@@ -654,6 +654,10 @@ func _on_prepare() -> void:
 	_setup_runners()
 	_build_world()
 	surface.draw_callback = _draw_hud
+	# Cámara ya detrás de tu corredor durante la cuenta atrás (si no, viaja desde el origen del mundo).
+	var cs := _cam_runner()
+	if cs != null:
+		_cam_pos = cs.p - _fwd(cs.yaw) * 5.0 + Vector3(0, 3.0, 0)
 
 func _on_start() -> void:
 	_ensure_level()
