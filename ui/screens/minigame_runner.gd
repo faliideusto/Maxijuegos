@@ -16,6 +16,9 @@ const COUNTDOWN := ["3", "2", "1", "¡YA!"]
 const READY_TIMEOUT := 8.0
 ## Segundos reales máximos que un cliente espera la señal del host.
 const BEGIN_TIMEOUT := 15.0
+## (modo local por turnos) Segundos de juego sin que nadie toque nada tras los que se da el turno por
+## vacío (p. ej. un "Jugador 2" de teclado 2 que nadie maneja): termina y su resultado lo simula la IA.
+const IDLE_TURN_SECONDS := 10.0
 
 var _meta: MinigameMeta
 var _minigame: Minigame
@@ -143,15 +146,31 @@ func _play_turn(p: PlayerData, seed_value: int, results: ParallelResults, helper
 		if mg.validate_result(score, tiebreak):
 			results.set_result(p.id, score, tiebreak)
 		done["v"] = true)
-	_show_big_text("TURNO DE %s" % p.label().to_upper(), 64)
+	_show_big_text("TURNO DE %s\n%s" % [p.label().to_upper(), p.device_label()], 64)
 	await get_tree().create_timer(1.6).timeout
 	await _run_countdown()
 	mg.start(Lobby.players)
 	var elapsed := 0.0
+	var touched := false
+	var idle := false
 	while not done["v"] and elapsed < mg.parallel_timeout():
 		await get_tree().process_frame
 		elapsed += get_process_delta_time()
+		touched = touched or _anyone_playing()
+		if not touched and elapsed >= IDLE_TURN_SECONDS:
+			idle = true
+			break
 	Audio.stop_music(0.4)
+	if idle and not results.has_result(p.id):
+		# Nadie juega este turno: no se espera al tiempo máximo y el resultado lo pone la IA.
+		var res := helper.bot_result(p)
+		results.set_result(p.id, res["score"], res["tiebreak"])
+		DevCli.log_event("idle_turn id=%d" % p.id)
+		_show_big_text("SIN JUGADOR: JUEGA LA IA", 64)
+		await get_tree().create_timer(1.2).timeout
+		_label.text = ""
+		mg.queue_free()
+		return
 	Audio.sfx(&"reaction_ok")
 	_show_big_text("¡LISTO!", 96)
 	await get_tree().create_timer(0.8).timeout
@@ -161,6 +180,15 @@ func _play_turn(p: PlayerData, seed_value: int, results: ParallelResults, helper
 # ----------------------------------------------------------------------------
 # Utilidades
 # ----------------------------------------------------------------------------
+
+## (modo local por turnos) ¿Está alguien tocando algo? (teclas, botones del ratón o mandos)
+func _anyone_playing() -> bool:
+	if Input.is_anything_pressed():
+		return true
+	for joy in Input.get_connected_joypads():
+		if Input.get_joy_axis(joy, JOY_AXIS_LEFT_X) ** 2 + Input.get_joy_axis(joy, JOY_AXIS_LEFT_Y) ** 2 > 0.25:
+			return true
+	return false
 
 func _instantiate(authority: bool) -> Minigame:
 	var node := _meta.scene.instantiate()

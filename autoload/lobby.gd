@@ -163,7 +163,12 @@ func cycle_device(p: PlayerData) -> void:
 	var options := free_devices()
 	options.append(PlayerData.DEVICE_BOT)
 	var idx := options.find(p.device)
+	var was_bot := p.is_bot
 	p.device = options[(idx + 1) % options.size()] if idx >= 0 else options[0]
+	# Con el nombre por defecto, el nombre sigue al tipo: un "Bot 2" pasado a teclado se llama "Jugador 2"
+	# (si no, parece un bot pero es una persona sin nadie a los mandos y le tocan turnos).
+	if p.is_bot != was_bot and p.display_name == _default_name(p.id, was_bot):
+		p.display_name = _default_name(p.id, p.is_bot)
 	InputManager.register_player(p)
 	_roster_updated()
 
@@ -215,9 +220,12 @@ func _create_player(device: String, p_name: String) -> PlayerData:
 	p.device = device
 	p.color_index = _first_free_color(p.id)
 	if p_name.is_empty():
-		p_name = ("Bot %d" if p.is_bot else "Jugador %d") % (p.id + 1)
+		p_name = _default_name(p.id, p.is_bot)
 	p.display_name = _sanitize_name(p_name, "Jugador %d" % (p.id + 1))
 	return p
+
+func _default_name(id: int, bot: bool) -> String:
+	return ("Bot %d" if bot else "Jugador %d") % (id + 1)
 
 func _register(p: PlayerData) -> void:
 	players.append(p)

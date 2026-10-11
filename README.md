@@ -26,6 +26,7 @@ godot --headless --path . --import                                   # primera v
 godot --headless --path . --script res://tests/smoke_test.gd -- 4 4  # partida local con bots
 godot --headless --path . --script res://tests/input_test.gd
 godot --headless --path . --script res://tests/parallel_local_test.gd -- --log
+godot --headless --path . --script res://tests/idle_turn_test.gd                   # modo local por turnos: un turno sin nadie lo juega la IA
 godot --headless --path . --script res://tests/cube_level_test.gd                  # nivel de Salto Neón: superable y con puertas efectivas
 godot --headless --path . --script res://tests/wave_level_test.gd                  # pasillo de Onda Neón: superable (bot en bucle cerrado)
 godot --headless --path . --script res://tests/practice_test.gd                     # práctica jugable de la presentación de cada minijuego
