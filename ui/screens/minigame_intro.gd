@@ -150,9 +150,26 @@ func _pill(s: String, bg: Color, fg: Color) -> Control:
 func _controls(id: StringName) -> Array[String]:
 	if TouchControls.active:
 		return TouchControls.controls_text(id)
+	const MOVE := "MOVERSE: WASD o flechas"
 	match id:
-		&"coin_grab", &"shrinking_platform", &"spotlight":
-			return ["MOVERSE: flechas / WASD / palanca"]
+		&"coin_grab":
+			return [MOVE, "SPRINT: ESPACIO o CLIC"]
+		&"shrinking_platform":
+			return [MOVE, "EMBESTIR: ESPACIO o CLIC"]
+		&"spotlight":
+			return [MOVE, "EMPUJAR: ESPACIO o CLIC"]
+		&"rail_cannons":
+			return ["ELEGIR VÍA: WASD o flechas", "DISPARAR: ESPACIO o CLIC"]
+		&"short_fuse":
+			return [MOVE, "PETARDO: ESPACIO o CLIC"]
+		&"pair_escape":
+			return [MOVE]
+		&"diligent_shots":
+			return ["APUNTAR: A · W/S · D (o clic)", "DISPARAR: ESPACIO o CLIC"]
+		&"feather_catch":
+			return ["MANO: WASD / flechas / ratón", "CERRAR: ESPACIO o CLIC"]
+		&"personal_bridge":
+			return ["ELEGIR PUENTE: CLIC o WASD"]
 		&"bomb_party":
 			return ["ESCRIBIR: teclado, Enter envía"]
 		&"word_fight":
@@ -165,6 +182,8 @@ func _controls(id: StringName) -> Array[String]:
 			return ["MOVERSE: WASD · MIRAR: ratón", "USAR / VOTAR: ESPACIO o CLIC", "ELIMINAR: E o CLIC DERECHO"]
 		&"sniper_town":
 			return ["APUNTAR: ratón · DISPARAR: clic", "MIRA: clic derecho o E", "MOVERSE: WASD · SALTAR: espacio"]
+		&"moon_hop", &"wave_dash", &"tongue_swing":
+			return ["MANTÉN / SUELTA: ESPACIO o CLIC"]
 	return ["ESPACIO o CLIC"]
 
 func _process(delta: float) -> void:

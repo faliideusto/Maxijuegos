@@ -29,6 +29,8 @@ const STICK_GAMES := {
 	&"impostor": "USAR",
 	&"sniper_town": "DISPARAR",
 	&"rail_cannons": "DISPARAR",
+	&"short_fuse": "PETARDO",
+	&"pair_escape": "",          # solo se mueve: sin botón de acción
 }
 ## Minijuegos con segundo botón → su texto.
 const ACTION2_GAMES := {
@@ -79,7 +81,9 @@ func _on_state_changed(new_state: int) -> void:
 func controls_text(id: StringName) -> Array[String]:
 	if not STICK_GAMES.has(id):
 		return ["TOCA LA PANTALLA"]
-	var lines: Array[String] = ["MOVERSE: joystick (izquierda)", "%s: botón amarillo" % STICK_GAMES[id]]
+	var lines: Array[String] = ["MOVERSE: joystick (izquierda)"]
+	if not String(STICK_GAMES[id]).is_empty():
+		lines.append("%s: botón amarillo" % STICK_GAMES[id])
 	if ACTION2_GAMES.has(id):
 		lines.append("%s: botón blanco" % ACTION2_GAMES[id])
 	return lines
@@ -168,7 +172,8 @@ func _draw_pad() -> void:
 	_pad.draw_circle(_stick_origin, STICK_RADIUS, Color(0, 0, 0, 0.28))
 	_pad.draw_arc(_stick_origin, STICK_RADIUS, 0.0, TAU, 64, Color(1, 1, 1, 0.55), 4.0, true)
 	_pad.draw_circle(_stick_origin + _stick_vector * (STICK_RADIUS - KNOB_RADIUS * 0.5), KNOB_RADIUS, Color(1, 1, 1, 0.85 if held.has("stick") else 0.6))
-	_draw_button(ACTION_POS, ACTION_RADIUS, _action_label, Palette.YELLOW, held.has("action"))
+	if not _action_label.is_empty():
+		_draw_button(ACTION_POS, ACTION_RADIUS, _action_label, Palette.YELLOW, held.has("action"))
 	if not _action2_label.is_empty():
 		_draw_button(ACTION2_POS, ACTION2_RADIUS, _action2_label, Palette.WHITE, held.has("action2"))
 
