@@ -8,7 +8,7 @@ extends RefCounted
 
 ## Orden en que se generan en segundo plano (la primera se necesita antes).
 const ORDER: Array[StringName] = [&"menu", &"mash", &"platform", &"coins", &"cube", &"wave", &"tongue", &"bomb",
-		&"spot", &"aim", &"log", &"moon", &"ninja", &"run", &"words", &"scoreboard", &"final"]
+		&"spot", &"aim", &"log", &"moon", &"ninja", &"run", &"words", &"kart", &"scoreboard", &"final"]
 
 const SPECS := {
 	# Menú, lobby y ajustes: cálido y tranquilo (Do mayor).
@@ -87,6 +87,11 @@ const SPECS := {
 		"drums": "four", "pad": true, "swing": 0.0, "seed": 241,
 		"mix": {"bass": 0.5, "arp": 0.24, "lead": 0.22, "drums": 0.45, "pad": 0.16}},
 	# Marcador: animado y breve.
+	# Karts Arcoíris: carrera espacial alegre y con funk (mayor, bajo andante, arpegio rápido, bombo a negras).
+	&"kart": {"bpm": 150, "bars": 8, "root": 62, "scale": "major", "prog": [0, 5, 3, 4, 0, 5, 1, 4],
+		"bass": "walk", "arp": "updown", "arp_rate": 1, "arp_wave": 3, "lead": "motif", "lead_wave": 2,
+		"drums": "four", "pad": true, "swing": 0.08, "seed": 151,
+		"mix": {"bass": 0.52, "arp": 0.2, "lead": 0.26, "drums": 0.48, "pad": 0.12}},
 	&"scoreboard": {"bpm": 124, "bars": 4, "root": 60, "scale": "major", "prog": [0, 3, 4, 0],
 		"bass": "root8", "arp": "up", "arp_rate": 2, "arp_wave": 3, "lead": "motif", "lead_wave": 3,
 		"drums": "basic", "pad": false, "swing": 0.0, "seed": 101,
@@ -101,5 +106,5 @@ const SPECS := {
 ## Volumen relativo de cada pista (dB): las que acompañan a la acción van más bajas.
 const VOLUME_DB := {
 	&"menu": -13.0, &"mash": -15.0, &"platform": -15.0, &"coins": -15.0, &"cube": -15.0, &"wave": -15.0,
-	&"tongue": -15.0, &"bomb": -17.0, &"spot": -15.0, &"aim": -15.0, &"log": -15.0, &"moon": -14.0, &"ninja": -15.0, &"run": -15.0, &"words": -15.0, &"scoreboard": -14.0, &"final": -13.0,
+	&"tongue": -15.0, &"bomb": -17.0, &"spot": -15.0, &"aim": -15.0, &"log": -15.0, &"moon": -14.0, &"ninja": -15.0, &"run": -15.0, &"words": -15.0, &"kart": -15.0, &"scoreboard": -14.0, &"final": -13.0,
 }

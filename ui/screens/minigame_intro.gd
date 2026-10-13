@@ -182,6 +182,8 @@ func _controls(id: StringName) -> Array[String]:
 			return ["MOVERSE: WASD · MIRAR: ratón", "USAR / VOTAR: ESPACIO o CLIC", "ELIMINAR: E o CLIC DERECHO"]
 		&"sniper_town":
 			return ["APUNTAR: ratón · DISPARAR: clic", "MIRA: clic derecho o E", "MOVERSE: WASD · SALTAR: espacio"]
+		&"rainbow_kart":
+			return ["GIRAR: WASD o flechas · S frena", "DERRAPE: mantén ESPACIO o CLIC", "OBJETO: E o CLIC DERECHO"]
 		&"moon_hop", &"wave_dash", &"tongue_swing":
 			return ["MANTÉN / SUELTA: ESPACIO o CLIC"]
 	return ["ESPACIO o CLIC"]

@@ -46,6 +46,7 @@ godot --headless --path . --script res://tests/diligent_shots_test.gd           
 godot --headless --path . --script res://tests/sniper_test.gd                     # Francotiradores 3D: mapa según jugadores, tiros, paredes, protección, red y partidas con bots
 godot --headless --path . --script res://tests/feather_catch_test.gd            # Plumas al Vuelo: atrapar plumas (+1/+3/-3), una por cierre, ratón, red y partidas con bots
 godot --headless --path . --script res://tests/rail_cannons_test.gd              # Vagonetas Cañoneras: raíles según jugadores, conducción, balas (diana/empujón), setos, moneda S y partidas con bots
+godot --headless --path . --script res://tests/rainbow_kart_test.gd             # Karts Arcoíris 3D: pista con puente, conducción, derrape y turbo, caídas y nube, rampa, objetos, carreras con bots, red y pantalla partida
 godot --headless --path . --script res://tests/bomb_party_test.gd                  # Bomba de Palabras: diccionario, niveles y reglas
 godot --headless --path . --script res://tests/tongue_level_test.gd                # recorrido de Columpio de Lengua (se genera con tools/gen_tongue_level.gd)
 GODOT=/ruta/godot tests/online_test.sh 4 4 0 normal                  # 4 instancias reales por red

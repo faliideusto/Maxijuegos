@@ -30,6 +30,7 @@ const STICK_GAMES := {
 	&"sniper_town": "DISPARAR",
 	&"rail_cannons": "DISPARAR",
 	&"short_fuse": "PETARDO",
+	&"rainbow_kart": "DERRAPE",
 	&"pair_escape": "",          # solo se mueve: sin botón de acción
 }
 ## Minijuegos con segundo botón → su texto.
@@ -37,6 +38,7 @@ const ACTION2_GAMES := {
 	&"word_fight": "GOLPEAR",
 	&"impostor": "ELIMINAR",
 	&"sniper_town": "MIRA",
+	&"rainbow_kart": "OBJETO",
 }
 
 var active: bool = false

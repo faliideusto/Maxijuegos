@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="MinigameMeta" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://core/minigame_meta.gd" id="1"]
+[ext_resource type="PackedScene" path="res://minigames/rainbow_kart/scene.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Karts Arcoíris"
+description = "¡Carrera de karts por la Senda Arcoíris, en pleno espacio!"
+instructions = "Carrera de karts a 3 vueltas por una pista de colores que flota en el espacio. El kart acelera solo: gira con WASD o las flechas y frena (o da marcha atrás) con ABAJO. Mantén ESPACIO mientras giras para DERRAPAR: al soltar ganas un turbo (chispas azules, naranjas y moradas, cuanto más largo mejor). En el aire tras la rampa pulsa ESPACIO para hacer una acrobacia y salir con turbo. Rompe las cajas de colores para conseguir un objeto y úsalo con E o CLIC DERECHO: plátano, caparazón verde o rojo, champiñón turbo, estrella, rayo o caparazón azul (con ABAJO se lanzan hacia atrás). Las monedas te hacen un poco más rápido. ¡Cuidado con los tramos sin barandilla! Si te caes, una nube te devuelve a la pista. Gana quien cruce primero la meta tras la tercera vuelta."
+min_players = 2
+max_players = 8
+approx_duration = 110.0
+scene = ExtResource("2")
+accent_color = Color(0.85, 0.45, 1, 1)
+execution_mode = 0
+max_duration = 0.0
+music = &"kart"
+short_text = "3 vueltas. ESPACIO al girar derrapa (turbo al soltar); E usa el objeto."
