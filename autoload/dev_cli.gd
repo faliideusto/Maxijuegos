@@ -18,6 +18,8 @@ extends Node
 ##   --log                  escribe eventos "[EVT] ..." por stdout (los leen los tests)
 ##   --quit-at-end          cierra el juego al llegar a la pantalla final
 ##   --shot=ruta.png:seg    guarda una captura de la ventana pasados `seg` segundos
+##   --tap=SEG              pulsa el botón de acción del jugador local cada SEG segundos (prueba la entrada remota)
+##   --fps                  escribe "[EVT] fps=..." cada 2 s (con --log), para medir tirones
 ##
 ## Varias instancias a mano: tools/dev_multi.ps1 (ventanas) o tests/online_test.sh (headless).
 
@@ -29,6 +31,11 @@ var _auto_players: int = 0
 var _stable_since: float = -1.0
 var _auto_started: bool = false
 var _quit_at_end: bool = false
+var _tap_t: float = 0.0
+var _tap_down: bool = false
+var _fps_t: float = 0.0
+var _fps_frames: int = 0
+var _fps_worst: float = 0.0
 
 func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
@@ -39,7 +46,7 @@ func _ready() -> void:
 		return
 	log_events = _args.has("log")
 	_quit_at_end = _args.has("quit-at-end")
-	if DisplayServer.get_name() == "headless":
+	if DisplayServer.get_name() == "headless" and not _args.has("fps"):
 		Engine.max_fps = 60   # varias instancias headless no deben acaparar la CPU
 	if _args.has("timescale"):
 		Engine.time_scale = float(_args["timescale"])
@@ -99,6 +106,27 @@ func _bootstrap() -> void:
 		log_event("join_room err=%s" % error_string(err))
 
 func _process(delta: float) -> void:
+	if _args.has("tap") and GameManager.state == GameManager.State.PLAYING:
+		var me := Lobby.get_local_player()
+		var action := "p%d_action" % me.id if me != null else ""
+		if _tap_down and InputMap.has_action(action):
+			Input.action_release(action)
+			_tap_down = false
+		_tap_t += delta
+		if _tap_t >= float(_args["tap"]) and InputMap.has_action(action):
+			_tap_t = 0.0
+			Input.action_press(action)
+			_tap_down = true
+			log_event("tap")
+	if _args.has("fps"):
+		_fps_t += delta
+		_fps_frames += 1
+		_fps_worst = maxf(_fps_worst, delta)
+		if _fps_t >= 2.0:
+			log_event("fps=%d worst_ms=%d state=%d" % [roundi(_fps_frames / _fps_t), roundi(_fps_worst * 1000.0), GameManager.state])
+			_fps_t = 0.0
+			_fps_frames = 0
+			_fps_worst = 0.0
 	# Arranque automático del host: cuando haya suficientes jugadores de forma estable.
 	if _auto_players <= 0 or _auto_started or GameManager.state != GameManager.State.LOBBY:
 		return

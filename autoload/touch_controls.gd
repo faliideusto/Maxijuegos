@@ -10,10 +10,11 @@ extends CanvasLayer
 
 const STICK_RADIUS := 110.0
 const KNOB_RADIUS := 46.0
-const STICK_HOME := Vector2(200, 540)
-const ACTION_POS := Vector2(1110, 550)
+# Posiciones medidas desde las esquinas inferiores de la pantalla (en móviles anchos la vista mide más de 1280).
+const STICK_HOME := Vector2(200, -180)       # desde la esquina inferior izquierda
+const ACTION_POS := Vector2(-170, -170)      # desde la esquina inferior derecha
 const ACTION_RADIUS := 86.0
-const ACTION2_POS := Vector2(1185, 370)
+const ACTION2_POS := Vector2(-95, -350)
 const ACTION2_RADIUS := 64.0
 
 ## Minijuegos con movimiento → texto del botón de acción.
@@ -49,7 +50,7 @@ var _use_stick: bool = false
 var _action_label: String = ""
 var _action2_label: String = ""
 var _touches: Dictionary = {}          # índice de toque → "stick" | "action" | "action2"
-var _stick_origin: Vector2 = STICK_HOME
+var _stick_origin: Vector2 = Vector2.ZERO
 var _stick_vector: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
@@ -90,11 +91,28 @@ func controls_text(id: StringName) -> Array[String]:
 		lines.append("%s: botón blanco" % ACTION2_GAMES[id])
 	return lines
 
+## El jugador de ESTE dispositivo. Online es el local (el primero de la lista puede ser el anfitrión,
+## que juega en otro aparato); sin red, el primer humano.
 func _human_id() -> int:
+	var me := Lobby.get_local_player()
+	if me != null:
+		return me.id
 	for p in Lobby.players:
-		if not p.is_bot:
+		if not p.is_bot and not p.is_remote:
 			return p.id
 	return -1
+
+func _view() -> Vector2:
+	return get_viewport().get_visible_rect().size
+
+func _stick_home() -> Vector2:
+	return Vector2(STICK_HOME.x, _view().y + STICK_HOME.y)
+
+func _action_pos() -> Vector2:
+	return _view() + ACTION_POS
+
+func _action2_pos() -> Vector2:
+	return _view() + ACTION2_POS
 
 func _input(event: InputEvent) -> void:
 	if _player_id < 0:
@@ -110,13 +128,13 @@ func _input(event: InputEvent) -> void:
 func _touch_down(index: int, pos: Vector2) -> void:
 	var kind := "action"
 	if _use_stick:
-		if pos.x < Palette.VIEWPORT_SIZE.x * 0.5:
+		if pos.x < _view().x * 0.5:
 			if _touches.values().has("stick"):
 				return
 			kind = "stick"
-			_stick_origin = pos.clamp(Vector2(STICK_RADIUS, STICK_RADIUS), Palette.VIEWPORT_SIZE - Vector2(STICK_RADIUS, STICK_RADIUS))
+			_stick_origin = pos.clamp(Vector2(STICK_RADIUS, STICK_RADIUS), _view() - Vector2(STICK_RADIUS, STICK_RADIUS))
 			_set_stick(Vector2.ZERO)
-		elif not _action2_label.is_empty() and pos.distance_to(ACTION2_POS) <= ACTION2_RADIUS + 24.0:
+		elif not _action2_label.is_empty() and pos.distance_to(_action2_pos()) <= ACTION2_RADIUS + 24.0:
 			kind = "action2"
 	_touches[index] = kind
 	if kind != "stick":
@@ -132,7 +150,7 @@ func _touch_up(index: int) -> void:
 	var kind: String = _touches[index]
 	_touches.erase(index)
 	if kind == "stick":
-		_stick_origin = STICK_HOME
+		_stick_origin = _stick_home()
 		_set_stick(Vector2.ZERO)
 	elif not _touches.values().has(kind):
 		Input.action_release(_action(kind))
@@ -162,7 +180,7 @@ func _release_all() -> void:
 			if InputMap.has_action(action):
 				Input.action_release(action)
 	_touches.clear()
-	_stick_origin = STICK_HOME
+	_stick_origin = _stick_home()
 	_stick_vector = Vector2.ZERO
 
 func _action(suffix: String) -> String:
@@ -175,9 +193,9 @@ func _draw_pad() -> void:
 	_pad.draw_arc(_stick_origin, STICK_RADIUS, 0.0, TAU, 64, Color(1, 1, 1, 0.55), 4.0, true)
 	_pad.draw_circle(_stick_origin + _stick_vector * (STICK_RADIUS - KNOB_RADIUS * 0.5), KNOB_RADIUS, Color(1, 1, 1, 0.85 if held.has("stick") else 0.6))
 	if not _action_label.is_empty():
-		_draw_button(ACTION_POS, ACTION_RADIUS, _action_label, Palette.YELLOW, held.has("action"))
+		_draw_button(_action_pos(), ACTION_RADIUS, _action_label, Palette.YELLOW, held.has("action"))
 	if not _action2_label.is_empty():
-		_draw_button(ACTION2_POS, ACTION2_RADIUS, _action2_label, Palette.WHITE, held.has("action2"))
+		_draw_button(_action2_pos(), ACTION2_RADIUS, _action2_label, Palette.WHITE, held.has("action2"))
 
 func _draw_button(center: Vector2, radius: float, text: String, color: Color, pressed: bool) -> void:
 	_pad.draw_circle(center, radius, Color(color, 0.9 if pressed else 0.6))
