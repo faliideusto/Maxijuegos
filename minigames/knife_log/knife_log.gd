@@ -453,7 +453,7 @@ func _draw_game() -> void:
 	s.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	_draw_hud()
 	if _flash > 0.0:
-		s.draw_rect(Rect2(0, 0, 1280, 720), Color(1, 1, 1, _flash * 0.4))
+		s.draw_rect(view_rect(), Color(1, 1, 1, _flash * 0.4))
 
 func _draw_log() -> void:
 	var s := surface

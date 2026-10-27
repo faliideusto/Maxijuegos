@@ -25,8 +25,6 @@ var _minigame: Minigame
 var _session: MinigameSession
 var _overlay: CanvasLayer
 var _frame: CanvasLayer      # capa desplazada: deja el 1280x720 del minijuego centrado cuando la ventana es más ancha
-var _bands_layer: CanvasLayer  # franjas laterales: prolongan el borde del minijuego (ver FrameBands)
-var _bands: FrameBands
 var _label: Label
 var _wait_label: Label
 
@@ -36,11 +34,6 @@ func _ready() -> void:
 	_frame = CanvasLayer.new()
 	_frame.layer = 1
 	add_child(_frame)
-	_bands_layer = CanvasLayer.new()
-	_bands_layer.layer = 2
-	add_child(_bands_layer)
-	_bands = FrameBands.new()
-	_bands_layer.add_child(_bands)
 	_center_frame()
 	get_viewport().size_changed.connect(_center_frame)
 	_build_overlay()
@@ -50,19 +43,11 @@ func _ready() -> void:
 	else:
 		await _run_shared()
 
-## Los minijuegos 2D se diseñan en 1280x720: si la ventana es más ancha, se centran (el fondo cubre toda la ventana).
+## Los minijuegos 2D se diseñan en 1280x720: si la ventana es más ancha, se centran y cada minijuego
+## pinta su escenario también en los lados (ver Minigame.view_rect()).
 func _center_frame() -> void:
 	var vr := get_viewport().get_visible_rect().size
 	_frame.offset = Vector2(maxf((vr.x - Palette.VIEWPORT_SIZE.x) * 0.5, 0.0), maxf((vr.y - Palette.VIEWPORT_SIZE.y) * 0.5, 0.0))
-	_bands.set_game_rect(_frame.offset, Palette.VIEWPORT_SIZE)
-
-## Las franjas solo hacen falta si sobra ventana y el minijuego no la llena él mismo
-## (los 3D ajustan su SubViewportContainer a toda la ventana).
-func _process(_delta: float) -> void:
-	var has_margin := _frame.offset.x > 0.5 or _frame.offset.y > 0.5
-	var mg_ok := is_instance_valid(_minigame) and _minigame.is_inside_tree()
-	var fills := mg_ok and not _minigame.find_children("*", "SubViewportContainer", false, false).is_empty()
-	_bands.visible = has_margin and mg_ok and not fills
 
 # ----------------------------------------------------------------------------
 # Ejecución común (online en ambos modelos; local en HOST_AUTHORITATIVE)

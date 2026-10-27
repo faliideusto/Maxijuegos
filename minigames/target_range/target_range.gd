@@ -405,7 +405,7 @@ func _draw_game() -> void:
 		s.text_centered(p.pos + Vector2(0, -50.0 * kp), p.text, 34, Color(p.color.r, p.color.g, p.color.b, 1.0 - kp * kp), 6)
 	_draw_hud()
 	if _miss_flash > 0.0:
-		s.draw_rect(Rect2(0, 0, 1280, 720), Color(1.0, 0.2, 0.25, _miss_flash * 0.12))
+		s.draw_rect(view_rect(), Color(1.0, 0.2, 0.25, _miss_flash * 0.12))
 	if not _done and (_mouse_hidden or InputManager.is_simulated(local_player.id) if local_player != null else false):
 		_draw_crosshair()
 	if _done:

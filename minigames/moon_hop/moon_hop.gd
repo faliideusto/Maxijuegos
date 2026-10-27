@@ -458,21 +458,24 @@ func _draw_game() -> void:
 	s.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	_draw_hud()
 	if _flash > 0.0:
-		s.draw_rect(Rect2(0, 0, 1280, 720), Color(0.7, 1.0, 0.85, _flash * 0.25))
+		s.draw_rect(view_rect(), Color(0.7, 1.0, 0.85, _flash * 0.25))
 
 func _draw_sky() -> void:
 	var s := surface
-	s.draw_polygon(PackedVector2Array([Vector2(0, 0), Vector2(1280, 0), Vector2(1280, 720), Vector2(0, 720)]),
+	var v := view_rect().grow(8.0)   # (el temblor de cámara no debe destapar los bordes)
+	s.draw_polygon(PackedVector2Array([v.position, Vector2(v.end.x, v.position.y), v.end, Vector2(v.position.x, v.end.y)]),
 			PackedColorArray([Color(0.01, 0.01, 0.06), Color(0.01, 0.01, 0.06), Color(0.06, 0.05, 0.2), Color(0.06, 0.05, 0.2)]))
 	var cam := _s.x
-	# Estrellas con paralaje.
+	# Estrellas con paralaje (la misma densidad en toda la anchura visible).
+	var star_w := v.size.x
+	var stars := int(40.0 * star_w / 1400.0)
 	for layer in 3:
 		var par := 0.01 + 0.03 * layer
-		for i in 40:
+		for i in stars:
 			var u := fposmod(i * 0.6180339887 + layer * 0.31, 1.0)
-			var v := fposmod(i * 0.7548776662 + layer * 0.17, 1.0)
-			var px := fposmod(u * 1400.0 - cam * par, 1400.0) - 60.0
-			s.draw_circle(Vector2(px, v * 520.0), 1.2 + layer * 0.8, Color(0.9, 0.95, 1.0, 0.5 + 0.15 * layer))
+			var w := fposmod(i * 0.7548776662 + layer * 0.17, 1.0)
+			var px := fposmod(u * star_w - cam * par, star_w) + v.position.x
+			s.draw_circle(Vector2(px, v.position.y + w * (520.0 - v.position.y)), 1.2 + layer * 0.8, Color(0.9, 0.95, 1.0, 0.5 + 0.15 * layer))
 	# La Tierra, grande y lejana.
 	var ex := fposmod(980.0 - cam * 0.004, 1800.0) - 200.0
 	var ec := Vector2(ex, 235.0)
@@ -485,41 +488,43 @@ func _draw_sky() -> void:
 	# Montañas lejanas (silueta).
 	var base := 560.0 - (_cam_y * 0.15)
 	var pts := PackedVector2Array()
-	pts.append(Vector2(0, 720))
-	for i in 33:
-		var wx := i * 40.0
+	pts.append(Vector2(v.position.x, v.end.y))
+	for i in int(v.size.x / 40.0) + 2:
+		var wx := v.position.x + i * 40.0
 		var gx := cam * 0.25 + wx
 		var h := 70.0 * sin(gx / 150.0) + 46.0 * sin(gx / 61.0 + 1.3) + 30.0 * sin(gx / 330.0)
-		pts.append(Vector2(wx, minf(base - 60.0 - h, 715.0)))
-	pts.append(Vector2(1280, 720))
+		pts.append(Vector2(wx, minf(base - 60.0 - h, v.end.y - 5.0)))
+	pts.append(Vector2(pts[pts.size() - 1].x, v.end.y))
 	s.draw_colored_polygon(pts, Color(0.16, 0.15, 0.3))
 
 func _draw_terrain() -> void:
 	var s := surface
-	var x0 := _s.x - (PLAYER_X + 20.0) / _zoom
+	var v := view_rect().grow(20.0)
+	var x0 := _s.x + (v.position.x - PLAYER_X) / _zoom
 	var top := PackedVector2Array()
 	var step_px := 10.0 / _zoom
-	var n := int(1340.0 / 10.0)
+	var n := int(v.size.x / 10.0) + 1
+	var bottom := v.end.y + 50.0
 	for i in n + 1:
 		var wx := x0 + i * step_px
 		# Se limita la y para que el polígono nunca quede del revés (con la cámara muy alta, el suelo se sale por abajo).
-		top.append(Vector2(_sx(wx), minf(_sy(height_at(wx)), 770.0)))
+		top.append(Vector2(_sx(wx), minf(_sy(height_at(wx)), bottom - 20.0)))
 	var poly := PackedVector2Array(top)
-	poly.append(Vector2(top[top.size() - 1].x, 790))
-	poly.append(Vector2(top[0].x, 790))
+	poly.append(Vector2(top[top.size() - 1].x, bottom))
+	poly.append(Vector2(top[0].x, bottom))
 	s.draw_colored_polygon(poly, Color(0.56, 0.56, 0.64))
 	# Sombreado: franja más oscura bajo la superficie y borde claro.
 	var shade := PackedVector2Array()
 	for p in top:
-		shade.append(Vector2(p.x, minf(p.y + 38.0, 780.0)))
+		shade.append(Vector2(p.x, minf(p.y + 38.0, bottom - 10.0)))
 	var poly2 := PackedVector2Array(shade)
-	poly2.append(Vector2(shade[shade.size() - 1].x, 790))
-	poly2.append(Vector2(shade[0].x, 790))
+	poly2.append(Vector2(shade[shade.size() - 1].x, bottom))
+	poly2.append(Vector2(shade[0].x, bottom))
 	s.draw_colored_polygon(poly2, Color(0.42, 0.42, 0.52))
 	s.draw_polyline(top, Color(0.88, 0.88, 0.96), 5.0, true)
 	# Cráteres (deterministas por celda).
 	var cell0 := int(floor(x0 / 170.0))
-	for k in range(cell0, cell0 + int(1400.0 / _zoom / 170.0) + 3):
+	for k in range(cell0, cell0 + int(v.size.x / _zoom / 170.0) + 3):
 		var hsh := fposmod(sin(float(k) * 12.9898) * 43758.5453, 1.0)
 		if hsh < 0.5:
 			var cx := k * 170.0 + hsh * 140.0

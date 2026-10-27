@@ -570,7 +570,7 @@ func _draw_game() -> void:
 		s.draw_circle(p.pos, 5.0 * a + 1.0, Color(p.color.r, p.color.g, p.color.b, a))
 	_draw_hud()
 	if _flash > 0.0:
-		s.draw_rect(Rect2(0, 0, 1280, 720), Color(1, 1, 1, clampf(_flash, 0.0, 1.0) * 0.35))
+		s.draw_rect(view_rect(), Color(1, 1, 1, clampf(_flash, 0.0, 1.0) * 0.35))
 
 func _draw_spots() -> void:
 	var s := surface

@@ -713,34 +713,37 @@ func _draw_game() -> void:
 	var sx := func(x: float) -> float: return (x - cam) * BLOCK
 	var top_c := _bg_color(dist, 0.98)
 	var bot_c := _bg_color(dist, 0.52)
-	s.draw_polygon(PackedVector2Array([Vector2(0, 0), Vector2(1280, 0), Vector2(1280, 720), Vector2(0, 720)]),
+	var v := view_rect()
+	var bottom := v.end.y
+	s.draw_polygon(PackedVector2Array([v.position, Vector2(v.end.x, v.position.y), v.end, Vector2(v.position.x, v.end.y)]),
 			PackedColorArray([top_c, top_c, bot_c, bot_c]))
 	# Fondo con paralaje: columnas translúcidas que se desplazan más lento que el nivel.
-	for i in 9:
-		var px := fposmod(i * 190.0 - cam * BLOCK * 0.22, 1500.0) - 110.0
+	var cols_w := ceilf((v.size.x + 220.0) / 190.0) * 190.0
+	for i in int(cols_w / 190.0):
+		var px := fposmod(i * 190.0 - cam * BLOCK * 0.22, cols_w) + v.position.x - 110.0
 		var hh := 140.0 + (i % 3) * 90.0
 		s.draw_rect(Rect2(px, GROUND_Y - hh, 110.0, hh), Color(1, 1, 1, 0.045 + 0.02 * (i % 2)))
 	# Suelo: relleno oscuro, rejilla que se desplaza y línea brillante con halo.
 	var ground_c := bot_c.darkened(0.6)
-	s.draw_rect(Rect2(0, GROUND_Y, 1280, 720.0 - GROUND_Y), ground_c)
-	var gx := fposmod(-cam * BLOCK, BLOCK)
-	for i in 28:
-		s.draw_line(Vector2(gx + i * BLOCK, GROUND_Y), Vector2(gx + i * BLOCK, 720), Color(1, 1, 1, 0.06), 2.0)
+	s.draw_rect(Rect2(v.position.x, GROUND_Y, v.size.x, bottom - GROUND_Y), ground_c)
+	var gx := v.position.x + fposmod(-cam * BLOCK - v.position.x, BLOCK)
+	for i in int(v.size.x / BLOCK) + 2:
+		s.draw_line(Vector2(gx + i * BLOCK, GROUND_Y), Vector2(gx + i * BLOCK, bottom), Color(1, 1, 1, 0.06), 2.0)
 	var line_c := top_c.lightened(0.55)
-	var i0 := _lower_bound(cam - _max_w - 1.0)
+	var i0 := _lower_bound(cam + v.position.x / BLOCK - _max_w - 1.0)
 	var i1 := i0
-	while i1 < _objs.size() and _objs[i1].x < cam + 32.0:
+	while i1 < _objs.size() and _objs[i1].x < cam + v.end.x / BLOCK:
 		i1 += 1
 	# Huecos del suelo (se pintan encima del suelo, hasta el borde inferior).
 	for i in range(i0, i1):
 		var o := _objs[i]
 		if o.kind == Kind.GAP:
 			var gxp: float = sx.call(o.x)
-			s.draw_rect(Rect2(gxp, GROUND_Y - 1, o.w * BLOCK, 720.0 - GROUND_Y + 1), bot_c.darkened(0.8))
-			s.draw_rect(Rect2(gxp - 3, GROUND_Y - 1, 3, 720.0 - GROUND_Y + 1), line_c)
-			s.draw_rect(Rect2(gxp + o.w * BLOCK, GROUND_Y - 1, 3, 720.0 - GROUND_Y + 1), line_c)
+			s.draw_rect(Rect2(gxp, GROUND_Y - 1, o.w * BLOCK, bottom - GROUND_Y + 1), bot_c.darkened(0.8))
+			s.draw_rect(Rect2(gxp - 3, GROUND_Y - 1, 3, bottom - GROUND_Y + 1), line_c)
+			s.draw_rect(Rect2(gxp + o.w * BLOCK, GROUND_Y - 1, 3, bottom - GROUND_Y + 1), line_c)
 	# Línea del suelo con halo, interrumpida en los huecos.
-	var segs: Array = [Vector2(0.0, 1280.0)]
+	var segs: Array = [Vector2(v.position.x, v.end.x)]
 	for i in range(i0, i1):
 		var o := _objs[i]
 		if o.kind == Kind.GAP:
@@ -785,8 +788,8 @@ func _draw_game() -> void:
 			var tip_y := GROUND_Y - o.y * BLOCK
 			var base_y := tip_y - BLOCK * 0.5
 			# Bloque de techo (hasta el borde superior) y pincho apuntando hacia abajo.
-			s.draw_rect(Rect2(px, -10, BLOCK, base_y + 10), fill)
-			s.draw_rect(Rect2(px, -10, BLOCK, base_y + 10), edge, false, 3.0)
+			s.draw_rect(Rect2(px, v.position.y - 10, BLOCK, base_y - v.position.y + 10), fill)
+			s.draw_rect(Rect2(px, v.position.y - 10, BLOCK, base_y - v.position.y + 10), edge, false, 3.0)
 			var tri := PackedVector2Array([Vector2(px + 3, base_y), Vector2(px + BLOCK - 3, base_y), Vector2(px + BLOCK * 0.5, tip_y)])
 			s.draw_colored_polygon(tri, fill)
 			s.draw_polyline(PackedVector2Array([tri[0], tri[2], tri[1], tri[0]]), edge, 3.0, true)
@@ -807,7 +810,7 @@ func _draw_game() -> void:
 		s.draw_rect(Rect2(-sz * 0.5, -sz * 0.5, sz, sz), Color(cc.r, cc.g, cc.b, clampf(float(sh.life) * 1.5, 0.0, 1.0)))
 	s.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	if _flash > 0.0:
-		s.draw_rect(Rect2(0, 0, 1280, 720), Color(1, 1, 1, _flash * 0.45))
+		s.draw_rect(view_rect(), Color(1, 1, 1, _flash * 0.45))
 	_draw_hud()
 
 func _draw_cube() -> void:

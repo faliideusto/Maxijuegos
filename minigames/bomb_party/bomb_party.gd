@@ -609,7 +609,7 @@ func _draw_game() -> void:
 	if _boom:
 		_draw_boom_text()
 	if _flash > 0.0:
-		s.draw_rect(Rect2(0, 0, 1280, 720), Color(1, 1, 1, clampf(_flash, 0.0, 1.0) * 0.8))
+		s.draw_rect(view_rect(), Color(1, 1, 1, clampf(_flash, 0.0, 1.0) * 0.8))
 
 func _draw_table() -> void:
 	var s := surface
