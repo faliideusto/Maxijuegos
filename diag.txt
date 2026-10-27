@@ -1,0 +1,27 @@
+mjdiag-jqsr4dll-c CLOSE 1000 
+VARIANT hello delivered= false sender_closed= true
+mjdiag-jqsr4dll CLOSE 1005 
+mjdiag-kpi921w7-c CLOSE 1000 
+mjdiag-jqsr4dll NO OPEN
+VARIANT hello_str delivered= false sender_closed= true
+mjdiag-jqsr4dll-c NO OPEN
+mjdiag-kpi921w7 CLOSE 1005 
+mjdiag-t3ozzy2q-c CLOSE 1000 
+mjdiag-kpi921w7 NO OPEN
+VARIANT peerjs_offer delivered= false sender_closed= true
+mjdiag-kpi921w7-c NO OPEN
+mjdiag-t3ozzy2q CLOSE 1005 
+mjdiag-25nayiis-c CLOSE 1000 
+mjdiag-t3ozzy2q NO OPEN
+VARIANT meta_only delivered= false sender_closed= true
+mjdiag-t3ozzy2q-c NO OPEN
+mjdiag-25nayiis CLOSE 1005 
+mjdiag-9ux1915n RX {"dst":"mjdiag-9ux1915n","payload":{"candidate":{"candidate":"x","sdpMLineIndex":0,"sdpMid":"0"},"connectionId":"dc_kw3qgj3z","type":"data"},"src":"mjdiag-9ux1915n-c","type":"CANDIDATE"}
+mjdiag-25nayiis NO OPEN
+VARIANT candidate delivered= true sender_closed= false
+mjdiag-25nayiis-c NO OPEN
+mjdiag-9ux1915n CLOSE 1005 
+mjdiag-9ux1915n-c CLOSE 1005 
+mjdiag-qtp7e285-c CLOSE 1000 
+mjdiag-9ux1915n NO OPEN
+VARIANT answer_custom delivered= false sender_closed= true
