@@ -1,8 +1,13 @@
 extends Control
-## Menú principal: jugar online (crear sala / unirse), modo local de pruebas, salir.
+## Menú principal: jugar online (crear sala / unirse), modo local de pruebas, ajustes, salir.
 
 var _main_box: VBoxContainer
 var _online_card: PanelContainer
+var _settings_card: PanelContainer
+var _music_value: Label
+var _sfx_value: Label
+var _mute_btn: JuicyButton
+var _fullscreen_btn: JuicyButton
 var _name_edit: LineEdit
 var _address_edit: LineEdit
 var _status: Label
@@ -11,6 +16,8 @@ var _title: Label
 var _busy: bool = false
 
 const WEB_BOTS := 3
+## Paso de los botones − / + de volumen (%).
+const VOLUME_STEP := 10
 
 ## (web) El código de ?sala=XXXX solo se usa la primera vez que se abre el menú.
 static var _url_code_used: bool = false
@@ -38,6 +45,10 @@ func _ready() -> void:
 		local.pressed.disconnect(GameManager.go_to_lobby)
 		local.pressed.connect(_play_vs_bots)
 
+	var settings := UIKit.button("AJUSTES", &"SecondaryButton")
+	settings.pressed.connect(_toggle_settings)
+	_main_box.add_child(settings)
+
 	var quit := UIKit.button("SALIR", &"DangerButton")
 	quit.pressed.connect(func() -> void: get_tree().quit())
 	_main_box.add_child(quit)
@@ -50,6 +61,7 @@ func _ready() -> void:
 	_main_box.add_child(_notice)
 
 	_build_online_card()
+	_build_settings_card()
 
 	var info := UIKit.label("%d minijuegos cargados · v0.2 (fase 2)" % MinigameRegistry.get_all().size(), &"HintLabel")
 	info.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
@@ -138,6 +150,71 @@ func _build_online_card() -> void:
 	var back := UIKit.button("VOLVER", &"DangerButton", Vector2(380, 0))
 	back.pressed.connect(_toggle_online)
 	box.add_child(back)
+
+## Ajustes: volumen de música y efectos, silencio (F10) y pantalla completa (F11).
+func _build_settings_card() -> void:
+	_settings_card = PanelContainer.new()
+	_settings_card.visible = false
+	_settings_card.set_anchors_preset(Control.PRESET_CENTER)
+	_settings_card.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_settings_card.grow_vertical = Control.GROW_DIRECTION_BOTH
+	add_child(_settings_card)
+
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 14)
+	_settings_card.add_child(box)
+	box.add_child(UIKit.label("AJUSTES", &"HeaderLabel"))
+	_music_value = _volume_row(box, "Música", Audio.get_music_percent, Audio.set_music_percent)
+	_sfx_value = _volume_row(box, "Efectos", Audio.get_sfx_percent, Audio.set_sfx_percent)
+	_mute_btn = UIKit.button("", &"SecondaryButton", Vector2(420, 0))
+	_mute_btn.pressed.connect(func() -> void:
+		Audio.set_muted(not Audio.muted)
+		_refresh_settings())
+	box.add_child(_mute_btn)
+	_fullscreen_btn = UIKit.button("", &"SecondaryButton", Vector2(420, 0))
+	_fullscreen_btn.pressed.connect(Display.toggle_fullscreen)
+	box.add_child(_fullscreen_btn)
+	Display.fullscreen_changed.connect(func(_on: bool) -> void: _refresh_settings())
+	box.add_child(UIKit.label("Atajos: F10 silencia · F11 pantalla completa", &"HintLabel"))
+	var back := UIKit.button("VOLVER", &"DangerButton", Vector2(420, 0))
+	back.pressed.connect(_toggle_settings)
+	box.add_child(back)
+
+## Fila "Nombre  −  80 %  +". Devuelve la etiqueta del valor.
+func _volume_row(box: VBoxContainer, title: String, getter: Callable, setter: Callable) -> Label:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 12)
+	box.add_child(row)
+	var name_label := UIKit.label(title, &"", HORIZONTAL_ALIGNMENT_LEFT)
+	name_label.custom_minimum_size = Vector2(140, 0)
+	row.add_child(name_label)
+	var value := UIKit.label("")
+	value.custom_minimum_size = Vector2(110, 0)
+	for delta in [-VOLUME_STEP, VOLUME_STEP]:
+		var b := UIKit.button("−" if delta < 0 else "+", &"SecondaryButton", Vector2(72, 0))
+		b.pressed.connect(func() -> void:
+			setter.call(clampi(getter.call() + delta, 0, 100))
+			_refresh_settings())
+		row.add_child(b)
+		if delta < 0:
+			row.add_child(value)
+	return value
+
+func _refresh_settings() -> void:
+	if _settings_card == null:
+		return
+	_music_value.text = "%d %%" % Audio.get_music_percent()
+	_sfx_value.text = "%d %%" % Audio.get_sfx_percent()
+	_mute_btn.text = "SONIDO: %s" % ("NO" if Audio.muted else "SÍ")
+	_fullscreen_btn.text = "PANTALLA COMPLETA: %s" % ("SÍ" if Display.is_fullscreen() else "NO")
+
+func _toggle_settings() -> void:
+	_settings_card.visible = not _settings_card.visible
+	_main_box.get_parent().visible = not _settings_card.visible
+	if _settings_card.visible:
+		_refresh_settings()
+		UIKit.pop_in(_settings_card)
 
 func _toggle_online() -> void:
 	_online_card.visible = not _online_card.visible

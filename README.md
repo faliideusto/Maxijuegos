@@ -71,7 +71,9 @@ En web el menú ofrece "JUGAR CON AMIGOS" y "JUGAR CONTRA BOTS" (tú + 3 bots). 
 de 4 caracteres (y "COPIAR ENLACE" un enlace `...?sala=K7QF` que abre el juego directamente en esa sala); los demás lo escriben en
 "UNIRSE". Los navegadores se conectan entre sí por WebRTC (`net/webrtc_backend.gd`) y solo usan el servidor público de PeerJS para
 encontrarse: no hace falta servidor propio. La versión de escritorio sigue uniéndose por IP (no juegan entre sí).
-**Música en web**: la exportación sin hilos no puede generarla al arrancar, así que usa las pistas ya generadas de `audio/music/`;
+**Ajustes** (menú principal): volumen de música y efectos, sonido sí/no (F10) y pantalla completa (F11, `autoload/display.gd`).
+En web el audio usa el modo "Stream" (`audio/general/default_playback_type.web=0` en `project.godot`): con el modo "Sample"
+por defecto no sonaba nada. **Música en web**: la exportación sin hilos no puede generarla al arrancar, así que usa las pistas ya generadas de `audio/music/`;
 tras cambiar `MusicCatalog` o `SynthMusic`, regenerarlas con `GODOT=/ruta/godot tools/bake_music.sh` (necesita ffmpeg).
 **Publicación**: `.github/workflows/web.yml` exporta en cada push a `main` y deja el resultado en la rama `web`, que publica Vercel.
 Prueba online en navegadores: `tests/web/serve.sh` y `node tests/web/online_test.js 2 2` (Playwright + PeerJS local).
