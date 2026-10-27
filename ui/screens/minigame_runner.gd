@@ -12,10 +12,11 @@ extends Node
 ## Modo local (sin red) con LOCAL_PARALLEL: los humanos juegan por turnos en este PC.
 
 const COUNTDOWN := ["3", "2", "1", "¡YA!"]
-## Segundos reales máximos que el host espera a que los clientes carguen el minijuego.
-const READY_TIMEOUT := 8.0
+## Segundos reales máximos que el host espera a que los clientes carguen el minijuego. En web es más:
+## el navegador compila los sombreadores de un minijuego 3D al cargarlo y en un portátil modesto tarda.
+var ready_timeout := 20.0 if OS.has_feature("web") else 8.0
 ## Segundos reales máximos que un cliente espera la señal del host.
-const BEGIN_TIMEOUT := 15.0
+var begin_timeout := 30.0 if OS.has_feature("web") else 15.0
 ## (modo local por turnos) Segundos de juego sin que nadie toque nada tras los que se da el turno por
 ## vacío (p. ej. un "Jugador 2" de teclado 2 que nadie maneja): termina y su resultado lo simula la IA.
 const IDLE_TURN_SECONDS := 10.0
@@ -67,11 +68,11 @@ func _run_shared() -> void:
 		add_child(_session)
 		_session.setup(_minigame)
 		if is_host:
-			await _session.wait_for_clients(READY_TIMEOUT)
+			await _session.wait_for_clients(ready_timeout)
 			_session.send_begin(seed_value)
 		else:
 			_session.send_ready()
-			await _session.wait_for_begin(BEGIN_TIMEOUT)
+			await _session.wait_for_begin(begin_timeout)
 			seed_value = _session.seed_value
 
 	_minigame.configure(_meta.execution_mode, seed_value, Lobby.get_local_player())
