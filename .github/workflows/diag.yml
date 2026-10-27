@@ -9,72 +9,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: { ref: web, path: web }
+        with: { ref: claude/web-ajustes-sonido, path: src }
       - uses: actions/checkout@v4
-        with: { path: src }
-      - run: npm i ws playwright@1 && npx playwright install --with-deps chromium
-      - name: ws node
+        with: { path: diag }
+      - name: Godot
         run: |
-          cat > ws.js <<'JS'
-          const WebSocket = require('ws');
-          setTimeout(() => { console.log('TIMEOUT'); process.exit(0); }, 90000);
-          const R = () => Math.random().toString(36).slice(2, 10);
-          const conn = id => new Promise(res => { setTimeout(() => { console.log(id, 'NO OPEN'); res(null); }, 6000); const ws = new WebSocket(`wss://0.peerjs.com/peerjs?key=peerjs&id=${id}&token=${R()}&version=1.5.4`);
-            ws.on('message', m => { const t = m.toString(); if (t.includes('OPEN')) res(ws); else console.log(id, 'RX', t.slice(0, 200)); });
-            ws.on('close', (c, r) => console.log(id, 'CLOSE', c, r.toString())); ws.on('error', e => console.log(id, 'ERR', e.message)); });
-          const big = 'v=0\r\n' + 'a=candidate:1 1 udp 2122260223 192.168.1.2 54321 typ host\r\n'.repeat(60);
-          const W = (mj, extra = {}) => ({ type: 'data', connectionId: 'dc_' + R(), candidate: { candidate: '', sdpMid: '0', sdpMLineIndex: 0 }, mj, ...extra });
-          const variants = {
-            wrap_hello: d => ({ type: 'CANDIDATE', dst: d, payload: W({ op: 'hello', id: 781630277 }) }),
-            wrap_bigsdp: d => ({ type: 'CANDIDATE', dst: d, payload: W({ op: 'sdp', type: 'offer', sdp: big }) }),
-            bare_mj: d => ({ type: 'CANDIDATE', dst: d, payload: { mj: { op: 'hello' } } }),
-            real_offer_shape: d => ({ type: 'OFFER', dst: d, payload: { sdp: { type: 'offer', sdp: big }, type: 'data', connectionId: 'dc_' + R(), label: 'dc_x', serialization: 'binary', reliable: true, metadata: { mj: 1 } } }),
-          };
-          (async () => {
-            for (const [name, mk] of Object.entries(variants)) {
-              const hid = 'mjdiag-' + R(); const cid = hid + '-c';
-              const h = await conn(hid); const c = await conn(cid);
-              if (!h || !c) { console.log('VARIANT', name, 'no conecta'); continue; }
-              let got = false, closed = false;
-              h.on('message', m => { if (!m.toString().includes('OPEN')) got = true; });
-              c.on('close', () => closed = true);
-              c.send(JSON.stringify(mk(hid)));
-              await new Promise(r => setTimeout(r, 2500));
-              console.log('VARIANT', name, 'delivered=', got, 'sender_closed=', closed);
-              h.close(); c.close();
-            }
-            const lone = await conn('mjdiag-' + R() + '-lone');
-            if (lone) { lone.on('message', m => console.log('LONE RX', m.toString().slice(0, 200))); lone.send(JSON.stringify({ type: 'CANDIDATE', dst: 'mjdiag-noexiste-' + R(), payload: W({ op: 'hello' }) })); await new Promise(r => setTimeout(r, 12000)); }
-            process.exit(0);
-          })();
-          JS
-          node ws.js 2>&1 | tee -a $GITHUB_WORKSPACE/diag.txt
-      - name: godot web contra 0.peerjs.com
-        if: false
+          base=https://github.com/godotengine/godot/releases/download/4.7.1-stable
+          mkdir -p ~/godot ~/.local/share/godot/export_templates/4.7.1.stable
+          curl -sSL -o godot.zip $base/Godot_v4.7.1-stable_linux.x86_64.zip && unzip -q godot.zip -d ~/godot && mv ~/godot/Godot_v* ~/godot/godot
+          curl -sSL -o tpl.tpz $base/Godot_v4.7.1-stable_export_templates.tpz && unzip -qj tpl.tpz 'templates/web_*' 'templates/version.txt' -d ~/.local/share/godot/export_templates/4.7.1.stable
+          cd src && mkdir -p build/web && (~/godot/godot --headless --path . --import || true) && ~/godot/godot --headless --path . --export-release "Web" build/web/index.html
+      - run: cd src && npm i peer playwright@1 && npx playwright install --with-deps chromium
+      - name: prueba con 0.peerjs.com
         run: |
-          sed -i 's/"args":\[\]/"args":["--"].concat((new URLSearchParams(location.search).get("args")||"").split(" ").filter(Boolean))/' web/index.html
-          (cd web && python3 -m http.server 8765 &) ; sleep 2
-          cat > g.js <<'JS'
-          const { chromium } = require('playwright');
-          (async () => {
-            const b = await chromium.launch();
-            const logs = {};
-            const open = async (n, a) => { const p = await (await b.newContext()).newPage(); logs[n] = [];
-              p.on('console', m => { logs[n].push(m.text()); if (!/audio|MSAA|GL Driver/.test(m.text())) console.log(n, m.text().slice(0, 300)); });
-              p.on('websocket', ws => { console.log(n, 'WS', ws.url()); ws.on('framereceived', f => console.log(n, 'RX', String(f.payload).slice(0, 200))); ws.on('framesent', f => console.log(n, 'TX', String(f.payload).slice(0, 120))); ws.on('close', () => console.log(n, 'WS CLOSE')); ws.on('socketerror', e => console.log(n, 'WS ERR', e)); });
-              await p.goto('http://localhost:8765/index.html?args=' + encodeURIComponent(a)); };
-            await open('host', '--host --name=H --log');
-            await new Promise(r => setTimeout(r, 12000));
-            const l = logs.host.find(x => /room_open/.test(x));
-            console.log('ROOM', l);
-            const code = l ? l.match(/code=(\w+)/)[1] : 'ZZZZ';
-            await open('cli', `--join=${code} --name=C --log`);
-            await new Promise(r => setTimeout(r, 20000));
-            await b.close();
-          })();
-          JS
-          node g.js 2>&1 | tee -a $GITHUB_WORKSPACE/diag.txt
+          cd src
+          mkdir -p tests/logs/web && cp -r build/web/. tests/logs/web/
+          sed -i 's/"args":\[\]/"args":["--"].concat((new URLSearchParams(location.search).get("args")||"").split(" ").filter(Boolean))/' tests/logs/web/index.html
+          (python3 -m http.server 8765 --directory tests/logs/web > /dev/null 2>&1 &) ; sleep 2
+          SIGNAL=public timeout 900 node tests/web/online_test.js 2 2 coin_grab 2>&1 | tee $GITHUB_WORKSPACE/diag.txt || true
       - name: guardar log
         if: always()
         run: |
-          cd src && cp ../diag.txt . && git config user.name bot && git config user.email bot@x && git add diag.txt && git commit -qm "diag log [skip ci]" && git push -q origin HEAD:claude/diag-peerjs
+          cd diag && cp ../diag.txt . && git config user.name bot && git config user.email bot@x && git add diag.txt && git commit -qm "diag log [skip ci]" && git push -q origin HEAD:claude/diag-peerjs
