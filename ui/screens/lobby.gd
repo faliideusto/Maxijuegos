@@ -10,6 +10,7 @@ var _grid: GridContainer
 var _add_btn: JuicyButton
 var _bot_btn: JuicyButton
 var _next_btn: JuicyButton
+var _share_btn: JuicyButton
 var _hint: Label
 var _title: Label
 var _count_label: Label
@@ -57,11 +58,16 @@ func _ready() -> void:
 	_bot_btn = UIKit.button("+ BOT", &"SecondaryButton", Vector2(180, 0))
 	_bot_btn.pressed.connect(func() -> void: Lobby.add_bot())
 	bar.add_child(_bot_btn)
+	# (web, host) Copia el enlace que mete a tus amigos directamente en la sala.
+	_share_btn = UIKit.button("COPIAR ENLACE", &"SecondaryButton", Vector2(260, 0))
+	_share_btn.pressed.connect(_copy_link)
+	bar.add_child(_share_btn)
 	_next_btn = UIKit.button("CONTINUAR", &"PrimaryButton", Vector2(280, 0))
 	_next_btn.pressed.connect(GameManager.go_to_setup)
 	bar.add_child(_next_btn)
 
 	Lobby.roster_changed.connect(_refresh)
+	NetworkManager.backend.hint_changed.connect(_refresh)
 
 	# Modo local sin jugadores: arranca con el jugador 1 para que no se vea vacío.
 	if not NetworkManager.is_online and Lobby.players.is_empty():
@@ -79,9 +85,11 @@ func _refresh() -> void:
 		_grid.add_child(_make_card(p))
 
 	if online:
-		_title.text = "SALA ONLINE"
-		var ip := Lobby.local_ip_hint()
-		var where := " · IP para unirse: %s" % ip if (is_host and not ip.is_empty()) else ""
+		var hint := NetworkManager.join_hint()
+		var code := hint if NetworkManager.backend is WebRTCBackend else ""
+		_title.text = "SALA ONLINE · CÓDIGO %s" % code if not code.is_empty() else "SALA ONLINE"
+		# El código ya va en el título; la IP (escritorio) se muestra aquí.
+		var where := " · %s: %s" % [NetworkManager.join_hint_label(), hint] if (is_host and not hint.is_empty() and code.is_empty()) else ""
 		_count_label.text = "%d / %d jugadores%s" % [Lobby.players.size(), PlayerData.MAX_PLAYERS, where]
 	else:
 		_title.text = "JUGADORES (LOCAL)"
@@ -91,6 +99,7 @@ func _refresh() -> void:
 	var full := Lobby.players.size() >= PlayerData.MAX_PLAYERS
 	# Un jugador por PC online: "+ JUGADOR" solo existe en modo local.
 	_add_btn.visible = is_host and not online
+	_share_btn.visible = is_host and online and OS.has_feature("web") and not NetworkManager.join_hint().is_empty()
 	_bot_btn.visible = is_host
 	_next_btn.visible = is_host
 	_add_btn.disabled = full or Lobby.free_devices().is_empty()
@@ -107,6 +116,10 @@ func _refresh() -> void:
 		_hint.text = "No quedan teclados/mandos libres: conecta un mando o añade bots."
 	else:
 		_hint.text = "Teclado 1: WASD + Espacio · Teclado 2: Flechas + Enter · Mando: stick + A"
+
+func _copy_link() -> void:
+	DisplayServer.clipboard_set(WebRTCBackend.share_link(NetworkManager.join_hint()))
+	_hint.text = "Enlace copiado: pásaselo a tus amigos y entrarán directos a la sala."
 
 ## Tarjeta compacta de jugador: avatar + nombre/color arriba, dispositivo y acciones abajo.
 func _make_card(p: PlayerData) -> Control:

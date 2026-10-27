@@ -6,7 +6,8 @@ extends Node
 ## Argumentos (tras "--"):
 ##   --host                 crea una sala online al arrancar (este PC es el host)
 ##   --local                partida SIN red: un humano (teclado 1: WASD + Espacio) + --bots=N, empieza sola
-##   --join=IP              se une a la sala de esa IP al arrancar
+##   --join=IP              se une a la sala de esa IP al arrancar (en web: el código de la sala)
+##   --signal=URL           (web) servidor PeerJS propio para las salas, p. ej. ws://localhost:9000
 ##   --name=Nombre          nombre del jugador de este PC
 ##   --bots=N               (host) añade N bots al lobby
 ##   --players=N            (host) empieza la partida sola cuando haya N jugadores (humanos + bots)
@@ -48,6 +49,8 @@ func _ready() -> void:
 		InputManager.autopilot = true
 	if _args.has("name"):
 		Lobby.profile_name = str(_args["name"])
+	if _args.has("signal") and NetworkManager.backend is WebRTCBackend:
+		(NetworkManager.backend as WebRTCBackend).signal_server = str(_args["signal"])
 	if _args.has("shot"):
 		# --shot=ruta.png:segundos → guarda una captura de la ventana pasado ese tiempo.
 		var parts := str(_args["shot"]).rsplit(":", true, 1)
