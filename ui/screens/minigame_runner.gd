@@ -12,10 +12,11 @@ extends Node
 ## Modo local (sin red) con LOCAL_PARALLEL: los humanos juegan por turnos en este PC.
 
 const COUNTDOWN := ["3", "2", "1", "¡YA!"]
-## Segundos reales máximos que el host espera a que los clientes carguen el minijuego.
-const READY_TIMEOUT := 8.0
+## Segundos reales máximos que el host espera a que los clientes carguen el minijuego. En web es más:
+## el navegador compila los sombreadores de un minijuego 3D al cargarlo y en un portátil modesto tarda.
+var ready_timeout := 20.0 if OS.has_feature("web") else 8.0
 ## Segundos reales máximos que un cliente espera la señal del host.
-const BEGIN_TIMEOUT := 15.0
+var begin_timeout := 30.0 if OS.has_feature("web") else 15.0
 ## (modo local por turnos) Segundos de juego sin que nadie toque nada tras los que se da el turno por
 ## vacío (p. ej. un "Jugador 2" de teclado 2 que nadie maneja): termina y su resultado lo simula la IA.
 const IDLE_TURN_SECONDS := 10.0
@@ -25,8 +26,6 @@ var _minigame: Minigame
 var _session: MinigameSession
 var _overlay: CanvasLayer
 var _frame: CanvasLayer      # capa desplazada: deja el 1280x720 del minijuego centrado cuando la ventana es más ancha
-var _bands_layer: CanvasLayer  # franjas laterales: prolongan el borde del minijuego (ver FrameBands)
-var _bands: FrameBands
 var _label: Label
 var _wait_label: Label
 
@@ -36,11 +35,6 @@ func _ready() -> void:
 	_frame = CanvasLayer.new()
 	_frame.layer = 1
 	add_child(_frame)
-	_bands_layer = CanvasLayer.new()
-	_bands_layer.layer = 2
-	add_child(_bands_layer)
-	_bands = FrameBands.new()
-	_bands_layer.add_child(_bands)
 	_center_frame()
 	get_viewport().size_changed.connect(_center_frame)
 	_build_overlay()
@@ -50,19 +44,11 @@ func _ready() -> void:
 	else:
 		await _run_shared()
 
-## Los minijuegos 2D se diseñan en 1280x720: si la ventana es más ancha, se centran (el fondo cubre toda la ventana).
+## Los minijuegos 2D se diseñan en 1280x720: si la ventana es más ancha, se centran y cada minijuego
+## pinta su escenario también en los lados (ver Minigame.view_rect()).
 func _center_frame() -> void:
 	var vr := get_viewport().get_visible_rect().size
 	_frame.offset = Vector2(maxf((vr.x - Palette.VIEWPORT_SIZE.x) * 0.5, 0.0), maxf((vr.y - Palette.VIEWPORT_SIZE.y) * 0.5, 0.0))
-	_bands.set_game_rect(_frame.offset, Palette.VIEWPORT_SIZE)
-
-## Las franjas solo hacen falta si sobra ventana y el minijuego no la llena él mismo
-## (los 3D ajustan su SubViewportContainer a toda la ventana).
-func _process(_delta: float) -> void:
-	var has_margin := _frame.offset.x > 0.5 or _frame.offset.y > 0.5
-	var mg_ok := is_instance_valid(_minigame) and _minigame.is_inside_tree()
-	var fills := mg_ok and not _minigame.find_children("*", "SubViewportContainer", false, false).is_empty()
-	_bands.visible = has_margin and mg_ok and not fills
 
 # ----------------------------------------------------------------------------
 # Ejecución común (online en ambos modelos; local en HOST_AUTHORITATIVE)
@@ -82,11 +68,11 @@ func _run_shared() -> void:
 		add_child(_session)
 		_session.setup(_minigame)
 		if is_host:
-			await _session.wait_for_clients(READY_TIMEOUT)
+			await _session.wait_for_clients(ready_timeout)
 			_session.send_begin(seed_value)
 		else:
 			_session.send_ready()
-			await _session.wait_for_begin(BEGIN_TIMEOUT)
+			await _session.wait_for_begin(begin_timeout)
 			seed_value = _session.seed_value
 
 	_minigame.configure(_meta.execution_mode, seed_value, Lobby.get_local_player())

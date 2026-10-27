@@ -65,6 +65,7 @@ var local_player: PlayerData = null
 
 ## Superficie de dibujo a pantalla completa (asignar draw_callback en _on_prepare).
 var surface: DrawSurface
+var _bg: BackgroundFX
 
 var _finished: bool = false
 var _reported: bool = false
@@ -83,10 +84,29 @@ func configure(p_mode: MinigameMeta.ExecutionMode, p_seed: int, p_local_player: 
 
 func prepare(p_players: Array[PlayerData]) -> void:
 	players = p_players
-	add_child(BackgroundFX.new())
+	_bg = BackgroundFX.new()
+	_bg.set_anchors_preset(Control.PRESET_TOP_LEFT)   # lo coloca _fit_background sobre view_rect()
+	add_child(_bg)
 	surface = DrawSurface.new()
 	add_child(surface)
+	_fit_background()
+	get_viewport().size_changed.connect(_fit_background)
 	_on_prepare()
+
+## Zona de la ventana que se ve, en las coordenadas del minijuego. El juego se diseña en 1280x720
+## (Rect2(0, 0, 1280, 720)) y esa zona es la misma para todos, también online; si la pantalla es más
+## ancha (o más alta), view_rect() se sale por los lados (x < 0 y x > 1280) y el minijuego pinta ahí
+## la continuación de su escenario: fondo, suelo, decorado. Usarlo en vez de 1280x720 para fondos
+## y destellos a pantalla completa.
+func view_rect() -> Rect2:
+	if surface == null or not surface.is_inside_tree():
+		return Rect2(Vector2.ZERO, Palette.VIEWPORT_SIZE)
+	return surface.get_global_transform_with_canvas().affine_inverse() * surface.get_viewport_rect()
+
+func _fit_background() -> void:
+	var r := view_rect()
+	_bg.position = r.position
+	_bg.size = r.size
 
 func start(p_players: Array[PlayerData]) -> void:
 	players = p_players

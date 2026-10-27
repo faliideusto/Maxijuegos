@@ -415,13 +415,15 @@ func _draw_space(cam: float) -> void:
 	var tint := _neon(_s.x, -0.1)
 	var top_c := Color(0.015, 0.01, 0.07).lerp(tint, 0.10)
 	var bot_c := Color(0.03, 0.01, 0.12).lerp(tint, 0.30)
-	s.draw_polygon(PackedVector2Array([Vector2(0, 0), Vector2(1280, 0), Vector2(1280, 720), Vector2(0, 720)]),
+	var vr := view_rect()
+	s.draw_polygon(PackedVector2Array([vr.position, Vector2(vr.end.x, vr.position.y), vr.end, Vector2(vr.position.x, vr.end.y)]),
 			PackedColorArray([top_c, top_c, bot_c, bot_c]))
 	var cam_px := cam * BLOCK
 	# Nebulosas: manchas enormes y suaves (círculos concéntricos casi transparentes).
-	for i in 3:
-		var nx := fposmod(i * 620.0 + 200.0 - cam_px * 0.05, 1900.0) - 300.0
-		var ny := 160.0 + i * 190.0
+	var neb_w := maxf(1900.0, ceilf((vr.size.x + 600.0) / 620.0) * 620.0)
+	for i in int(neb_w / 620.0):
+		var nx := fposmod(i * 620.0 + 200.0 - cam_px * 0.05, neb_w) + vr.position.x - 300.0
+		var ny := 160.0 + (i % 3) * 190.0
 		var nc := _neon(_s.x * 0.3 + i * 90.0, 0.0)
 		for k in 5:
 			s.draw_circle(Vector2(nx, ny), 300.0 - k * 55.0, Color(nc.r, nc.g, nc.b, 0.028))
@@ -436,12 +438,13 @@ func _draw_space(cam: float) -> void:
 	s.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	# Estrellas: 3 capas (lejos = pequeñas y lentas, cerca = grandes y rápidas) que titilan.
 	var now := Time.get_ticks_msec() / 1000.0
+	var star_w := maxf(1400.0, vr.size.x + 120.0)
 	for layer in 3:
 		var par := 0.08 + 0.17 * layer
-		for i in 46:
+		for i in int(46.0 * star_w / 1400.0):
 			var u := fposmod(i * 0.6180339887 + layer * 0.31, 1.0)
-			var v := fposmod(i * 0.7548776662 + layer * 0.17, 1.0)
-			var px := fposmod(u * 1400.0 - cam_px * par, 1400.0) - 60.0
+			var v := vr.position.y / 720.0 + fposmod(i * 0.7548776662 + layer * 0.17, 1.0) * vr.size.y / 720.0
+			var px := fposmod(u * star_w - cam_px * par, star_w) + vr.position.x - 60.0
 			var tw := 0.55 + 0.45 * sin(now * (1.5 + layer) + i * 1.7)
 			var sz := 1.4 + layer * 1.1
 			s.draw_circle(Vector2(px, v * 720.0), sz, Color(0.85, 0.92, 1.0, (0.35 + 0.2 * layer) * tw))
@@ -461,8 +464,9 @@ func _draw_game() -> void:
 	var sx := func(x: float) -> float: return (x - cam) * BLOCK
 	_draw_space(cam)
 	# Paredes: muestras cada 2 bloques más cada vértice de la línea central visible.
-	var x_a := cam - 2.0
-	var x_b := cam + 1280.0 / BLOCK + 2.0
+	var vr := view_rect()
+	var x_a := cam + vr.position.x / BLOCK - 2.0
+	var x_b := cam + vr.end.x / BLOCK + 2.0
 	var xs: Array = []
 	var xx := x_a
 	while xx <= x_b:
@@ -484,13 +488,15 @@ func _draw_game() -> void:
 	var edge_c := _neon(_s.x, 0.0)          # techo
 	var edge_f := _neon(_s.x, 0.16)         # suelo
 	var edge := edge_c
-	var cpoly := PackedVector2Array([Vector2(ceil_pts[0].x, -20)])
+	var top := vr.position.y - 20.0
+	var bottom := vr.end.y + 20.0
+	var cpoly := PackedVector2Array([Vector2(ceil_pts[0].x, top)])
 	cpoly.append_array(ceil_pts)
-	cpoly.append(Vector2(ceil_pts[ceil_pts.size() - 1].x, -20))
+	cpoly.append(Vector2(ceil_pts[ceil_pts.size() - 1].x, top))
 	s.draw_colored_polygon(cpoly, fill)
 	var fpoly := PackedVector2Array(floor_pts)
-	fpoly.append(Vector2(floor_pts[floor_pts.size() - 1].x, 740))
-	fpoly.append(Vector2(floor_pts[0].x, 740))
+	fpoly.append(Vector2(floor_pts[floor_pts.size() - 1].x, bottom))
+	fpoly.append(Vector2(floor_pts[0].x, bottom))
 	s.draw_colored_polygon(fpoly, fill)
 	# Rejilla dentro de las paredes (una línea por bloque entero).
 	var gx := ceilf(x_a)
@@ -498,8 +504,8 @@ func _draw_game() -> void:
 		var c := center_at(gx)
 		var h := half_at(gx)
 		var px: float = sx.call(gx)
-		s.draw_line(Vector2(px, -20), Vector2(px, _sy(c + h)), Color(edge.r, edge.g, edge.b, 0.07), 2.0)
-		s.draw_line(Vector2(px, _sy(c - h)), Vector2(px, 740), Color(edge.r, edge.g, edge.b, 0.07), 2.0)
+		s.draw_line(Vector2(px, top), Vector2(px, _sy(c + h)), Color(edge.r, edge.g, edge.b, 0.07), 2.0)
+		s.draw_line(Vector2(px, _sy(c - h)), Vector2(px, bottom), Color(edge.r, edge.g, edge.b, 0.07), 2.0)
 		gx += 1.0
 	# Bordes de neón: campo de energía que se desvanece hacia el interior del pasillo + núcleo blanco.
 	for wall in 2:
@@ -536,7 +542,7 @@ func _draw_game() -> void:
 		s.draw_rect(Rect2(-sz * 0.5, -sz * 0.5, sz, sz), Color(cc.r, cc.g, cc.b, clampf(float(sh.life) * 1.5, 0.0, 1.0)))
 	s.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	if _flash > 0.0:
-		s.draw_rect(Rect2(0, 0, 1280, 720), Color(1, 1, 1, _flash * 0.45))
+		s.draw_rect(view_rect(), Color(1, 1, 1, _flash * 0.45))
 	_draw_hud()
 
 func _draw_wave() -> void:

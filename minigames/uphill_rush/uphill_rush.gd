@@ -31,6 +31,7 @@ const RUN_SPEED := 6.2
 const BACK_SPEED := 4.5
 const ACCEL := 40.0
 const GRAVITY := 22.0
+const JUMP_BUFFER := 0.15                # s que se recuerda un salto pulsado justo antes de aterrizar
 const JUMP_V := 9.5                     # altura máxima ≈ 2 m: salta un coche, no una furgoneta
 const RESPAWN_DELAY := 1.4
 const INVULN := 1.6
@@ -66,6 +67,7 @@ class RS:
 	var hits: int = 0
 	var finished: bool = false
 	var jump_pending: bool = false
+	var jump_buf: float = 0.0               # salto pedido hace poco: se hace al tocar suelo (la pulsación remota llega con retraso)
 	# Eventos de este paso.
 	var ev_jump: bool = false
 	var ev_hit: bool = false
@@ -330,6 +332,7 @@ func _sim_step(r: RS, dt: float, inp: Vector2, jump: bool) -> void:
 	if jump and r.h <= 0.0:
 		r.vh = JUMP_V
 		r.ev_jump = true
+		r.jump_buf = 0.0
 	if r.h > 0.0 or r.vh > 0.0:
 		r.vh -= GRAVITY * dt
 		r.h += r.vh * dt
@@ -423,8 +426,11 @@ func _simulate(delta: float) -> void:
 		_update_traffic(STEP)
 		for pl in players:
 			var r2: RS = _rs[pl.id]
-			_sim_step(r2, STEP, inputs[pl.id] as Vector2, r2.jump_pending)
+			if r2.jump_pending:
+				r2.jump_buf = JUMP_BUFFER
 			r2.jump_pending = false
+			_sim_step(r2, STEP, inputs[pl.id] as Vector2, r2.jump_buf > 0.0)
+			r2.jump_buf = maxf(0.0, r2.jump_buf - STEP)
 			_collect_events(r2)
 	var all_done := true
 	for id in _order:

@@ -31,6 +31,8 @@ extends Node
 signal client_ready(peer_id: int)
 
 const INPUT_SEND_HZ := 30.0
+var _sent_held: bool = false
+var _logged_count: Dictionary = {}   # (solo registro de pruebas) último nº de pulsaciones remotas anotado
 
 var minigame: Minigame
 var is_host: bool = true
@@ -154,10 +156,13 @@ func _process(delta: float) -> void:
 		_press_count += presses
 		_press_count2 += presses2
 		_input_accum += delta
-		if presses > 0 or presses2 > 0 or _input_accum >= 1.0 / INPUT_SEND_HZ:
+		var held := InputManager.is_action_pressed(_local_player.id)
+		var held_changed := held != _sent_held
+		if presses > 0 or presses2 > 0 or held_changed or _input_accum >= 1.0 / INPUT_SEND_HZ:
+			_sent_held = held
 			_input_accum = 0.0
 			NetworkManager.send_to_host(NetProtocol.CH_MINIGAME,
-					{"op": "in", "m": InputManager.get_vector(_local_player.id), "c": _press_count, "c2": _press_count2}, false)
+					{"op": "in", "m": InputManager.get_vector(_local_player.id), "c": _press_count, "c2": _press_count2, "h": held}, false)
 
 ## (cliente, desde Minigame.submit_text) Envía al host el texto que escribe el jugador local.
 func send_text(text: String, final: bool) -> void:
@@ -264,12 +269,16 @@ func _host_on_input(peer_id: int, payload: Dictionary) -> void:
 	var move: Variant = payload.get("m", Vector2.ZERO)
 	var count: Variant = payload.get("c", 0)
 	var count2: Variant = payload.get("c2", 0)
-	if typeof(move) != TYPE_VECTOR2 or typeof(count) != TYPE_INT or typeof(count2) != TYPE_INT:
+	var held: Variant = payload.get("h", false)
+	if typeof(move) != TYPE_VECTOR2 or typeof(count) != TYPE_INT or typeof(count2) != TYPE_INT or typeof(held) != TYPE_BOOL:
 		return
 	var v: Vector2 = move
 	if not (is_finite(v.x) and is_finite(v.y)):
 		return
-	InputManager.set_remote_input(player.id, v, maxi(int(count), 0), maxi(int(count2), 0))
+	if int(count) > _logged_count.get(player.id, 0):
+		_logged_count[player.id] = int(count)
+		DevCli.log_event("remote_press player=%d count=%d" % [player.id, int(count)])
+	InputManager.set_remote_input(player.id, v, maxi(int(count), 0), maxi(int(count2), 0), bool(held))
 	inputs_applied += 1
 
 func _host_on_text(peer_id: int, payload: Dictionary) -> void:
@@ -316,7 +325,10 @@ func _client_on_snapshot(payload: Dictionary) -> void:
 func _client_on_event(payload: Dictionary) -> void:
 	if is_host or is_parallel:
 		return
-	minigame.deliver_event(String(payload.get("n", "")), payload.get("d"))
+	var ev_name := String(payload.get("n", ""))
+	if ev_name == "jump":
+		DevCli.log_event("ev jump %s" % [payload.get("d")])
+	minigame.deliver_event(ev_name, payload.get("d"))
 
 func _client_on_end(payload: Dictionary) -> void:
 	if is_host:

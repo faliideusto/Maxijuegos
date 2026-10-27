@@ -553,35 +553,41 @@ func _draw_game() -> void:
 
 func _draw_background() -> void:
 	var s := surface
-	s.draw_polygon(PackedVector2Array([Vector2(0, 0), Vector2(1280, 0), Vector2(1280, 720), Vector2(0, 720)]),
+	var v := view_rect().grow(8.0)   # (con margen para el temblor)
+	s.draw_polygon(PackedVector2Array([v.position, Vector2(v.end.x, v.position.y), v.end, Vector2(v.position.x, v.end.y)]),
 			PackedColorArray([Color(0.05, 0.04, 0.16), Color(0.05, 0.04, 0.16), Color(0.22, 0.12, 0.34), Color(0.22, 0.12, 0.34)]))
 	# Luna grande y bambú en siluetas (paralaje con la altura).
 	s.draw_circle(Vector2(1010, 170), 70.0, Color(1.0, 0.95, 0.78, 0.12))
 	s.draw_circle(Vector2(1010, 170), 52.0, Color(1.0, 0.96, 0.8))
-	for i in 11:
+	for i in range(floori((v.position.x - 40.0) / 118.0), ceili((v.end.x - 40.0) / 118.0) + 1):
 		var x := 40.0 + i * 118.0 + sin(i * 2.3) * 30.0
-		s.draw_line(Vector2(x, 0), Vector2(x, 720), Color(0.1, 0.16, 0.2, 0.55), 10.0)
-		var k := -fposmod(_cam_h * 0.35, 120.0)
-		while k < 740.0:
+		s.draw_line(Vector2(x, v.position.y), Vector2(x, v.end.y), Color(0.1, 0.16, 0.2, 0.55), 10.0)
+		var k := v.position.y - fposmod(_cam_h * 0.35 + v.position.y, 120.0)
+		while k < v.end.y + 20.0:
 			s.draw_line(Vector2(x - 6, k), Vector2(x + 6, k), Color(0.18, 0.26, 0.3, 0.7), 3.0)
 			k += 120.0
 
 func _draw_walls() -> void:
 	var s := surface
 	var brick := Color(0.13, 0.12, 0.2)
-	s.draw_rect(Rect2(0, 0, WALL_L, 720), brick)
-	s.draw_rect(Rect2(WALL_R, 0, 1280.0 - WALL_R, 720), brick)
+	var v := view_rect().grow(8.0)
+	s.draw_rect(Rect2(v.position.x, v.position.y, WALL_L - v.position.x, v.size.y), brick)
+	s.draw_rect(Rect2(WALL_R, v.position.y, v.end.x - WALL_R, v.size.y), brick)
 	# Ladrillos que suben con la cámara.
 	var off := fposmod(_cam_h, 60.0)
 	var y := off - 60.0
 	var row := 0
-	while y < 740.0:
+	while y > v.position.y:
+		y -= 120.0   # (mismo patrón de filas alternas)
+	while y < v.end.y + 20.0:
 		var shift := 0.0 if row % 2 == 0 else 40.0
 		for wall in 2:
-			var x0 := 0.0 if wall == 0 else WALL_R
-			var x1 := WALL_L if wall == 0 else 1280.0
+			var x0 := v.position.x if wall == 0 else WALL_R
+			var x1 := WALL_L if wall == 0 else v.end.x
 			s.draw_line(Vector2(x0, y), Vector2(x1, y), Color(0.05, 0.04, 0.1, 0.8), 3.0)
-			var bx := x0 - shift
+			# (las juntas siguen la rejilla de 80 px que empieza en x = 0 / WALL_R)
+			var bx := (0.0 if wall == 0 else WALL_R) - shift
+			bx -= ceilf((bx - x0) / 80.0) * 80.0
 			while bx < x1:
 				if bx > x0:
 					s.draw_line(Vector2(bx, y), Vector2(bx, y + 60.0), Color(0.05, 0.04, 0.1, 0.8), 3.0)
@@ -589,8 +595,8 @@ func _draw_walls() -> void:
 		y += 60.0
 		row += 1
 	# Cara interior iluminada.
-	s.draw_line(Vector2(WALL_L, 0), Vector2(WALL_L, 720), Color(0.7, 0.75, 1.0, 0.85), 5.0)
-	s.draw_line(Vector2(WALL_R, 0), Vector2(WALL_R, 720), Color(0.7, 0.75, 1.0, 0.85), 5.0)
+	s.draw_line(Vector2(WALL_L, v.position.y), Vector2(WALL_L, v.end.y), Color(0.7, 0.75, 1.0, 0.85), 5.0)
+	s.draw_line(Vector2(WALL_R, v.position.y), Vector2(WALL_R, v.end.y), Color(0.7, 0.75, 1.0, 0.85), 5.0)
 
 func _draw_blocks() -> void:
 	var s := surface

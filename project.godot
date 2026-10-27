@@ -13,6 +13,8 @@ config/features=PackedStringArray("4.7", "GL Compatibility")
 ; En web, Godot mezcla el audio él mismo (como en escritorio). El modo "Sample" por defecto deja muda la
 ; música y los efectos del juego (buses creados por código y streams generados en tiempo de ejecución).
 general/default_playback_type.web=0
+; El audio se mezcla en el hilo principal: con más margen (ms) aguanta los tirones sin cortarse.
+driver/output_latency.web=120
 
 [autoload]
 
@@ -33,6 +35,9 @@ window/size/viewport_width=1280
 window/size/viewport_height=720
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
+; En web se dibuja a la resolución de la ventana del navegador, no a la física (en pantallas retina/4K sería
+; 4 veces más píxeles y los juegos 3D irían a tirones).
+window/dpi/allow_hidpi.web=false
 
 [gui]
 

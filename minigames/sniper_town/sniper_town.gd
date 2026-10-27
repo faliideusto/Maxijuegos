@@ -36,6 +36,7 @@ const ACCEL := 45.0
 const AIR_ACCEL := 10.0
 const GRAVITY := 20.0
 const JUMP_V := 6.6                     # ≈ 1,1 m: se saltan las vallas bajas
+const JUMP_BUFFER := 0.15               # s que se recuerda un salto pulsado justo antes de aterrizar
 # --- Rifle ---
 const FIRE_CD := 1.25
 const SCOPE_TIME := 0.22
@@ -83,6 +84,7 @@ class SP:
 	var tank: bool = false
 	var fire_pending: bool = false
 	var jump_pending: bool = false
+	var jump_buf: float = 0.0           # salto pedido hace poco: se hace al tocar suelo (la pulsación remota llega con retraso)
 	var jump_count: int = 0
 	var killer: int = -1
 	var grounded: bool = true
@@ -725,10 +727,14 @@ func _sim_step(r: SP, pl: PlayerData, dt: float) -> void:
 	var a := ACCEL if r.grounded else AIR_ACCEL
 	r.vx = move_toward(r.vx, wish.x * speed, a * dt)
 	r.vz = move_toward(r.vz, wish.y * speed, a * dt)
-	if r.jump_pending and r.grounded:
+	if r.jump_pending:
+		r.jump_buf = JUMP_BUFFER
+	r.jump_pending = false
+	if r.jump_buf > 0.0 and r.grounded:
 		r.vh = JUMP_V
 		r.grounded = false
-	r.jump_pending = false
+		r.jump_buf = 0.0
+	r.jump_buf = maxf(0.0, r.jump_buf - dt)
 	r.x += r.vx * dt
 	r.z += r.vz * dt
 	_collide(r)

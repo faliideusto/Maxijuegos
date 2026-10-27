@@ -39,11 +39,27 @@ class RemoteState:
 	var count2: int = 0      # nº acumulado de pulsaciones del segundo botón (golpear)
 	var last_count2: int = 0
 	var presses2: int = 0
+	var held: bool = false   # botón de acción mantenido (derrapes, saltos largos...)
 
 var _bots: Dictionary = {}     # player_id -> BotState
 var _remotes: Dictionary = {}  # player_id -> RemoteState
+## Pulsaciones de los botones locales contadas por EVENTO (acción → nº). Un toque rápido que empieza
+## y acaba entre dos fotogramas (pasa con el juego a pocos fps) no se pierde, como sí podría
+## pasar mirando solo is_action_just_pressed.
+var _pending_presses: Dictionary = {}
+var _bound_actions: Array[StringName] = []   # botones de acción de los jugadores de este PC
+var _frame_presses: Dictionary = {}
+
+func _input(event: InputEvent) -> void:
+	if event.is_echo() or not event.is_pressed():
+		return
+	for action: StringName in _bound_actions:
+		if event.is_action_pressed(action):
+			_pending_presses[action] = int(_pending_presses.get(action, 0)) + 1
 
 func _process(delta: float) -> void:
+	_frame_presses = _pending_presses
+	_pending_presses = {}
 	for id in _bots:
 		var bot: BotState = _bots[id]
 		bot.change_timer -= delta
@@ -79,6 +95,7 @@ func unregister_player(p: PlayerData) -> void:
 	_remotes.erase(p.id)
 	for suffix in DIRECTIONS + ["action", "action2"]:
 		var action := _action_name(p.id, suffix)
+		_bound_actions.erase(StringName(action))
 		if InputMap.has_action(action):
 			InputMap.erase_action(action)
 
@@ -93,7 +110,7 @@ func available_devices() -> Array[String]:
 # Entrada remota (la fija MinigameSession en el host tras validarla)
 # ----------------------------------------------------------------------------
 
-func set_remote_input(player_id: int, move: Vector2, press_count: int, press_count2: int = 0) -> void:
+func set_remote_input(player_id: int, move: Vector2, press_count: int, press_count2: int = 0, held: bool = false) -> void:
 	var r: RemoteState = _remotes.get(player_id)
 	if r == null:
 		return
@@ -103,6 +120,7 @@ func set_remote_input(player_id: int, move: Vector2, press_count: int, press_cou
 		r.count = press_count
 	if press_count2 > r.count2:
 		r.count2 = press_count2
+	r.held = held
 
 ## Descarta pulsaciones remotas pendientes (p. ej. las hechas durante la cuenta atrás).
 func flush_remote_presses() -> void:
@@ -138,8 +156,7 @@ func action_presses(player_id: int) -> int:
 		return (_bots[player_id] as BotState).presses
 	if _remotes.has(player_id):
 		return (_remotes[player_id] as RemoteState).presses
-	var action := _action_name(player_id, "action")
-	return 1 if (InputMap.has_action(action) and Input.is_action_just_pressed(action)) else 0
+	return _local_presses(_action_name(player_id, "action"))
 
 ## Nº de pulsaciones del SEGUNDO botón (golpear) de este frame.
 func action2_presses(player_id: int) -> int:
@@ -147,14 +164,24 @@ func action2_presses(player_id: int) -> int:
 		return (_bots[player_id] as BotState).presses2
 	if _remotes.has(player_id):
 		return (_remotes[player_id] as RemoteState).presses2
-	var action := _action_name(player_id, "action2")
-	return 1 if (InputMap.has_action(action) and Input.is_action_just_pressed(action)) else 0
+	return _local_presses(_action_name(player_id, "action2"))
+
+## Pulsaciones de una acción local en este fotograma: las contadas por evento o, si la pulsó el código
+## (controles táctiles con Input.action_press), la de is_action_just_pressed.
+func _local_presses(action: StringName) -> int:
+	if not InputMap.has_action(action):
+		return 0
+	var n := mini(int(_frame_presses.get(action, 0)), MAX_REMOTE_PRESSES_PER_FRAME)
+	return maxi(n, 1 if Input.is_action_just_pressed(action) else 0)
 
 func is_action_just_pressed(player_id: int) -> bool:
 	return action_presses(player_id) > 0
 
 func is_action_pressed(player_id: int) -> bool:
-	if _bots.has(player_id) or _remotes.has(player_id):
+	if _remotes.has(player_id):
+		var r: RemoteState = _remotes[player_id]
+		return r.held or r.presses > 0
+	if _bots.has(player_id):
 		return action_presses(player_id) > 0
 	var action := _action_name(player_id, "action")
 	return InputMap.has_action(action) and Input.is_action_pressed(action)
@@ -170,6 +197,8 @@ func _bind_actions(p: PlayerData) -> void:
 	for suffix in DIRECTIONS + ["action", "action2"]:
 		var action := _action_name(p.id, suffix)
 		InputMap.add_action(action, DEADZONE)
+		if suffix.begins_with("action"):
+			_bound_actions.append(StringName(action))
 		for ev in _events_for(p.device, suffix):
 			InputMap.action_add_event(action, ev)
 

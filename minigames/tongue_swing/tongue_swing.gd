@@ -559,7 +559,8 @@ func _draw_game() -> void:
 	# Cielo de atardecer que se va haciendo noche.
 	var top_c := Color(0.10, 0.04, 0.26).lerp(Color(0.02, 0.01, 0.12), night)
 	var hor_c := Color(0.98, 0.45, 0.40).lerp(Color(0.40, 0.12, 0.50), night * 0.75)
-	s.draw_polygon(PackedVector2Array([Vector2(0, 0), Vector2(1280, 0), Vector2(1280, 720), Vector2(0, 720)]),
+	var v := view_rect()
+	s.draw_polygon(PackedVector2Array([v.position, Vector2(v.end.x, v.position.y), v.end, Vector2(v.position.x, v.end.y)]),
 			PackedColorArray([top_c, top_c, hor_c, hor_c]))
 	# Sol / luna.
 	var sun_x := fposmod(1000.0 - cam_px * 0.03, 1800.0) - 200.0
@@ -571,17 +572,19 @@ func _draw_game() -> void:
 	for layer in 2:
 		var par := 0.12 + 0.2 * layer
 		var col := Color(0.32, 0.12, 0.42).lerp(Color(0.12, 0.04, 0.22), layer * 0.7 + night * 0.3)
-		for i in 16:
+		var trees := maxi(16, ceili((v.size.x + 240.0) / 170.0))
+		for i in trees:
 			var u := fposmod(i * 0.6180339887 + layer * 0.37, 1.0)
-			var px := fposmod(i * 170.0 - cam_px * par, 16 * 170.0) - 120.0
+			var px := fposmod(i * 170.0 - cam_px * par, trees * 170.0) + v.position.x - 120.0
 			var h := 180.0 + u * 190.0 + layer * 40.0
 			s.draw_rect(Rect2(px + 70.0, 660.0 - h, 22.0 + layer * 8.0, h), col)
 			for c in 3:
 				s.draw_circle(Vector2(px + 80.0 + (c - 1) * 46.0, 660.0 - h - 6.0 + abs(c - 1) * 22.0), 62.0 - abs(c - 1) * 12.0, col)
 	# Luciérnagas.
-	for i in 22:
+	var fly_w := maxf(1400.0, v.size.x + 120.0)
+	for i in int(22.0 * fly_w / 1400.0):
 		var u := fposmod(i * 0.7548776662, 1.0)
-		var fx := fposmod(u * 1400.0 - cam_px * 0.5 + sin(now * 0.7 + i) * 30.0, 1400.0) - 60.0
+		var fx := fposmod(u * fly_w - cam_px * 0.5 + sin(now * 0.7 + i) * 30.0, fly_w) + v.position.x - 60.0
 		var fy := 120.0 + fposmod(i * 0.331, 1.0) * 420.0 + sin(now * 1.3 + i * 2.0) * 26.0
 		var tw := 0.4 + 0.6 * (0.5 + 0.5 * sin(now * 3.0 + i * 1.9))
 		s.draw_circle(Vector2(fx, fy), 7.0, Color(1.0, 1.0, 0.5, 0.10 * tw))
@@ -592,9 +595,9 @@ func _draw_game() -> void:
 	var next_i := _s.last + 1 if _s.anchor < 0 and not _dead else -1
 	if _s.anchor < 0 and not _dead:
 		aim = _pick(_s)
-	var i0 := _lower(_cam - 2.0)
+	var i0 := _lower(_cam + v.position.x / BLOCK - 2.0)
 	var i1 := i0
-	while i1 < _ax.size() and _ax[i1] < _cam + 28.0:
+	while i1 < _ax.size() and _ax[i1] < _cam + v.end.x / BLOCK + 2.0:
 		i1 += 1
 	for i in range(i0, i1):
 		if _broken.has(i):
@@ -602,7 +605,7 @@ func _draw_game() -> void:
 		var c := Vector2(_sx(_ax[i]), _sy(_ay[i]))
 		var frag := _af[i] == 1
 		var vine := Color(0.22, 0.62, 0.34) if not frag else Color(0.6, 0.35, 0.2)
-		s.draw_line(Vector2(c.x, -10), c, vine, 4.0)
+		s.draw_line(Vector2(c.x, v.position.y - 10.0), c, vine, 4.0)
 		var ring := Color(1.0, 0.85, 0.3) if not frag else Color(1.0, 0.45, 0.25)
 		var shake := Vector2.ZERO
 		if frag and _s.anchor == i:
@@ -623,17 +626,18 @@ func _draw_game() -> void:
 	# Pantano tóxico.
 	var sw := _sy(LAVA_Y)
 	var wave := PackedVector2Array()
-	for k in 33:
-		var wx := k * 40.0
+	var wx0 := floorf(v.position.x / 40.0) * 40.0
+	for k in int(v.size.x / 40.0) + 3:
+		var wx := wx0 + k * 40.0
 		wave.append(Vector2(wx, sw + sin(wx / 38.0 + now * 2.2 + cam_px * 0.01) * 5.0))
 	var poly := PackedVector2Array(wave)
-	poly.append(Vector2(1280, 730))
-	poly.append(Vector2(0, 730))
+	poly.append(Vector2(wave[wave.size() - 1].x, v.end.y + 10.0))
+	poly.append(Vector2(wave[0].x, v.end.y + 10.0))
 	s.draw_colored_polygon(poly, Color(0.06, 0.36, 0.20, 0.97))
 	s.draw_polyline(wave, Color(0.5, 1.0, 0.45, 0.30), 14.0, true)
 	s.draw_polyline(wave, Color(0.7, 1.0, 0.55), 4.0, true)
-	for k in 12:
-		var bx := fposmod(k * 131.0 - cam_px * 0.9, 1400.0) - 60.0
+	for k in int(12.0 * fly_w / 1400.0):
+		var bx := fposmod(k * 131.0 - cam_px * 0.9, fly_w) + v.position.x - 60.0
 		var by := sw + 10.0 + fposmod(now * 18.0 + k * 37.0, 50.0)
 		s.draw_arc(Vector2(bx, by), 5.0 + (k % 3) * 2.0, 0.0, TAU, 12, Color(0.7, 1.0, 0.6, 0.5), 2.0, true)
 	# Lengua.
@@ -661,7 +665,7 @@ func _draw_game() -> void:
 	s.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	_draw_fog(now)
 	if _flash > 0.0:
-		s.draw_rect(Rect2(0, 0, 1280, 720), Color(1, 1, 1, _flash * 0.4))
+		s.draw_rect(view_rect(), Color(1, 1, 1, _flash * 0.4))
 	_draw_hud()
 
 func _draw_frog(c: Vector2) -> void:
@@ -683,11 +687,12 @@ func _draw_frog(c: Vector2) -> void:
 ## Niebla venenosa que persigue: muro morado con ojos y aviso rojo cuando está cerca.
 func _draw_fog(now: float) -> void:
 	var s := surface
+	var v := view_rect()
 	var fx := _sx(chase_at(_time))
-	if fx < -120.0:
+	if fx < v.position.x - 120.0:
 		return
-	s.draw_rect(Rect2(-40, 0, fx - 60.0, 720), Color(0.16, 0.03, 0.24, 0.96))
-	for k in 10:
+	s.draw_rect(Rect2(v.position.x - 40.0, v.position.y, fx - 60.0 - v.position.x + 40.0, v.size.y), Color(0.16, 0.03, 0.24, 0.96))
+	for k in range(floori(v.position.y / 80.0), ceili(v.end.y / 80.0) + 1):
 		var cy := k * 80.0 + sin(now * 1.8 + k) * 18.0
 		s.draw_circle(Vector2(fx - 50.0 + sin(now * 2.3 + k * 1.7) * 14.0, cy), 78.0, Color(0.20, 0.04, 0.30, 0.95))
 		s.draw_circle(Vector2(fx - 10.0 + sin(now * 1.9 + k) * 12.0, cy + 30.0), 52.0, Color(0.5, 0.1, 0.6, 0.35))
@@ -700,7 +705,7 @@ func _draw_fog(now: float) -> void:
 	var gap := _s.pos.x - chase_at(_time)
 	if gap < 7.0 and not _dead:
 		var a := (0.25 + 0.2 * sin(now * 14.0)) * (1.0 - gap / 7.0)
-		s.draw_rect(Rect2(0, 0, 90, 720), Color(1.0, 0.1, 0.2, a))
+		s.draw_rect(Rect2(v.position.x, v.position.y, 90, v.size.y), Color(1.0, 0.1, 0.2, a))
 
 func _draw_hud() -> void:
 	var s := surface

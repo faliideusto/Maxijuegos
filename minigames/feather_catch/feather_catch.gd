@@ -120,8 +120,8 @@ func _on_prepare() -> void:
 		_clouds.append([Vector2(deco.randf_range(0, 1280), deco.randf_range(60, 380)), deco.randf_range(0.7, 1.3),
 				deco.randf_range(6.0, 16.0)])
 	var flower_colors := [Color("FF7AC6"), Color("FFFFFF"), Color("E8365D"), Color("FFD23F"), Color("FFB3D9")]
-	for i in 90:
-		_flowers.append([Vector2(deco.randf_range(0, 1280), deco.randf_range(612, 720)),
+	for i in 270:   # (también a los lados, para pantallas más anchas)
+		_flowers.append([Vector2(deco.randf_range(-1280, 2560), deco.randf_range(612, 720)),
 				flower_colors[deco.randi() % flower_colors.size()], deco.randf_range(4.0, 9.0)])
 	_flowers.sort_custom(func(a: Array, b: Array) -> bool: return a[0].y < b[0].y)
 	surface.draw_callback = _draw_game
@@ -597,13 +597,17 @@ func _draw_scenery() -> void:
 	var s := surface
 	var top := Color("2F7BEA")
 	var bottom := Color("A9DCFF")
-	s.draw_polygon(PackedVector2Array([Vector2(0, 0), Vector2(1280, 0), Vector2(1280, 560), Vector2(0, 560)]),
+	var v := view_rect()
+	if v.position.y < 0.0:
+		s.draw_rect(Rect2(v.position.x, v.position.y, v.size.x, -v.position.y), top)
+	s.draw_polygon(PackedVector2Array([Vector2(v.position.x, 0), Vector2(v.end.x, 0), Vector2(v.end.x, 560), Vector2(v.position.x, 560)]),
 			PackedColorArray([top, top, bottom, bottom]))
 	# Nubes que pasan despacio.
 	for c in _clouds:
 		var base: Vector2 = c[0]
 		var sc: float = c[1]
-		var x := fposmod(base.x + _time * float(c[2]), 1280.0 + 300.0) - 150.0
+		var span := maxf(v.size.x, 1280.0) + 300.0
+		var x := fposmod(base.x - v.position.x + _time * float(c[2]), span) + v.position.x - 150.0
 		var p := Vector2(x, base.y)
 		var white := Color(1, 1, 1, 0.92)
 		s.draw_circle(p + Vector2(0, 10) * sc, 34.0 * sc, Color(0.75, 0.85, 1.0, 0.6))
@@ -614,18 +618,28 @@ func _draw_scenery() -> void:
 	var far := PackedVector2Array([Vector2(0, 520), Vector2(120, 470), Vector2(260, 500), Vector2(420, 430),
 			Vector2(560, 480), Vector2(700, 455), Vector2(860, 500), Vector2(1000, 440), Vector2(1160, 490),
 			Vector2(1280, 470), Vector2(1280, 580), Vector2(0, 580)])
-	s.draw_colored_polygon(far, Color("6FAF7C"))
+	_draw_tiled(far, Color("6FAF7C"), v)
 	var near := PackedVector2Array([Vector2(0, 560), Vector2(180, 530), Vector2(380, 470), Vector2(520, 520),
 			Vector2(760, 500), Vector2(900, 540), Vector2(1100, 510), Vector2(1280, 545), Vector2(1280, 620),
 			Vector2(0, 620)])
-	s.draw_colored_polygon(near, Color("3E9B4F"))
-	s.draw_rect(Rect2(0, 600, 1280, 120), Color("5CC14E"))
-	s.draw_rect(Rect2(0, 596, 1280, 8), Color("7FD85F"))
+	_draw_tiled(near, Color("3E9B4F"), v)
+	s.draw_rect(Rect2(v.position.x, 600, v.size.x, v.end.y - 600), Color("5CC14E"))
+	s.draw_rect(Rect2(v.position.x, 596, v.size.x, 8), Color("7FD85F"))
 	for fl in _flowers:
 		var p: Vector2 = fl[0]
+		if p.x < v.position.x - 10.0 or p.x > v.end.x + 10.0:
+			continue
 		var r: float = fl[2]
 		s.draw_circle(p, r, fl[1])
 		s.draw_circle(p, r * 0.35, Color("FFE15A"))
+
+## Pinta un perfil de 1280 de ancho y lo repite a los lados, en espejo para que empalme sin saltos.
+func _draw_tiled(profile: PackedVector2Array, color: Color, v: Rect2) -> void:
+	for k in range(floori(v.position.x / 1280.0), ceili(v.end.x / 1280.0)):
+		var tile := PackedVector2Array()
+		for q in profile:
+			tile.append(Vector2(k * 1280.0 + (1280.0 - q.x if k % 2 != 0 else q.x), q.y))
+		surface.draw_colored_polygon(tile, color)
 
 ## Pluma: un óvalo alargado con el cañón en medio, inclinado según su vaivén. `pop` 0→1 al aparecer.
 func _draw_feather(center: Vector2, rot: float, kind: int, pop: float = 1.0) -> void:

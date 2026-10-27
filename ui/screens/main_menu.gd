@@ -8,6 +8,7 @@ var _music_value: Label
 var _sfx_value: Label
 var _mute_btn: JuicyButton
 var _fullscreen_btn: JuicyButton
+var _quality_btn: JuicyButton
 var _name_edit: LineEdit
 var _address_edit: LineEdit
 var _status: Label
@@ -151,7 +152,7 @@ func _build_online_card() -> void:
 	back.pressed.connect(_toggle_online)
 	box.add_child(back)
 
-## Ajustes: volumen de música y efectos, silencio (F10) y pantalla completa (F11).
+## Ajustes: volumen de música y efectos, silencio (F10), pantalla completa (F11) y calidad gráfica.
 func _build_settings_card() -> void:
 	_settings_card = PanelContainer.new()
 	_settings_card.visible = false
@@ -175,6 +176,17 @@ func _build_settings_card() -> void:
 	_fullscreen_btn.pressed.connect(Display.toggle_fullscreen)
 	box.add_child(_fullscreen_btn)
 	Display.fullscreen_changed.connect(func(_on: bool) -> void: _refresh_settings())
+	# Gráficos: AUTO → ALTA → MEDIA → BAJA → AUTO (si los juegos 3D van a tirones, BAJA).
+	_quality_btn = UIKit.button("", &"SecondaryButton", Vector2(420, 0))
+	_quality_btn.pressed.connect(func() -> void:
+		if Display.auto_quality:
+			Display.set_quality(Display.Quality.HIGH)
+		elif Display.quality == Display.Quality.LOW:
+			Display.set_quality(-1)
+		else:
+			Display.set_quality(Display.quality - 1)
+		_refresh_settings())
+	box.add_child(_quality_btn)
 	box.add_child(UIKit.label("Atajos: F10 silencia · F11 pantalla completa", &"HintLabel"))
 	var back := UIKit.button("VOLVER", &"DangerButton", Vector2(420, 0))
 	back.pressed.connect(_toggle_settings)
@@ -208,6 +220,7 @@ func _refresh_settings() -> void:
 	_sfx_value.text = "%d %%" % Audio.get_sfx_percent()
 	_mute_btn.text = "SONIDO: %s" % ("NO" if Audio.muted else "SÍ")
 	_fullscreen_btn.text = "PANTALLA COMPLETA: %s" % ("SÍ" if Display.is_fullscreen() else "NO")
+	_quality_btn.text = "GRÁFICOS: %s" % ("AUTO" if Display.auto_quality else Display.QUALITY_NAMES[Display.quality])
 
 func _toggle_settings() -> void:
 	_settings_card.visible = not _settings_card.visible
