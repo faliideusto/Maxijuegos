@@ -7,7 +7,8 @@ extends NetworkBackend
 ## señalización: por él pasan los mensajes para abrir la conexión, nunca la partida.
 ##
 ## Ids en PeerJS: el host es ID_PREFIX + código ("maxijuegos-v1-K7QF"); cada cliente, ese id + un sufijo
-## aleatorio. Protocolo (campo `payload` de los mensajes OFFER/ANSWER/CANDIDATE de PeerJS):
+## aleatorio. Todos los mensajes viajan como CANDIDATE de PeerJS con nuestro mensaje en `payload.mj`
+## (el servidor público cierra la conexión si un OFFER/ANSWER no trae el formato exacto de su librería):
 ##   c→h hello {id}                 el cliente pide entrar con su peer id de Godot (aleatorio)
 ##   h→c sdp {type:"offer", sdp}    el host abre la conexión WebRTC con ese cliente
 ##   c→h sdp {type:"answer", sdp}
@@ -93,7 +94,7 @@ func create_client(address: String, _port: int) -> MultiplayerPeer:
 		push_error("WebRTCBackend: no se pudo crear el cliente")
 		return null
 	_connect_signaling("%s-%s" % [_host_sig_id, _random_token(8)])
-	_send({"type": "OFFER", "dst": _host_sig_id, "payload": {"op": "hello", "id": _local_peer_id}})
+	_send(_host_sig_id, {"op": "hello", "id": _local_peer_id})
 	return _rtc
 
 func poll(delta: float) -> void:
@@ -166,7 +167,13 @@ func _close_signaling(leave: bool = true) -> void:
 	_ws = null
 	_open = false
 
-func _send(msg: Dictionary) -> void:
+## Envía `data` a otro id de PeerJS dentro de un CANDIDATE con la forma que acepta el servidor público.
+func _send(dst: String, data: Dictionary) -> void:
+	var msg := {"type": "CANDIDATE", "dst": dst, "payload": {
+		"type": "data", "connectionId": "mj_" + _random_token(8),
+		"candidate": {"candidate": "", "sdpMid": "0", "sdpMLineIndex": 0},
+		"mj": data,
+	}}
 	if _open and _ws != null:
 		_ws.send_text(JSON.stringify(msg))
 	else:
@@ -178,6 +185,8 @@ func _on_signal(text: String) -> void:
 		return
 	var src := String(msg.get("src", ""))
 	var payload: Variant = msg.get("payload", {})
+	if payload is Dictionary:
+		payload = payload.get("mj", null)
 	match String(msg.get("type", "")):
 		"OPEN":
 			_open = true
@@ -204,7 +213,7 @@ func _on_signal(text: String) -> void:
 		"LEAVE":
 			if _is_host:
 				_drop_pending_sig(src)
-		"OFFER", "ANSWER", "CANDIDATE":
+		"CANDIDATE":
 			if payload is Dictionary:
 				if _is_host:
 					_host_message(src, payload)
@@ -224,10 +233,10 @@ func _host_message(src: String, payload: Dictionary) -> void:
 			if _sig_to_peer.has(src):
 				return
 			if peer_id < 2 or _rtc.has_peer(peer_id):
-				_send({"type": "OFFER", "dst": src, "payload": {"op": "reject", "reason": "id"}})
+				_send(src, {"op": "reject", "reason": "id"})
 				return
 			if _rtc.get_peers().size() >= _max_clients:
-				_send({"type": "OFFER", "dst": src, "payload": {"op": "reject", "reason": "full"}})
+				_send(src, {"op": "reject", "reason": "full"})
 				return
 			var conn := _make_connection(src)
 			if conn == null:
@@ -316,11 +325,9 @@ func _make_connection(remote_sig_id: String) -> WebRTCPeerConnection:
 		return null
 	conn.session_description_created.connect(func(type: String, sdp: String) -> void:
 		conn.set_local_description(type, sdp)
-		_send({"type": "OFFER" if type == "offer" else "ANSWER", "dst": remote_sig_id,
-				"payload": {"op": "sdp", "type": type, "sdp": sdp}}))
+		_send(remote_sig_id, {"op": "sdp", "type": type, "sdp": sdp}))
 	conn.ice_candidate_created.connect(func(mid: String, index: int, cand: String) -> void:
-		_send({"type": "CANDIDATE", "dst": remote_sig_id,
-				"payload": {"op": "ice", "mid": mid, "index": index, "name": cand}}))
+		_send(remote_sig_id, {"op": "ice", "mid": mid, "index": index, "name": cand}))
 	return conn
 
 func _peer_connection(peer_id: int) -> WebRTCPeerConnection:

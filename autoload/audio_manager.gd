@@ -125,14 +125,46 @@ func stop_music(fade: float = 0.8) -> void:
 	play_music(&"", fade)
 
 func toggle_mute() -> void:
-	muted = not muted
+	set_muted(not muted)
+	_show_toast("Sonido: NO" if muted else "Sonido: SÍ")
+
+func set_muted(value: bool) -> void:
+	muted = value
+	if not enabled:
+		return
 	AudioServer.set_bus_mute(AudioServer.get_bus_index(MUSIC_BUS), muted)
 	AudioServer.set_bus_mute(AudioServer.get_bus_index(SFX_BUS), muted)
 	if muted:
 		for p in _sfx_players:
 			p.stop()
 	_save_settings()
-	_show_toast("Sonido: NO" if muted else "Sonido: SÍ")
+
+## Volumen de música y efectos en % (0-100) para la pantalla de ajustes; 100 = el del catálogo.
+func get_music_percent() -> int:
+	return _db_to_percent(music_db)
+
+func get_sfx_percent() -> int:
+	return _db_to_percent(sfx_db)
+
+func set_music_percent(percent: int) -> void:
+	music_db = _percent_to_db(percent)
+	_apply_and_save()
+
+func set_sfx_percent(percent: int) -> void:
+	sfx_db = _percent_to_db(percent)
+	_apply_and_save()
+
+func _apply_and_save() -> void:
+	if not enabled:
+		return
+	_apply_volumes()
+	_save_settings()
+
+static func _percent_to_db(percent: int) -> float:
+	return linear_to_db(clampi(percent, 0, 100) / 100.0) if percent > 0 else -80.0
+
+static func _db_to_percent(db: float) -> int:
+	return clampi(roundi(db_to_linear(db) * 100.0), 0, 100) if db > -79.0 else 0
 
 # ----------------------------------------------------------------------------
 # Música

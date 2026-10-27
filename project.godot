@@ -8,6 +8,12 @@ config/description="Party game multijugador de minijuegos (2-8 jugadores)."
 run/main_scene="res://ui/screens/main_menu.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
+[audio]
+
+; En web, Godot mezcla el audio él mismo (como en escritorio). El modo "Sample" por defecto deja muda la
+; música y los efectos del juego (buses creados por código y streams generados en tiempo de ejecución).
+general/default_playback_type.web=0
+
 [autoload]
 
 MinigameRegistry="*res://autoload/minigame_registry.gd"
@@ -19,6 +25,7 @@ Transition="*res://autoload/transition.gd"
 DevCli="*res://autoload/dev_cli.gd"
 Audio="*res://autoload/audio_manager.gd"
 TouchControls="*res://autoload/touch_controls.gd"
+Display="*res://autoload/display.gd"
 
 [display]
 

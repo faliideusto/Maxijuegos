@@ -1,6 +1,7 @@
 // Prueba ONLINE de la versión web: host + N clientes en pestañas de Chromium (Playwright), con salas por
 // código (WebRTC) y un servidor PeerJS local en vez del público.
 //
+// Con SIGNAL=public usa el servidor público de PeerJS (como en la web publicada).
 // Uso (desde la raíz del proyecto, con la exportación web en build/web):
 //   tests/web/serve.sh                         # sirve build/web con argumentos por URL + PeerJS local
 //   node tests/web/online_test.js [clientes] [minijuegos] [id_minijuego]
@@ -10,7 +11,8 @@ const N = parseInt(process.argv[2] || '2');
 const GAMES = parseInt(process.argv[3] || '2');
 const ONLY = process.argv[4] ? ` --only=${process.argv[4]}` : '';
 const URL = process.env.WEB_URL || 'http://localhost:8765/index.html';
-const COMMON = ' --signal=ws://127.0.0.1:9000 --log --autopilot --timescale=2';
+const SIGNAL = process.env.SIGNAL === 'public' ? '' : ' --signal=ws://127.0.0.1:9000';
+const COMMON = SIGNAL + ' --log --autopilot --timescale=2';
 
 (async () => {
   const browser = await chromium.launch({ args: ['--disable-features=WebRtcHideLocalIpsWithMdns'] });
