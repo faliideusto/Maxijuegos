@@ -2,15 +2,35 @@ class_name FrameBands
 extends ColorRect
 ## Rellena las franjas que quedan a los lados (o arriba/abajo) del minijuego 1280x720 cuando la
 ## ventana tiene otra proporción. En vez de un fondo ajeno, prolonga el propio borde del juego:
-## toma los píxeles junto a cada borde, los difumina y los oscurece un poco hacia fuera.
+## promedia la tira de píxeles junto a cada borde por tramos y funde un tramo con el siguiente (así
+## estrellas, suelo o texto no se estiran en rayas), y lo oscurece hacia fuera.
 ## No deforma el juego: solo pinta fuera de su rectángulo (dentro se descarta).
 
 const SHADER_CODE := """
 shader_type canvas_item;
 uniform sampler2D screen_tex : hint_screen_texture, filter_linear;
 uniform vec4 game_rect = vec4(0.0, 0.0, 1.0, 1.0); // posición y tamaño del juego en UV de pantalla
-uniform float dim_near = 0.88;
-uniform float dim_far = 0.5;
+uniform float dim_near = 0.7;
+uniform float dim_far = 0.3;
+
+const int SEGMENTS = 8;     // tramos a lo largo del borde
+const int TAPS = 6;         // muestras por lado de cada tramo (6x6)
+const float STRIP = 0.06;   // grosor de la tira del borde que se promedia (fracción del juego)
+
+// Color medio de un tramo de la tira del borde. Las muestras están en posiciones FIJAS (no siguen al
+// píxel), así que el resultado no hace escalones aunque haya estrellas o texto justo en el borde.
+vec3 segment_avg(vec2 strip_lo, vec2 strip_size, bool along_y, int seg) {
+	vec3 acc = vec3(0.0);
+	for (int i = 0; i < TAPS; i++) {
+		for (int j = 0; j < TAPS; j++) {
+			float a = (float(i) + 0.5) / float(TAPS);
+			float b = (float(seg) + (float(j) + 0.5) / float(TAPS)) / float(SEGMENTS);
+			vec2 f = along_y ? vec2(a, b) : vec2(b, a);
+			acc += texture(screen_tex, strip_lo + f * strip_size).rgb;
+		}
+	}
+	return acc / float(TAPS * TAPS);
+}
 
 void fragment() {
 	vec2 uv = SCREEN_UV;
@@ -19,22 +39,23 @@ void fragment() {
 	if (uv.x >= lo.x && uv.x <= hi.x && uv.y >= lo.y && uv.y <= hi.y) {
 		discard;
 	}
-	// Desenfoque de caja de 7x7 alrededor del punto del borde más cercano (metido hacia dentro
-	// para que ninguna muestra caiga fuera del juego).
-	vec2 stp = game_rect.zw * vec2(0.012, 0.01);
-	vec2 inset = stp * 3.5;
-	vec2 p = clamp(uv, lo + inset, hi - inset);
-	vec3 acc = vec3(0.0);
-	for (int i = -3; i <= 3; i++) {
-		for (int j = -3; j <= 3; j++) {
-			acc += texture(screen_tex, p + vec2(float(i), float(j)) * stp).rgb;
-		}
-	}
-	acc /= 49.0;
+	bool sides = uv.x < lo.x || uv.x > hi.x;
+	// Tira del juego pegada al borde más cercano.
+	vec2 strip_size = sides ? vec2(game_rect.z * STRIP, game_rect.w) : vec2(game_rect.z, game_rect.w * STRIP);
+	vec2 strip_lo = lo;
+	if (uv.x > hi.x) strip_lo.x = hi.x - strip_size.x;
+	if (uv.y > hi.y) strip_lo.y = hi.y - strip_size.y;
+	// Posición a lo largo del borde → mezcla suave entre los dos tramos más cercanos.
+	float along = sides ? (uv.y - lo.y) / game_rect.w : (uv.x - lo.x) / game_rect.z;
+	float t = clamp(along * float(SEGMENTS) - 0.5, 0.0, float(SEGMENTS - 1));
+	int s0 = int(floor(t));
+	int s1 = min(s0 + 1, SEGMENTS - 1);
+	vec3 col = mix(segment_avg(strip_lo, strip_size, sides, s0), segment_avg(strip_lo, strip_size, sides, s1),
+			smoothstep(0.0, 1.0, fract(t)));
 	// Oscurece según se aleja del juego (en fracción del tamaño del juego).
 	vec2 outside = max(lo - uv, uv - hi) / game_rect.zw;
 	float d = clamp(max(outside.x, outside.y) / 0.25, 0.0, 1.0);
-	COLOR = vec4(acc * mix(dim_near, dim_far, smoothstep(0.0, 1.0, d)), 1.0);
+	COLOR = vec4(col * mix(dim_near, dim_far, smoothstep(0.0, 1.0, d)), 1.0);
 }
 """
 

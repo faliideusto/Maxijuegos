@@ -148,6 +148,8 @@ func _make_card(p: PlayerData) -> Control:
 	name_edit.custom_minimum_size = Vector2(150, 0)
 	name_edit.add_theme_font_size_override("font_size", 22)
 	name_edit.editable = can_edit
+	# Los nombres de los demás no se editan, pero se tienen que leer igual de bien que el tuyo.
+	name_edit.add_theme_color_override("font_uneditable_color", name_edit.get_theme_color("font_color"))
 	# El cambio se confirma al pulsar Enter o salir del campo (online viaja al host).
 	name_edit.text_submitted.connect(func(t: String) -> void: Lobby.set_player_name(p, t))
 	name_edit.focus_exited.connect(func() -> void:
