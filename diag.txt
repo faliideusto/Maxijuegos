@@ -1,0 +1,36 @@
+maxijuegos-v1-ABCD-uxtro27p open
+maxijuegos-v1-ABCD-uxtro27p msg {"type":"OPEN"}
+maxijuegos-v1-TEST80 open
+maxijuegos-v1-TEST80 msg {"type":"OPEN"}
+maxijuegos-v1-TEST80 close 1005 
+maxijuegos-v1-ABCD-uxtro27p close 1005 
+host Godot Engine v4.7.1.stable.official.a13da4feb - https://godotengine.org
+host OpenGL API OpenGL ES 3.0 (WebGL 2.0 (OpenGL ES 3.0 Chromium)) - Compatibility - Using Device: WebKit - WebKit WebGL
+host Build configuration: Emscripten 4.0.20, single-threaded, no GDExtension support.
+host    at: render_target_set_msaa (drivers/gles3/storage/texture_storage.cpp:3210)
+host [EVT] roster n=0 humans=0
+host [EVT] roster n=1 humans=1
+host [EVT] host_room err=OK
+host [EVT] state=LOBBY index=-1 mg=-
+host WS wss://0.peerjs.com/peerjs?key=peerjs&id=maxijuegos-v1-MNNC&token=ej2uqc0bh07v&version=1.5.4
+host RX {"type":"OPEN"}
+host [EVT] room_open code=MNNC
+host TX {"type":"HEARTBEAT"}
+ROOM [EVT] room_open code=MNNC
+host TX {"type":"HEARTBEAT"}
+cli Godot Engine v4.7.1.stable.official.a13da4feb - https://godotengine.org
+cli OpenGL API OpenGL ES 3.0 (WebGL 2.0 (OpenGL ES 3.0 Chromium)) - Compatibility - Using Device: WebKit - WebKit WebGL
+cli Build configuration: Emscripten 4.0.20, single-threaded, no GDExtension support.
+cli    at: render_target_set_msaa (drivers/gles3/storage/texture_storage.cpp:3210)
+host TX {"type":"HEARTBEAT"}
+cli [EVT] roster n=0 humans=0
+cli [EVT] join_room err=OK
+cli WS wss://0.peerjs.com/peerjs?key=peerjs&id=maxijuegos-v1-MNNC-z6grykl8&token=0qq8kpfrd990&version=1.5.4
+cli RX {"type":"OPEN"}
+cli TX {"dst":"maxijuegos-v1-MNNC","payload":{"id":781630277,"op":"hello"},"type":"OFFER"}
+cli WS CLOSE
+cli WARNING: WebRTCBackend: No se pudo contactar con el servidor de salas.
+cli    at: push_warning (core/variant/variant_utility.cpp:1033)
+cli [EVT] join_failed: No se pudo contactar con el servidor de salas.
+host TX {"type":"HEARTBEAT"}
+host TX {"type":"HEARTBEAT"}
