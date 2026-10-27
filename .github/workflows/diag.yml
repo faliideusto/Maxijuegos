@@ -2,6 +2,8 @@ name: diag-peerjs
 on:
   push:
     branches: [claude/diag-peerjs]
+permissions:
+  contents: write
 jobs:
   diag:
     runs-on: ubuntu-latest
@@ -25,7 +27,7 @@ jobs:
             setTimeout(() => ws.close(), 8000);
           }
           JS
-          node ws.js
+          node ws.js 2>&1 | tee -a $GITHUB_WORKSPACE/diag.txt
       - name: godot web contra 0.peerjs.com
         run: |
           sed -i 's/"args":\[\]/"args":["--"].concat((new URLSearchParams(location.search).get("args")||"").split(" ").filter(Boolean))/' web/index.html
@@ -49,4 +51,8 @@ jobs:
             await b.close();
           })();
           JS
-          node g.js
+          node g.js 2>&1 | tee -a $GITHUB_WORKSPACE/diag.txt
+      - name: guardar log
+        if: always()
+        run: |
+          cd src && cp ../diag.txt . && git config user.name bot && git config user.email bot@x && git add diag.txt && git commit -qm "diag log [skip ci]" && git push -q origin HEAD:claude/diag-peerjs
