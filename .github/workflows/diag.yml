@@ -1,0 +1,52 @@
+name: diag-peerjs
+on:
+  push:
+    branches: [claude/diag-peerjs]
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: web, path: web }
+      - uses: actions/checkout@v4
+        with: { path: src }
+      - run: npm i ws playwright@1 && npx playwright install --with-deps chromium
+      - name: ws node
+        run: |
+          cat > ws.js <<'JS'
+          const WebSocket = require('ws');
+          for (const id of ['maxijuegos-v1-TEST' + Math.floor(Math.random()*1000), 'maxijuegos-v1-ABCD-' + Math.random().toString(36).slice(2,10)]) {
+            const ws = new WebSocket(`wss://0.peerjs.com/peerjs?key=peerjs&id=${id}&token=abc${Date.now()}&version=1.5.4`);
+            ws.on('open', () => console.log(id, 'open'));
+            ws.on('message', m => console.log(id, 'msg', m.toString()));
+            ws.on('close', (c, r) => console.log(id, 'close', c, r.toString()));
+            ws.on('error', e => console.log(id, 'error', e.message));
+            ws.on('unexpected-response', (q, res) => console.log(id, 'unexpected', res.statusCode, res.headers));
+            setTimeout(() => ws.close(), 8000);
+          }
+          JS
+          node ws.js
+      - name: godot web contra 0.peerjs.com
+        run: |
+          sed -i 's/"args":\[\]/"args":["--"].concat((new URLSearchParams(location.search).get("args")||"").split(" ").filter(Boolean))/' web/index.html
+          (cd web && python3 -m http.server 8765 &) ; sleep 2
+          cat > g.js <<'JS'
+          const { chromium } = require('playwright');
+          (async () => {
+            const b = await chromium.launch();
+            const logs = {};
+            const open = async (n, a) => { const p = await (await b.newContext()).newPage(); logs[n] = [];
+              p.on('console', m => { logs[n].push(m.text()); if (!/audio|MSAA|GL Driver/.test(m.text())) console.log(n, m.text().slice(0, 300)); });
+              p.on('websocket', ws => { console.log(n, 'WS', ws.url()); ws.on('framereceived', f => console.log(n, 'RX', String(f.payload).slice(0, 200))); ws.on('framesent', f => console.log(n, 'TX', String(f.payload).slice(0, 120))); ws.on('close', () => console.log(n, 'WS CLOSE')); ws.on('socketerror', e => console.log(n, 'WS ERR', e)); });
+              await p.goto('http://localhost:8765/index.html?args=' + encodeURIComponent(a)); };
+            await open('host', '--host --name=H --log');
+            await new Promise(r => setTimeout(r, 12000));
+            const l = logs.host.find(x => /room_open/.test(x));
+            console.log('ROOM', l);
+            const code = l ? l.match(/code=(\w+)/)[1] : 'ZZZZ';
+            await open('cli', `--join=${code} --name=C --log`);
+            await new Promise(r => setTimeout(r, 20000));
+            await b.close();
+          })();
+          JS
+          node g.js
