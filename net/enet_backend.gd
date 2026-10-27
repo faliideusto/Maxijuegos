@@ -11,6 +11,23 @@ const TIMEOUT_MAX_MS := 6000
 func get_backend_name() -> String:
 	return "LAN / IP"
 
+func get_join_hint() -> String:
+	return local_ip_hint()
+
+func get_join_hint_label() -> String:
+	return "IP para unirse"
+
+## Una IP de red local para decir a los amigos a qué dirección unirse ("" si no se encuentra).
+static func local_ip_hint() -> String:
+	for addr in IP.get_local_addresses():
+		if addr.begins_with("192.168.") or addr.begins_with("10."):
+			return addr
+		if addr.begins_with("172."):
+			var second := int(addr.split(".")[1])
+			if second >= 16 and second <= 31:
+				return addr
+	return ""
+
 func create_host(port: int, max_clients: int) -> MultiplayerPeer:
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_server(port, max_clients)

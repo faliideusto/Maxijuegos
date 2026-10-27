@@ -12,13 +12,16 @@ extends Node
 ##   - Entrar/salir jugadores del lobby, presentación del minijuego y transiciones de pantalla tienen sonido.
 ##
 ## Las pistas se generan en un hilo al arrancar (unos 12 s en total; el menú, en ~1 s) y suenan en cuanto
-## están listas. F10 silencia/activa todo el sonido; los volúmenes se guardan en user://settings.cfg.
-## En modo headless (pruebas) y en web no se genera ni se reproduce nada.
+## están listas. En web, sin hilos, se cargan ya generadas de res://audio/music/ (tools/bake_music.sh).
+## F10 silencia/activa todo el sonido; los volúmenes se guardan en user://settings.cfg.
+## En modo headless (pruebas) no se genera ni se reproduce nada.
 
 const SFX_POOL_SIZE := 14
 const SETTINGS_PATH := "user://settings.cfg"
 const MUSIC_BUS := &"Music"
 const SFX_BUS := &"SFX"
+## Pistas ya generadas para la versión web (tools/bake_music.sh).
+const BAKED_MUSIC_DIR := "res://audio/music"
 
 ## Volumen (dB) de música y efectos; 0 = el del catálogo. Se guardan en user://settings.cfg.
 var music_db: float = 0.0
@@ -32,7 +35,7 @@ var _music_a: AudioStreamPlayer
 var _music_b: AudioStreamPlayer
 var _music_active: AudioStreamPlayer
 var _current: StringName = &""
-var _tracks: Dictionary = {}          # id → AudioStreamWAV
+var _tracks: Dictionary = {}          # id → AudioStream (WAV generado u OGG en web)
 var _mutex := Mutex.new()
 var _thread: Thread
 var _stop_thread: bool = false
@@ -44,9 +47,7 @@ var _fades: Dictionary = {}           # AudioStreamPlayer → Tween (un fundido 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	# En web (demo del portfolio) tampoco hay sonido: las pistas se generan en un hilo y la exportación
-	# web sin hilos no puede hacerlo.
-	enabled = DisplayServer.get_name() != "headless" and not OS.has_feature("web")
+	enabled = DisplayServer.get_name() != "headless"
 	if not enabled:
 		return
 	_load_settings()
@@ -65,8 +66,10 @@ func _ready() -> void:
 	Lobby.roster_changed.connect(_on_roster_changed)
 	_roster_count = Lobby.players.size()
 	_build_toast()
-	_thread = Thread.new()
-	_thread.start(_generate_music)
+	# La exportación web no tiene hilos: allí las pistas se cargan ya generadas cuando se piden.
+	if not OS.has_feature("web"):
+		_thread = Thread.new()
+		_thread.start(_generate_music)
 	# La pantalla inicial es el menú.
 	play_music(&"menu", 0.0)
 
@@ -108,8 +111,10 @@ func play_music(id: StringName, fade: float = 0.8) -> void:
 	if id == &"":
 		_fade_out(_music_active, fade)
 		return
+	if OS.has_feature("web") and not _tracks.has(id):
+		_tracks[id] = _load_baked(id)
 	_mutex.lock()
-	var stream: AudioStreamWAV = _tracks.get(id)
+	var stream: AudioStream = _tracks.get(id)
 	_mutex.unlock()
 	if stream == null:
 		_fade_out(_music_active, fade)   # empezará cuando la pista esté lista (_process)
@@ -145,6 +150,17 @@ func _generate_music() -> void:
 		_ready_ids.append(id)
 		_mutex.unlock()
 
+## (web) Pista generada de antemano, en bucle. null si falta (sin música, como antes).
+func _load_baked(id: StringName) -> AudioStream:
+	var path := "%s/%s.ogg" % [BAKED_MUSIC_DIR, id]
+	if not ResourceLoader.exists(path):
+		push_warning("Audio: falta la pista %s (ejecuta tools/bake_music.sh)" % path)
+		return null
+	var stream := load(path) as AudioStreamOggVorbis
+	if stream != null:
+		stream.loop = true
+	return stream
+
 func _process(delta: float) -> void:
 	if not enabled:
 		return
@@ -158,7 +174,7 @@ func _process(delta: float) -> void:
 		DevCli.log_event("audio track_ready=%s" % id)
 		if id == _current and not _music_active.playing:
 			_mutex.lock()
-			var stream: AudioStreamWAV = _tracks[id]
+			var stream: AudioStream = _tracks[id]
 			_mutex.unlock()
 			_start_track(id, stream, 1.2)
 
@@ -169,7 +185,7 @@ func _make_music_player() -> AudioStreamPlayer:
 	add_child(p)
 	return p
 
-func _start_track(id: StringName, stream: AudioStreamWAV, fade: float) -> void:
+func _start_track(id: StringName, stream: AudioStream, fade: float) -> void:
 	DevCli.log_event("audio music=%s" % id)
 	var old := _music_active
 	var next := _music_b if old == _music_a else _music_a

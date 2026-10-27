@@ -12,6 +12,9 @@ var _busy: bool = false
 
 const WEB_BOTS := 3
 
+## (web) El código de ?sala=XXXX solo se usa la primera vez que se abre el menú.
+static var _url_code_used: bool = false
+
 func _ready() -> void:
 	UIKit.setup_screen(self)
 	_main_box = UIKit.centered_vbox(self, 18)
@@ -28,9 +31,9 @@ func _ready() -> void:
 	var local := UIKit.button("MODO LOCAL (PRUEBAS)", &"SecondaryButton")
 	local.pressed.connect(GameManager.go_to_lobby)
 	_main_box.add_child(local)
-	# En web (demo del portfolio) no hay red: solo se juega contra bots.
+	# En web: salas con código (WebRTC) y, en vez del modo local de pruebas, una partida contra bots.
 	if OS.has_feature("web"):
-		online.visible = false
+		online.text = "JUGAR CON AMIGOS"
 		local.text = "JUGAR CONTRA BOTS"
 		local.pressed.disconnect(GameManager.go_to_lobby)
 		local.pressed.connect(_play_vs_bots)
@@ -66,6 +69,19 @@ func _ready() -> void:
 	_notice.text = GameManager.take_notice()
 	GameManager.notice.connect(_on_notice)
 	NetworkManager.connection_failed.connect(_on_connection_failed)
+	_open_room_from_url()
+
+## (web) Si la página trae ?sala=XXXX (enlace de un amigo), abre "unirse" con el código ya puesto.
+func _open_room_from_url() -> void:
+	if _url_code_used:
+		return
+	_url_code_used = true
+	var code := WebRTCBackend.code_from_url()
+	if code.is_empty():
+		return
+	_toggle_online()
+	_address_edit.text = code
+	_set_status("Te han invitado a la sala %s: escribe tu nombre y pulsa UNIRSE." % code)
 
 ## (web) Lobby ya preparado: tú (WASD + Espacio o clic) contra 3 bots.
 func _play_vs_bots() -> void:
@@ -94,7 +110,9 @@ func _build_online_card() -> void:
 	box.add_theme_constant_override("separation", 12)
 	_online_card.add_child(box)
 	box.add_child(UIKit.label("JUEGO ONLINE", &"HeaderLabel"))
-	box.add_child(UIKit.label("Un jugador por PC · conexión por IP (Steam llegará más adelante)", &"HintLabel"))
+	var web := OS.has_feature("web")
+	box.add_child(UIKit.label("Crea una sala y pasa el código a tus amigos" if web
+			else "Un jugador por PC · conexión por IP (Steam llegará más adelante)", &"HintLabel"))
 
 	box.add_child(UIKit.label("Tu nombre:", &"HintLabel"))
 	_name_edit = LineEdit.new()
@@ -108,8 +126,8 @@ func _build_online_card() -> void:
 
 	box.add_child(UIKit.label("o únete a la sala de un amigo:", &"HintLabel"))
 	_address_edit = LineEdit.new()
-	_address_edit.text = "127.0.0.1"
-	_address_edit.placeholder_text = "IP del anfitrión"
+	_address_edit.text = "" if web else "127.0.0.1"
+	_address_edit.placeholder_text = "Código de sala (p. ej. K7QF)" if web else "IP del anfitrión"
 	box.add_child(_address_edit)
 	var join := UIKit.button("UNIRSE", &"SecondaryButton", Vector2(380, 0))
 	join.pressed.connect(_on_join)
@@ -132,7 +150,7 @@ func _toggle_online() -> void:
 func _on_host() -> void:
 	Lobby.save_profile_name(_name_edit.text)
 	if Lobby.host_room() != OK:
-		_set_status("No se pudo crear la sala (¿puerto ocupado?).")
+		_set_status("No se pudo crear la sala." if OS.has_feature("web") else "No se pudo crear la sala (¿puerto ocupado?).")
 		return
 	GameManager.go_to_lobby()
 
@@ -141,18 +159,19 @@ func _on_join() -> void:
 		return
 	var address := _address_edit.text.strip_edges()
 	if address.is_empty():
-		_set_status("Escribe una IP.")
+		_set_status("Escribe el código de la sala." if OS.has_feature("web") else "Escribe una IP.")
 		return
 	Lobby.save_profile_name(_name_edit.text)
 	_set_status("Conectando…")
 	_busy = true
 	if Lobby.join_room(address) != OK:
-		_set_status("Dirección no válida.")
+		_set_status("Ese código no es válido (son 4 letras o números)." if OS.has_feature("web") else "Dirección no válida.")
 		_busy = false
 
 func _on_connection_failed() -> void:
 	_busy = false
-	_set_status("No se pudo conectar.")
+	var reason := NetworkManager.backend.failure_reason
+	_set_status(reason if not reason.is_empty() else "No se pudo conectar.")
 
 func _on_notice(text: String) -> void:
 	_busy = false

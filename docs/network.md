@@ -46,6 +46,21 @@ de `NetworkManager` pero no se conocen entre sí más que por señales/lecturas 
   `SteamMultiplayerPeer` + `NetworkManager.set_backend(...)`. Los canales y RPC no cambian.
 - Protocolo y versión: `net/net_protocol.gd` (`VERSION` se compara al unirse).
 
+### Backend web: `WebRTCBackend` (salas con código)
+
+- En web no hay ENet: `NetworkManager` usa `net/webrtc_backend.gd` (`WebRTCMultiplayerPeer`, host = peer 1 como siempre;
+  los canales, RPC, lobby y minijuegos no cambian).
+- **Señalización**: servidor público y gratuito de PeerJS (`wss://0.peerjs.com`), solo para intercambiar ofertas/respuestas
+  SDP y candidatos ICE. El host se registra como `maxijuegos-v1-<CÓDIGO>` (4 caracteres sin I/O/0/1; si está cogido se sortea
+  otro). El cliente elige su peer id de Godot al azar, manda `hello` al host y este abre la conexión (oferta). Mensajes en el
+  `payload` de OFFER/ANSWER/CANDIDATE: `hello`, `sdp`, `ice`, `reject`. Sala inexistente → PeerJS devuelve EXPIRE →
+  "No existe ninguna sala con el código…". El cliente cierra la señalización al conectar; el host la mantiene (y se
+  reconecta si se cae) para que siga entrando gente.
+- STUN de Google; **sin TURN**: en redes muy restrictivas (NAT simétrico) la conexión directa puede fallar.
+- `DevCli --signal=ws://127.0.0.1:9000` usa un PeerJS local (pruebas: `tests/web/`).
+- Probado (Chromium, Playwright): partidas completas de 3 y 4 navegadores (LOCAL_PARALLEL y HOST_AUTHORITATIVE),
+  código inexistente, cliente que se va en el lobby (el host lo detecta en ~5 s) y host que se va (los clientes vuelven al menú).
+
 ## 4. Protocolo por canal
 
 Todos los mensajes son `Dictionary` con `op`. Un handler **nunca** confía en el contenido de un cliente.

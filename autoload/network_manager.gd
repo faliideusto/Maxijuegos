@@ -12,7 +12,7 @@ extends Node
 ##   - Mensajes cliente → host: los recibe solo el host; el handler debe validar el
 ##     contenido y que el remitente tiene derecho a hacer lo que pide.
 ## Para cambiar a Steam: SteamBackend (extends NetworkBackend) + set_backend(). Los RPC y
-## los canales no cambian.
+## los canales no cambian. En web (sin ENet) el backend es WebRTCBackend: salas con código.
 
 signal connected_to_host                 # (cliente) conexión establecida
 signal connection_failed                 # (cliente) no se pudo conectar
@@ -24,18 +24,23 @@ const DEFAULT_PORT := 24680
 ## Total 8 jugadores: el host + 7 clientes (un jugador por PC).
 const MAX_CLIENTS := 7
 
-var backend: NetworkBackend = ENetBackend.new()
+var backend: NetworkBackend = WebRTCBackend.new() if OS.has_feature("web") else ENetBackend.new()
 var is_online: bool = false
 
 ## canal (String) -> Callable(from_peer: int, payload: Variant)
 var _handlers: Dictionary = {}
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS   # la señalización no se detiene con el juego en pausa
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(func(id: int) -> void: peer_left.emit(id))
+
+func _process(delta: float) -> void:
+	if is_online:
+		backend.poll(delta)
 
 # ----------------------------------------------------------------------------
 # Conexión
@@ -48,6 +53,7 @@ func set_backend(new_backend: NetworkBackend) -> void:
 	backend = new_backend
 
 func host_game(port: int = DEFAULT_PORT) -> Error:
+	backend.failure_reason = ""
 	var peer := backend.create_host(port, MAX_CLIENTS)
 	if peer == null:
 		return FAILED
@@ -56,6 +62,7 @@ func host_game(port: int = DEFAULT_PORT) -> Error:
 	return OK
 
 func join_game(address: String, port: int = DEFAULT_PORT) -> Error:
+	backend.failure_reason = ""
 	var peer := backend.create_client(address, port)
 	if peer == null:
 		return FAILED
@@ -67,12 +74,20 @@ func disconnect_from_game() -> void:
 	if multiplayer.multiplayer_peer != null:
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	backend.close()
 	is_online = false
 
 ## (host) Expulsa a un peer.
 func kick(peer_id: int) -> void:
 	if is_online and multiplayer.is_server() and multiplayer.get_peers().has(peer_id):
 		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
+
+## (host) Lo que los demás necesitan para unirse (IP o código de sala) y cómo se llama en la UI.
+func join_hint() -> String:
+	return backend.get_join_hint() if is_online else ""
+
+func join_hint_label() -> String:
+	return backend.get_join_hint_label()
 
 ## true si somos el anfitrión o si no hay red (partida local).
 func is_host() -> bool:

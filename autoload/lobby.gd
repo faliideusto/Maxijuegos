@@ -69,17 +69,6 @@ func can_remove(p: PlayerData) -> bool:
 		return false
 	return not NetworkManager.is_online or p.peer_id != NetworkManager.local_peer_id() or p.is_bot
 
-## Una IP de red local para decir a los amigos a qué dirección unirse ("" si no se encuentra).
-func local_ip_hint() -> String:
-	for addr in IP.get_local_addresses():
-		if addr.begins_with("192.168.") or addr.begins_with("10."):
-			return addr
-		if addr.begins_with("172."):
-			var second := int(addr.split(".")[1])
-			if second >= 16 and second <= 31:
-				return addr
-	return ""
-
 # ----------------------------------------------------------------------------
 # Sala online
 # ----------------------------------------------------------------------------
